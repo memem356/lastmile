@@ -1,0 +1,852 @@
+<title>Lastmile</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Leitstand: Aufträge links, Karte in der Mitte, Betrieb und Fahrer rechts; Bernstein steht nur für Aufträge und Geld */
+:root {
+  --bg: #e3e7eb;
+  --panel: #f5f7f9;
+  --ink: #17202a;
+  --muted: #566574;
+  --line: #cbd3da;
+  --map-bg: #edf0f3;
+  --road-casing: #c0c8d0;
+  --road: #ffffff;
+  --road-major: #fffaf0;
+  --road-casing-major: #aab4be;
+  --cycle: #2f9a6c;
+  --label: #46535f;
+  --label-halo: #edf0f3;
+  --signal: #c96a00;
+  --on-signal: #160f04;
+  --route: #1f67c4;
+  --done: #98a5b2;
+  --ok: #1a7f4b;
+  --warn: #b3261e;
+  --poi: #66747f;
+  --home: #7d8a96;
+  --hub: #17202a;
+  --hub-ink: #f5f7f9;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1218; --panel: #151c24; --ink: #e2e8ee; --muted: #8d9bab; --line: #26313c;
+    --map-bg: #10161c; --road-casing: #0a0e13; --road: #2a3540; --road-major: #364250; --road-casing-major: #0a0e13;
+    --cycle: #3f9c77; --label: #8d9bab; --label-halo: #10161c;
+    --signal: #f0a23a; --route: #5aa6ff; --done: #4b5866; --ok: #4cc38a; --warn: #ff8a7a;
+    --poi: #9aa8b6; --home: #5b6877; --hub: #e2e8ee; --hub-ink: #0d1218;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1218; --panel: #151c24; --ink: #e2e8ee; --muted: #8d9bab; --line: #26313c;
+  --map-bg: #10161c; --road-casing: #0a0e13; --road: #2a3540; --road-major: #364250; --road-casing-major: #0a0e13;
+  --cycle: #3f9c77; --label: #8d9bab; --label-halo: #10161c;
+  --signal: #f0a23a; --route: #5aa6ff; --done: #4b5866; --ok: #4cc38a; --warn: #ff8a7a;
+  --poi: #9aa8b6; --home: #5b6877; --hub: #e2e8ee; --hub-ink: #0d1218;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 var(--font-ui);
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; min-width: 0; }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand svg { color: var(--signal); flex: none; }
+.brand .name { font-weight: 600; font-size: 19px; letter-spacing: 0.01em; }
+.brand .scope { font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.gauges { display: flex; align-items: baseline; gap: 28px; flex-wrap: wrap; }
+.gauge { display: flex; align-items: baseline; gap: 10px; }
+.gauge .lbl { font: 500 11px var(--font-mono); letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+.gauge .val { font: 500 21px var(--font-mono); font-variant-numeric: tabular-nums; }
+.gauge .val.cash { color: var(--ink); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 500 12px var(--font-mono); padding: 6px 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+
+.grid { display: grid; grid-template-columns: 324px minmax(0, 1fr) 324px; gap: 12px; min-height: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; overflow: auto; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.panel h2 { margin: 0; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.panel h2 .count { color: var(--ink); }
+.block { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.field-label { font-size: 12px; color: var(--muted); }
+select {
+  width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px;
+  padding: 8px 9px; font: 14px var(--font-ui);
+}
+
+button.btn {
+  font: 500 13px var(--font-ui); padding: 9px 12px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: left;
+}
+button.btn:hover:not(:disabled) { border-color: var(--muted); }
+button.btn.primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); font-weight: 600; }
+button.btn.primary:hover:not(:disabled) { filter: brightness(1.06); border-color: var(--signal); }
+button.btn:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
+kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); background: var(--panel); }
+
+.rows { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 0; }
+.rows dt { color: var(--muted); font-size: 13px; }
+.rows dd { margin: 0; font: 500 13px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.rows .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); height: 0; margin: 2px 0; }
+.rows dt.total { font-weight: 500; color: var(--ink); }
+.rows dd.total { color: var(--ink); }
+.pos { color: var(--ok); } .neg { color: var(--warn); }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 2px 9px; border-radius: 99px; border: 1px solid currentColor; font-size: 12px; font-weight: 500; align-self: flex-start; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.s-idle { color: var(--muted); } .s-drive { color: var(--route); } .s-wait { color: var(--signal); } .s-done { color: var(--ok); }
+
+/* Bestellungen */
+.olist, .dlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.order { border: 1px solid var(--line); border-radius: 5px; background: var(--bg); overflow: hidden; }
+.order.sel { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
+.ocard { all: unset; box-sizing: border-box; display: grid; gap: 3px; width: 100%; padding: 9px 10px; cursor: pointer; }
+.ocard:focus-visible { outline: 2px solid var(--route); outline-offset: -2px; }
+.o-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; min-width: 0; }
+.o-top strong { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o-pay { font: 500 13px var(--font-mono); color: var(--signal); font-variant-numeric: tabular-nums; flex: none; }
+.o-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o-age { display: flex; align-items: center; gap: 8px; font: 400 11px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.o-bar { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.o-bar i { display: block; height: 100%; background: var(--ok); }
+.o-bar i.mid { background: var(--signal); } .o-bar i.late { background: var(--done); }
+.assign { border-top: 1px solid var(--line); padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; background: var(--panel); }
+.assign .btn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 7px 10px; }
+.assign .btn small { grid-column: 1 / -1; font: 400 11px var(--font-mono); color: var(--muted); }
+.assign .btn .net { font: 500 12px var(--font-mono); color: var(--ok); }
+.assign .btn .tag { font: 500 10px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--route); margin-left: 6px; }
+.empty { color: var(--muted); font-size: 13px; padding: 10px; border: 1px dashed var(--line); border-radius: 5px; }
+
+/* Fahrer */
+.driver { border: 1px solid var(--line); border-radius: 5px; background: var(--bg); }
+.driver.sel { border-color: var(--route); box-shadow: inset 0 0 0 1px var(--route); }
+.dcard { all: unset; box-sizing: border-box; display: grid; gap: 4px; width: 100%; padding: 9px 10px; cursor: pointer; }
+.dcard:focus-visible { outline: 2px solid var(--route); outline-offset: -2px; }
+.d-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.d-top strong { font-weight: 600; }
+.d-veh { font: 400 12px var(--font-mono); color: var(--muted); }
+.d-line { font-size: 12px; color: var(--muted); min-height: 18px; }
+.hire { display: grid; gap: 8px; }
+
+.logwrap { display: flex; flex-direction: column; gap: 10px; min-height: 150px; flex: 1; }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; min-height: 0; }
+.log li { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; font-size: 13px; }
+.log time { font: 400 12px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.log li.hl span { color: var(--ok); font-weight: 500; }
+.log li.bad span { color: var(--warn); }
+
+.mapwrap { position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--map-bg); min-height: 360px; min-width: 0; }
+.mapwrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.mapwrap canvas.pointer { cursor: pointer; }
+.mapwrap canvas.dragging { cursor: grabbing; }
+.mapctl { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; }
+.mapctl button { width: 34px; height: 34px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 4px; cursor: pointer; font: 500 16px var(--font-mono); display: grid; place-items: center; }
+.mapctl button:hover { border-color: var(--muted); }
+.legend { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: calc(100% - 70px); padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; flex: none; }
+.attr { position: absolute; right: 0; bottom: 0; padding: 3px 9px; font-size: 11px; background: var(--panel); color: var(--muted); border-top-left-radius: 4px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.attr a { color: var(--ink); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--panel); padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; transform: translate(12px, 12px); z-index: 5; }
+.keys { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
+
+:focus-visible { outline: 2px solid var(--route); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  html, body { height: auto; }
+  .app { height: auto; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .mapwrap { order: -1; height: 62vh; min-height: 340px; }
+  .panel { overflow: visible; }
+  .log { max-height: 260px; }
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h8V8h10"/><circle cx="4" cy="20" r="1.6" fill="currentColor"/><circle cx="22" cy="8" r="2.4"/></svg>
+      <span class="name">Lastmile</span>
+      <span class="scope">Essen · Innenstadt</span>
+    </div>
+    <div class="gauges">
+      <div class="gauge"><span class="lbl">Kasse</span><span class="val cash" id="cash">100,00 €</span></div>
+      <div class="gauge"><span class="lbl">Fr</span><time class="val" id="clock">11:52:00</time></div>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Simulationsgeschwindigkeit" id="speedSeg">
+        <button type="button" data-s="1" aria-pressed="false">1×</button>
+        <button type="button" data-s="10" aria-pressed="true">10×</button>
+        <button type="button" data-s="30" aria-pressed="false">30×</button>
+        <button type="button" data-s="60" aria-pressed="false">60×</button>
+      </div>
+      <button type="button" class="btn" id="pauseBtn" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <aside class="panel" aria-label="Bestellungen">
+      <div class="block">
+        <h2>Offene Bestellungen <span class="count" id="ocount">0</span></h2>
+        <ul class="olist" id="olist"></ul>
+        <p class="note" id="ohint">Bestellung wählen, dann einen freien Fahrer zuweisen.</p>
+      </div>
+    </aside>
+
+    <section class="mapwrap" id="mapwrap">
+      <canvas id="map" role="img" aria-label="Straßenkarte der Essener Innenstadt mit Hub, Bestellungen und Fahrern"></canvas>
+      <div class="legend">
+        <span><i style="width:12px;height:12px;border-radius:3px;background:var(--hub);"></i>Hub</span>
+        <span><i style="width:10px;height:10px;border-radius:50%;background:var(--signal);"></i>Bestellung</span>
+        <span><i style="width:10px;height:10px;border-radius:50%;background:var(--route);"></i>Fahrer</span>
+      </div>
+      <div class="mapctl">
+        <button type="button" id="zin" aria-label="Vergrößern">+</button>
+        <button type="button" id="zout" aria-label="Verkleinern">−</button>
+        <button type="button" id="zfit" aria-label="Ganze Karte zeigen" title="Ganze Karte zeigen (F)">⌖</button>
+      </div>
+      <div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a></div>
+      <div class="tip" id="tip" hidden></div>
+    </section>
+
+    <aside class="panel" aria-label="Betrieb und Fahrer">
+      <div class="block">
+        <h2>Fahrer <span class="count" id="dcount">1 / 4</span></h2>
+        <ul class="dlist" id="dlist"></ul>
+      </div>
+
+      <div class="block hire">
+        <h2>Fahrer einstellen</h2>
+        <label class="field-label" for="hireVeh">Fahrzeug</label>
+        <select id="hireVeh"></select>
+        <button type="button" class="btn primary" id="hireBtn">Einstellen</button>
+        <p class="note" id="hireNote"></p>
+      </div>
+
+      <div class="block">
+        <h2>Betrieb heute</h2>
+        <dl class="rows">
+          <dt>Lieferungen</dt><dd id="sN">0</dd>
+          <dt>Ø Lieferzeit</dt><dd id="sAge">–</dd>
+          <dt>Lieferlohn</dt><dd id="sPay">0,00 €</dd>
+          <dt>Trinkgeld</dt><dd id="sTip">0,00 €</dd>
+          <dt>Fahrzeugkosten</dt><dd id="sCost">0,00 €</dd>
+          <div class="sep"></div>
+          <dt class="total">Gewinn</dt><dd class="total" id="sProfit">0,00 €</dd>
+        </dl>
+      </div>
+
+      <div class="logwrap">
+        <h2>Protokoll</h2>
+        <ol class="log" id="log"></ol>
+      </div>
+      <p class="keys"><span><kbd>A</kbd> schnellsten Fahrer zuweisen</span><span><kbd>↑</kbd><kbd>↓</kbd> Bestellung wählen</span><span><kbd>Leertaste</kbd> Pause</span><span><kbd>F</kbd> Karte einpassen</span></p>
+    </aside>
+  </main>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+/*ENGINE*/
+
+(function () {
+  'use strict';
+  const E = createEngine(DATA);
+  const { N, nx, ny, ways, pois, homes, TYPE_LABEL, VEHICLES, nets, HUB, bounds } = E;
+  const $ = id => document.getElementById(id);
+  const FONT = '"IBM Plex Sans", system-ui, sans-serif';
+
+  // Spielwerte (Testwerte für Phase 2, werden in Phase 4/5 ausbalanciert)
+  const CFG = {
+    startCash: 100, hireFee: 60, maxDrivers: 4,
+    vehPrice: { bike: 80, scooter: 280, van: 650 },
+    kmCost: { bike: 0, scooter: 0.12, van: 0.35 },
+    payBase: 5, payPerKm: 2.5, detour: 1.25,
+    tipMax: 0.25, targetBaseMin: 15, targetPerKm: 5,
+    spawnMean: 240, spawnMin: 45, maxOpen: 7, firstOrders: 2
+  };
+
+  const nf = d => new Intl.NumberFormat('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const eur = v => nf(2).format(v) + ' €';
+  const seur = v => (v >= 0 ? '+' : '−') + nf(2).format(Math.abs(v)) + ' €';
+  const fmtDist = m => m < 1000 ? Math.round(m).toLocaleString('de-DE') + ' m' : nf(2).format(m / 1000) + ' km';
+  const fmtMin = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const fmtClock = s => { s = Math.floor(s) + 11 * 3600 + 52 * 60; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, c = s % 60; return [h, m, c].map(v => String(v).padStart(2, '0')).join(':'); };
+  const setText = (el, t) => { if (el._t !== t) { el.textContent = t; el._t = t; } };
+
+  // ---------- Theme ----------
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  let T = null, themeSig = '';
+  function readTheme() {
+    const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+    T = { mapbg: g('--map-bg'), casing: g('--road-casing'), road: g('--road'), roadMajor: g('--road-major'), casingMajor: g('--road-casing-major'),
+      cycle: g('--cycle'), label: g('--label'), halo: g('--label-halo'), signal: g('--signal'), route: g('--route'), done: g('--done'),
+      poi: g('--poi'), home: g('--home'), hub: g('--hub'), hubInk: g('--hub-ink'), ink: g('--ink'), ok: g('--ok') };
+  }
+
+  // ---------- Spielzustand ----------
+  let orders = [], drivers = [], orderSeq = 1001, cash = CFG.startCash;
+  let simClock = 0, paused = false, speed = 10, nextSpawn = 2, dirty = true;
+  const stats = { n: 0, pay: 0, tip: 0, cost: 0, ageSum: 0 };
+  const sel = { order: null, driver: 1, preview: null };
+  let plans = {};           // Zuweisungsvorschläge für die gewählte Bestellung: Fahrer-ID -> Plan
+  let plansDirty = true, orderStructDirty = true, driverStructDirty = true;
+  const cam = { x: 0, y: 0, s: 0.5 };
+  let cw = 0, ch = 0, dpr = 1;
+
+  const cv = $('map'), ctx = cv.getContext('2d'), wrap = $('mapwrap');
+  const sx = new Float32Array(N), sy = new Float32Array(N);
+
+  // ---------- Straßenstil ----------
+  const W = [16, 12, 10, 8, 6.5, 5, 4, 2.5];
+  const MINPX = [3, 2.6, 2.2, 1.8, 1.4, 1.2, 1, 1];
+  const byClass = [[], [], [], [], [], [], [], []];
+  for (const w of ways) byClass[w.c].push(w);
+  const DRAW_ORDER = [6, 5, 4, 3, 2, 1, 0];
+  const labelCands = [];
+  for (const w of ways) {
+    if (!w.name || w.c > 5) continue;
+    let best = null, bl = 0;
+    for (let k = 1; k < w.nodes.length; k++) {
+      const a = w.nodes[k - 1], b = w.nodes[k], l = Math.hypot(nx[b] - nx[a], ny[b] - ny[a]);
+      if (l > bl) { bl = l; best = [a, b]; }
+    }
+    if (best && bl > 30) labelCands.push({ name: w.name, c: w.c, a: best[0], b: best[1], len: bl });
+  }
+  labelCands.sort((p, q) => p.c - q.c || q.len - p.len);
+  const textW = new Map();
+
+  // ---------- Kamera ----------
+  function fit() {
+    const bw = bounds.maxX - bounds.minX, bh = bounds.maxY - bounds.minY;
+    cam.x = (bounds.minX + bounds.maxX) / 2; cam.y = (bounds.minY + bounds.maxY) / 2;
+    cam.s = Math.max(0.05, Math.min(cw / (bw * 1.04), ch / (bh * 1.04)));
+    dirty = true;
+  }
+  function zoomAt(px, py, k) {
+    const ns = Math.min(4, Math.max(0.08, cam.s * k));
+    const wx = (px - cw / 2) / cam.s + cam.x, wy = (py - ch / 2) / cam.s + cam.y;
+    cam.s = ns; cam.x = wx - (px - cw / 2) / cam.s; cam.y = wy - (py - ch / 2) / cam.s;
+    dirty = true;
+  }
+  function resize() {
+    const r = wrap.getBoundingClientRect(), first = cw === 0;
+    cw = Math.max(1, Math.round(r.width)); ch = Math.max(1, Math.round(r.height)); dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    if (first) fit();
+    dirty = true;
+  }
+  const toX = x => (x - cam.x) * cam.s + cw / 2, toY = y => (y - cam.y) * cam.s + ch / 2;
+
+  // ---------- Zeichnen ----------
+  function roadPath(list) {
+    ctx.beginPath();
+    const x0 = cam.x - cw / 2 / cam.s - 20, x1 = cam.x + cw / 2 / cam.s + 20, y0 = cam.y - ch / 2 / cam.s - 20, y1 = cam.y + ch / 2 / cam.s + 20;
+    for (const w of list) {
+      const b = w.bb; if (b[2] < x0 || b[0] > x1 || b[3] < y0 || b[1] > y1) continue;
+      const n = w.nodes; ctx.moveTo(sx[n[0]], sy[n[0]]);
+      for (let k = 1; k < n.length; k++) ctx.lineTo(sx[n[k]], sy[n[k]]);
+    }
+  }
+  function halo(text, x, y, color) {
+    ctx.lineWidth = 3; ctx.strokeStyle = T.halo; ctx.lineJoin = 'round'; ctx.strokeText(text, x, y);
+    ctx.fillStyle = color; ctx.fillText(text, x, y);
+  }
+  function drawRoads() {
+    const s = cam.s;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const c of DRAW_ORDER) {
+      const list = byClass[c]; if (!list.length) continue;
+      const wpx = Math.max(MINPX[c], W[c] * s), major = c <= 2;
+      roadPath(list); ctx.strokeStyle = major ? T.casingMajor : T.casing; ctx.lineWidth = wpx + 2; ctx.stroke();
+      roadPath(list); ctx.strokeStyle = major ? T.roadMajor : T.road; ctx.lineWidth = wpx; ctx.stroke();
+    }
+    if (byClass[7].length) {
+      roadPath(byClass[7]); ctx.strokeStyle = T.cycle; ctx.lineWidth = Math.max(1.2, 2 * s);
+      ctx.setLineDash(s > 0.3 ? [5, 4] : []); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  function drawLabels() {
+    if (cam.s < 0.22) return;
+    ctx.font = '500 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const placed = [];
+    for (const l of labelCands) {
+      const pxLen = l.len * cam.s; if (pxLen < 50) continue;
+      let tw = textW.get(l.name); if (tw === undefined) { tw = ctx.measureText(l.name).width; textW.set(l.name, tw); }
+      if (pxLen < tw + 14) continue;
+      const ax = sx[l.a], ay = sy[l.a], bx = sx[l.b], by = sy[l.b], mx = (ax + bx) / 2, my = (ay + by) / 2;
+      if (mx < -40 || mx > cw + 40 || my < -20 || my > ch + 20) continue;
+      let ok = true; for (const p of placed) if (Math.hypot(p.x - mx, p.y - my) < p.r + tw / 2 + 6) { ok = false; break; }
+      if (!ok) continue;
+      placed.push({ x: mx, y: my, r: tw / 2 });
+      let ang = Math.atan2(by - ay, bx - ax); if (ang > Math.PI / 2) ang -= Math.PI; else if (ang < -Math.PI / 2) ang += Math.PI;
+      ctx.save(); ctx.translate(mx, my); ctx.rotate(ang); halo(l.name, 0, 0, T.label); ctx.restore();
+    }
+  }
+  function strokePts(xs, ys, from, to, extra) {
+    ctx.beginPath(); ctx.moveTo(toX(xs[from]), toY(ys[from]));
+    for (let i = from + 1; i <= to; i++) ctx.lineTo(toX(xs[i]), toY(ys[i]));
+    if (extra) ctx.lineTo(toX(extra.x), toY(extra.y));
+  }
+  // emph: 0 = dezent, 1 = hervorgehoben
+  function drawRouteLeg(leg, idx, cur, dashed, emph) {
+    const n = leg.xs.length; if (n < 2) return;
+    const w = 2.5 + 2 * emph;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([]);
+    if (cur && emph > 0.6) {
+      strokePts(leg.xs, leg.ys, 0, idx, cur); ctx.strokeStyle = T.mapbg; ctx.lineWidth = w + 3; ctx.stroke();
+      strokePts(leg.xs, leg.ys, 0, idx, cur); ctx.strokeStyle = T.done; ctx.lineWidth = w - 1; ctx.stroke();
+    }
+    const remain = () => {
+      ctx.beginPath();
+      if (cur) { ctx.moveTo(toX(cur.x), toY(cur.y)); for (let i = idx + 1; i < n; i++) ctx.lineTo(toX(leg.xs[i]), toY(leg.ys[i])); }
+      else { ctx.moveTo(toX(leg.xs[0]), toY(leg.ys[0])); for (let i = 1; i < n; i++) ctx.lineTo(toX(leg.xs[i]), toY(leg.ys[i])); }
+    };
+    remain(); ctx.setLineDash([]); ctx.strokeStyle = T.mapbg; ctx.lineWidth = w + 3; ctx.globalAlpha = 0.35 + 0.65 * emph; ctx.stroke();
+    remain(); ctx.setLineDash(dashed ? [9, 7] : []); ctx.strokeStyle = T.route; ctx.globalAlpha = 0.4 + 0.6 * emph; ctx.lineWidth = w; ctx.stroke();
+    ctx.globalAlpha = 1; ctx.setLineDash([]);
+  }
+  function drawTripRoute(trip, st, emph) {
+    const L0 = trip.legs[0], L1 = trip.legs[1];
+    const e0 = { x: L0.xs[L0.xs.length - 1], y: L0.ys[L0.ys.length - 1] }, e1 = { x: L1.xs[L1.xs.length - 1], y: L1.ys[L1.ys.length - 1] };
+    if (st.phase === 0) { drawRouteLeg(L0, st.s.i, st.s, true, emph); drawRouteLeg(L1, 0, null, false, emph * 0.7); }
+    else if (st.phase === 1) { drawRouteLeg(L0, L0.xs.length - 1, e0, true, emph); drawRouteLeg(L1, 0, null, false, emph * 0.7); }
+    else if (st.phase === 2) { drawRouteLeg(L0, L0.xs.length - 1, e0, true, emph); drawRouteLeg(L1, st.s.i, st.s, false, emph); }
+    else { drawRouteLeg(L0, L0.xs.length - 1, e0, true, emph); drawRouteLeg(L1, L1.xs.length - 1, e1, false, emph); }
+  }
+  function ring(x, y, color, filled) {
+    ctx.beginPath(); ctx.arc(x, y, 11, 0, 6.283); ctx.fillStyle = color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, 6.283); ctx.fillStyle = filled ? color : T.mapbg; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.stroke();
+  }
+  function drawOrders() {
+    ctx.font = '600 12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (const o of orders) {
+      if (o.state === 'delivered') continue;
+      const selected = sel.order === o.id;
+      const px = toX(o.pick.x), py = toY(o.pick.y), cx = toX(o.home.x), cy = toY(o.home.y);
+      if (o.state === 'assigned' && o.driver && o.picked) { /* Abholung erledigt */ }
+      else {
+        const r = selected ? 7 : 5.5;
+        ctx.beginPath(); ctx.arc(px, py, r + 5, 0, 6.283); ctx.fillStyle = T.signal; ctx.globalAlpha = selected ? 0.28 : 0.16; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 6.283); ctx.fillStyle = T.signal; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+      }
+      const showCust = selected || (o.state === 'assigned' && sel.driver === o.driver);
+      if (showCust) {
+        if (selected && o.state === 'open') { ctx.setLineDash([3, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = T.label; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx, cy); ctx.stroke(); ctx.setLineDash([]); }
+        ring(cx, cy, T.route, false);
+      } else if (o.state === 'assigned') {
+        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, 6.283); ctx.fillStyle = T.mapbg; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.route; ctx.stroke();
+      }
+      if (selected) {
+        ctx.font = '600 12px ' + FONT; ctx.textAlign = 'left';
+        halo(o.pick.name || TYPE_LABEL[o.pick.type], px + 14, py - 2, T.ink);
+        halo('Kunde', cx + 14, cy - 2, T.ink);
+      }
+    }
+  }
+  function drawHub() {
+    const hx = toX(HUB.x), hy = toY(HUB.y);
+    ctx.fillStyle = T.hub; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(hx - 9, hy - 9, 18, 18, 4); else ctx.rect(hx - 9, hy - 9, 18, 18); ctx.fill();
+    ctx.fillStyle = T.hubInk; ctx.font = '600 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('H', hx, hy + 0.5);
+  }
+  function drawDrivers() {
+    for (const d of drivers) {
+      const p = driverPos(d), x = toX(p.x), y = toY(p.y), selected = sel.driver === d.id;
+      ctx.beginPath(); ctx.arc(x, y, selected ? 16 : 13, 0, 6.283); ctx.fillStyle = T.route; ctx.globalAlpha = selected ? 0.24 : 0.16; ctx.fill(); ctx.globalAlpha = 1;
+      if (d.trip && p.moving) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(p.hd);
+        ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-7, -7); ctx.lineTo(-3.5, 0); ctx.lineTo(-7, 7); ctx.closePath();
+        ctx.fillStyle = T.route; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke(); ctx.restore();
+        ctx.font = '600 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; halo(String(d.id), x + 12, y - 12, T.ink);
+      } else {
+        ctx.beginPath(); ctx.arc(x, y, 8.5, 0, 6.283); ctx.fillStyle = T.route; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+        ctx.fillStyle = T.mapbg; ctx.font = '600 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d.id), x, y + 0.5);
+      }
+    }
+  }
+  function drawScale() {
+    const mpp = 1 / cam.s; let len = 20; for (const c of [20, 50, 100, 200, 500, 1000]) { len = c; if (c / mpp >= 60) break; }
+    const px = len / mpp, x = 14, y = ch - 18;
+    ctx.strokeStyle = T.ink; ctx.lineWidth = 2; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 5); ctx.stroke();
+    ctx.font = '500 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; halo(len >= 1000 ? (len / 1000) + ' km' : len + ' m', x + 3, y - 4, T.ink);
+  }
+  function draw() {
+    const sig = document.documentElement.getAttribute('data-theme') + '|' + mq.matches;
+    if (sig !== themeSig || !T) { themeSig = sig; readTheme(); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
+    const s = cam.s, ox = cw / 2 - cam.x * s, oy = ch / 2 - cam.y * s;
+    for (let i = 0; i < N; i++) { sx[i] = nx[i] * s + ox; sy[i] = ny[i] * s + oy; }
+    drawRoads(); drawLabels();
+    // Vorschau einer möglichen Zuweisung
+    const pv = sel.preview !== null ? plans[sel.preview] : null;
+    if (pv) { drawRouteLeg(pv.legs[0], 0, null, true, 0.8); drawRouteLeg(pv.legs[1], 0, null, false, 0.8); }
+    // Routen aller aktiven Fahrten, gewählter Fahrer hervorgehoben
+    for (const d of drivers) if (d.trip) drawTripRoute(d.trip, d.st, sel.driver === d.id ? 1 : 0.2);
+    drawHub(); drawOrders(); drawDrivers(); drawScale();
+  }
+
+  // ---------- Fahrer ----------
+  function driverPos(d) {
+    if (d.trip && d.st) return { x: d.st.s.x, y: d.st.s.y, hd: d.st.s.hd, moving: d.st.s.sp > 0 };
+    return { x: nx[d.node], y: ny[d.node], hd: 0, moving: false };
+  }
+  function addDriver(vehKey) {
+    const id = drivers.length + 1;
+    drivers.push({ id, veh: vehKey, node: nets[VEHICLES[vehKey].net].depot, trip: null, st: null, phase: -1 });
+    driverStructDirty = true; plansDirty = true;
+    return drivers[drivers.length - 1];
+  }
+  const driverStreet = d => E.nodeName[d.node] || 'Hub';
+
+  // ---------- Bestellungen ----------
+  const rand = (a, b) => a + Math.random() * (b - a);
+  function spawnOrder() {
+    for (let k = 0; k < 120; k++) {
+      const p = pois[Math.floor(Math.random() * pois.length)], h = homes[Math.floor(Math.random() * homes.length)];
+      const d = Math.hypot(p.x - h.x, p.y - h.y);
+      if (d < 400 || d > 2000) continue;
+      const km = d / 1000;
+      const pay = Math.round((CFG.payBase + CFG.payPerKm * km * CFG.detour) * 10) / 10;
+      const o = { id: orderSeq++, pick: p, home: h, createdAt: simClock, pay, air: d, target: (CFG.targetBaseMin + CFG.targetPerKm * km) * 60, state: 'open', driver: null, picked: false };
+      orders.push(o); orderStructDirty = true;
+      log('Neue Bestellung #' + o.id + ': ' + (p.name || TYPE_LABEL[p.type]) + ' → ' + (h.street ? h.street : 'Kunde') + ', ' + eur(pay));
+      if (sel.order === null) { sel.order = o.id; plansDirty = true; }
+      return o;
+    }
+    return null;
+  }
+  const openOrders = () => orders.filter(o => o.state === 'open');
+  const orderById = id => orders.find(o => o.id === id) || null;
+  function selectOrder(id) {
+    sel.order = id; sel.preview = null; plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+
+  // ---------- Pläne für die Zuweisung ----------
+  function ensurePlans() {
+    if (!plansDirty) return;
+    plansDirty = false; plans = {};
+    const o = orderById(sel.order); if (!o || o.state !== 'open') return;
+    for (const d of drivers) if (!d.trip) plans[d.id] = E.planTrip(d.veh, d.node, o.pick.i, o.home.i);
+  }
+  function tripCost(plan) { return plan.len / 1000 * CFG.kmCost[plan.veh.key]; }
+  function fastestFree() {
+    let best = null;
+    for (const id in plans) { const p = plans[id]; if (p && (!best || p.total < plans[best].total)) best = id; }
+    return best === null ? null : Number(best);
+  }
+  function assign(driverId) {
+    const o = orderById(sel.order), d = drivers.find(x => x.id === driverId);
+    if (!o || o.state !== 'open' || !d || d.trip) return;
+    ensurePlans();
+    const plan = plans[d.id]; if (!plan) return;
+    plan.t = 0; plan.order = o; d.trip = plan; d.phase = -1; d.st = E.tripState(plan, 0);
+    o.state = 'assigned'; o.driver = d.id; o.picked = false;
+    log('Bestellung #' + o.id + ' an Fahrer ' + d.id + ' (' + driverLabel(d) + ') übergeben, Ankunft beim Kunden in ' + fmtMin(plan.total) + ' min');
+    sel.driver = d.id; sel.preview = null;
+    const next = openOrders()[0];
+    sel.order = next ? next.id : null;
+    plansDirty = true; orderStructDirty = true; driverStructDirty = true; dirty = true;
+  }
+  const driverLabel = d => VEHICLES[d.veh].label;
+
+  // ---------- Fahrt-Fortschritt ----------
+  const PHASE_TXT = ['Fährt zum Abholort', 'Wartet auf Abholung', 'Fährt zum Kunden', 'Übergabe an der Tür', 'Zugestellt'];
+  const PHASE_CLS = ['s-drive', 's-wait', 's-drive', 's-wait', 's-done'];
+  function updateDrivers() {
+    for (const d of drivers) {
+      if (!d.trip) continue;
+      const trip = d.trip, o = trip.order;
+      const st = E.tripState(trip, trip.t); d.st = st;
+      if (st.phase !== d.phase) {
+        d.phase = st.phase; driverStructDirty = true;
+        const who = o.pick.name || TYPE_LABEL[o.pick.type];
+        if (st.phase === 1) log('Fahrer ' + d.id + ' ist bei ' + who + ', Abholung läuft');
+        else if (st.phase === 2) { o.picked = true; log('Fahrer ' + d.id + ' hat Bestellung #' + o.id + ' abgeholt'); }
+        else if (st.phase === 3) log('Fahrer ' + d.id + ' ist beim Kunden, Übergabe');
+        else if (st.phase === 4) finishTrip(d);
+        if (!d.trip) continue;
+      }
+    }
+  }
+  function finishTrip(d) {
+    const trip = d.trip, o = trip.order;
+    const age = simClock - o.createdAt;
+    const pay = o.pay;
+    const tip = age <= o.target ? Math.round(pay * CFG.tipMax * (1 - age / o.target) * 100) / 100 : 0;
+    const cost = Math.round(tripCost(trip) * 100) / 100;
+    cash += pay + tip - cost;
+    stats.n++; stats.pay += pay; stats.tip += tip; stats.cost += cost; stats.ageSum += age;
+    o.state = 'delivered';
+    d.node = trip.endNode; d.trip = null; d.st = null; d.phase = -1;
+    log('#' + o.id + ' zugestellt nach ' + fmtMin(age) + ' min: ' + seur(pay) + ' Lohn' + (tip > 0 ? ', ' + seur(tip) + ' Trinkgeld' : ', kein Trinkgeld') + (cost > 0 ? ', ' + seur(-cost) + ' Fahrzeugkosten' : ''), true);
+    orders = orders.filter(x => x.state !== 'delivered');
+    driverStructDirty = true; orderStructDirty = true; plansDirty = true; dirty = true;
+  }
+
+  // ---------- Einstellen ----------
+  const hireVeh = $('hireVeh');
+  for (const k of ['bike', 'scooter', 'van']) {
+    const o = document.createElement('option'); o.value = k;
+    o.textContent = VEHICLES[k].label + ' · ' + eur(CFG.vehPrice[k]) + ' · max. ' + Math.round(VEHICLES[k].vmax) + ' km/h';
+    hireVeh.appendChild(o);
+  }
+  const hireCost = () => CFG.hireFee + CFG.vehPrice[hireVeh.value];
+  function syncHire() {
+    const cost = hireCost(), full = drivers.length >= CFG.maxDrivers, poor = cash < cost;
+    const b = $('hireBtn'); setText(b, full ? 'Alle Plätze belegt' : 'Einstellen für ' + eur(cost));
+    b.disabled = full || poor;
+    setText($('hireNote'), full ? 'Mehr als ' + CFG.maxDrivers + ' Fahrer sind in dieser Phase nicht möglich.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im Hub.');
+  }
+  hireVeh.addEventListener('change', syncHire);
+  $('hireBtn').onclick = () => {
+    const cost = hireCost(); if (drivers.length >= CFG.maxDrivers || cash < cost) return;
+    cash -= cost; const d = addDriver(hireVeh.value);
+    log('Fahrer ' + d.id + ' eingestellt (' + VEHICLES[d.veh].label + '), ' + seur(-cost));
+    sel.driver = d.id; dirty = true;
+  };
+
+  // ---------- Oberfläche: Bestellungen ----------
+  const olist = $('olist'); const oRefs = new Map();
+  function createOrderEl(o) {
+    const li = document.createElement('li');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ocard';
+    const top = document.createElement('span'); top.className = 'o-top';
+    const nm = document.createElement('strong'); nm.textContent = o.pick.name || TYPE_LABEL[o.pick.type] + ' (ohne Namen)';
+    const pay = document.createElement('span'); pay.className = 'o-pay'; pay.textContent = eur(o.pay);
+    top.append(nm, pay);
+    const sub = document.createElement('span'); sub.className = 'o-sub'; sub.textContent = '#' + o.id + ' · nach ' + (o.home.street || 'Kunde') + ' · ' + fmtDist(o.air * CFG.detour);
+    const age = document.createElement('span'); age.className = 'o-age';
+    const bar = document.createElement('span'); bar.className = 'o-bar'; const fill = document.createElement('i'); bar.appendChild(fill);
+    const at = document.createElement('span'); age.append(bar, at);
+    b.append(top, sub, age); li.appendChild(b);
+    b.onclick = () => selectOrder(sel.order === o.id ? null : o.id);
+    return { li, btn: b, fill, at, assign: null };
+  }
+  function renderOrders() {
+    const open = openOrders(), ids = new Set(open.map(o => o.id));
+    setText($('ocount'), String(open.length));
+    let stale = false; if (plansDirty) { ensurePlans(); stale = true; }
+    for (const [id, r] of oRefs) if (!ids.has(id)) { r.li.remove(); oRefs.delete(id); }
+    for (const o of open) {
+      let r = oRefs.get(o.id);
+      if (!r) { r = createOrderEl(o); oRefs.set(o.id, r); olist.appendChild(r.li); }
+      const isSel = sel.order === o.id;
+      r.li.className = 'order' + (isSel ? ' sel' : ''); r.btn.setAttribute('aria-pressed', String(isSel));
+      if (isSel) { if (!r.assign || stale) { if (r.assign) r.assign.remove(); r.assign = renderAssign(o); r.li.appendChild(r.assign); } }
+      else if (r.assign) { r.assign.remove(); r.assign = null; }
+    }
+    $('ohint').hidden = open.length > 0;
+    updateAges();
+  }
+  function renderAssign(o) {
+    ensurePlans();
+    const box = document.createElement('div'); box.className = 'assign';
+    const free = drivers.filter(d => !d.trip);
+    if (!free.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Alle Fahrer sind unterwegs. Sobald einer frei ist, kannst du ihm die Bestellung geben.'; box.appendChild(p); return box; }
+    const best = fastestFree();
+    for (const d of free) {
+      const plan = plans[d.id];
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn';
+      const l = document.createElement('span'); l.textContent = 'Fahrer ' + d.id + ' · ' + driverLabel(d);
+      if (best === d.id && free.length > 1) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = 'schnellster'; l.appendChild(tg); }
+      const n = document.createElement('span'); n.className = 'net';
+      const sm = document.createElement('small');
+      if (plan) { const net = o.pay - tripCost(plan); n.textContent = seur(net); sm.textContent = 'Anfahrt ' + fmtMin(plan.T1) + ' min · beim Kunden nach ' + fmtMin(plan.total) + ' min · ab ' + driverStreet(d); }
+      else { n.textContent = '–'; sm.textContent = 'Keine Route möglich'; b.disabled = true; }
+      b.append(l, n, sm);
+      b.onclick = () => assign(d.id);
+      b.onmouseenter = b.onfocus = () => { sel.preview = d.id; dirty = true; };
+      b.onmouseleave = b.onblur = () => { if (sel.preview === d.id) { sel.preview = null; dirty = true; } };
+      box.appendChild(b);
+    }
+    return box;
+  }
+  function updateAges() {
+    for (const [id, r] of oRefs) {
+      const o = orderById(id); if (!o) continue;
+      const age = simClock - o.createdAt, f = Math.min(1, age / o.target);
+      r.fill.style.width = (f * 100).toFixed(1) + '%'; r.fill.className = f >= 1 ? 'late' : f > 0.7 ? 'mid' : '';
+      setText(r.at, fmtMin(age) + ' / ' + fmtMin(o.target) + (f >= 1 ? ' · kein Trinkgeld mehr' : ''));
+    }
+  }
+
+  // ---------- Oberfläche: Fahrer ----------
+  const dlist = $('dlist'); const dRefs = new Map();
+  function renderDrivers() {
+    setText($('dcount'), drivers.length + ' / ' + CFG.maxDrivers);
+    for (const d of drivers) {
+      let r = dRefs.get(d.id);
+      if (!r) {
+        const li = document.createElement('li');
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'dcard';
+        const top = document.createElement('span'); top.className = 'd-top';
+        const nm = document.createElement('strong'); nm.textContent = 'Fahrer ' + d.id;
+        const vh = document.createElement('span'); vh.className = 'd-veh'; vh.textContent = driverLabel(d);
+        top.append(nm, vh);
+        const pill = document.createElement('span');
+        const line = document.createElement('span'); line.className = 'd-line';
+        b.append(top, pill, line); li.appendChild(b); dlist.appendChild(li);
+        b.onclick = () => { sel.driver = d.id; driverStructDirty = true; dirty = true; };
+        r = { li, btn: b, pill, line }; dRefs.set(d.id, r);
+      }
+      r.li.className = 'driver' + (sel.driver === d.id ? ' sel' : ''); r.btn.setAttribute('aria-pressed', String(sel.driver === d.id));
+    }
+    updateDriverTexts();
+  }
+  function updateDriverTexts() {
+    for (const d of drivers) {
+      const r = dRefs.get(d.id); if (!r) continue;
+      if (d.trip) {
+        const st = d.st || E.tripState(d.trip, d.trip.t);
+        r.pill.className = 'pill ' + PHASE_CLS[Math.min(3, st.phase)];
+        setText(r.pill, PHASE_TXT[Math.min(3, st.phase)]);
+        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h'));
+      } else {
+        r.pill.className = 'pill s-idle'; setText(r.pill, 'Frei');
+        setText(r.line, 'Wartet' + (E.nodeName[d.node] ? ' in der Nähe von ' + E.nodeName[d.node] : ' im Hub'));
+      }
+    }
+  }
+  function updateStats() {
+    setText($('cash'), eur(cash));
+    setText($('sN'), String(stats.n));
+    setText($('sAge'), stats.n ? fmtMin(stats.ageSum / stats.n) + ' min' : '–');
+    setText($('sPay'), eur(stats.pay)); setText($('sTip'), eur(stats.tip)); setText($('sCost'), stats.cost ? seur(-stats.cost) : eur(0));
+    const profit = stats.pay + stats.tip - stats.cost, el = $('sProfit');
+    setText(el, seur(profit)); el.className = 'total ' + (profit > 0 ? 'pos' : profit < 0 ? 'neg' : '');
+  }
+
+  // ---------- Protokoll ----------
+  function log(text, hl) {
+    const li = document.createElement('li'); if (hl) li.className = 'hl';
+    const t = document.createElement('time'); t.textContent = fmtClock(simClock);
+    const s = document.createElement('span'); s.textContent = text; li.append(t, s);
+    const ol = $('log'); ol.prepend(li); while (ol.children.length > 80) ol.lastChild.remove();
+  }
+
+  // ---------- Karte: Bedienung ----------
+  let drag = null; const tip = $('tip');
+  function hit(px, py, r) {
+    let best = null, bd = r * r;
+    const test = (x, y, v) => { const dx = toX(x) - px, dy = toY(y) - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = v; } };
+    for (const o of orders) if (o.state === 'open' || (o.state === 'assigned' && !o.picked)) test(o.pick.x, o.pick.y, { kind: 'order', o });
+    for (const d of drivers) { const p = driverPos(d); test(p.x, p.y, { kind: 'driver', d }); }
+    test(HUB.x, HUB.y, { kind: 'hub' });
+    return best;
+  }
+  const rel = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    const [px, py] = rel(e);
+    if (drag) {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (Math.hypot(dx, dy) > 4) { drag.moved = true; cv.classList.add('dragging'); tip.hidden = true; }
+      if (drag.moved) { cam.x = drag.cx - dx / cam.s; cam.y = drag.cy - dy / cam.s; dirty = true; }
+      return;
+    }
+    const h = hit(px, py, 12);
+    cv.classList.toggle('pointer', !!h);
+    if (!h) { tip.hidden = true; return; }
+    tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
+    tip.textContent = h.kind === 'hub' ? 'Lastmile-Hub nahe Hauptbahnhof'
+      : h.kind === 'order' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.pick.name || TYPE_LABEL[h.o.pick.type]) + ' · ' + eur(h.o.pay)
+      : 'Fahrer ' + h.d.id + ' · ' + driverLabel(h.d);
+  });
+  cv.addEventListener('pointerleave', () => { tip.hidden = true; });
+  cv.addEventListener('pointerup', e => {
+    const wasClick = drag && !drag.moved; drag = null; cv.classList.remove('dragging');
+    if (!wasClick) return;
+    const [px, py] = rel(e), h = hit(px, py, 14); if (!h) return;
+    if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
+    else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; }
+  });
+  cv.addEventListener('wheel', e => { e.preventDefault(); const [px, py] = rel(e); zoomAt(px, py, Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
+  $('zin').onclick = () => zoomAt(cw / 2, ch / 2, 1.4);
+  $('zout').onclick = () => zoomAt(cw / 2, ch / 2, 1 / 1.4);
+  $('zfit').onclick = fit;
+
+  // ---------- Steuerung ----------
+  $('speedSeg').addEventListener('click', e => {
+    const b = e.target.closest('button[data-s]'); if (!b) return; speed = Number(b.dataset.s);
+    for (const x of $('speedSeg').children) x.setAttribute('aria-pressed', String(x === b));
+  });
+  function togglePause() { paused = !paused; $('pauseBtn').setAttribute('aria-pressed', String(paused)); $('pauseBtn').textContent = paused ? 'Weiter' : 'Pause'; dirty = true; }
+  $('pauseBtn').onclick = togglePause;
+  function cycleOrder(dir) {
+    const open = openOrders(); if (!open.length) return;
+    let i = open.findIndex(o => o.id === sel.order); i = i < 0 ? (dir > 0 ? 0 : open.length - 1) : (i + dir + open.length) % open.length;
+    selectOrder(open[i].id);
+  }
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const k = e.key;
+    if (k === 'a' || k === 'A') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); }
+    else if (k === 'ArrowDown') { e.preventDefault(); cycleOrder(1); }
+    else if (k === 'ArrowUp') { e.preventDefault(); cycleOrder(-1); }
+    else if (k === 'f' || k === 'F') fit();
+    else if (k === '+' || k === '=') zoomAt(cw / 2, ch / 2, 1.3);
+    else if (k === '-' || k === '_') zoomAt(cw / 2, ch / 2, 1 / 1.3);
+    else if (k === ' ' && tag !== 'BUTTON') { e.preventDefault(); togglePause(); }
+  });
+
+  // ---------- Schleife ----------
+  let last = performance.now(), lastUi = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (!paused) {
+      const adv = dt * speed;
+      simClock += adv;
+      for (const d of drivers) if (d.trip) d.trip.t += adv;
+      updateDrivers();
+      while (simClock >= nextSpawn) {
+        if (openOrders().length < CFG.maxOpen) spawnOrder();
+        nextSpawn = simClock + Math.max(CFG.spawnMin, -Math.log(1 - Math.random()) * CFG.spawnMean);
+      }
+      dirty = true;
+    }
+    setText($('clock'), fmtClock(simClock));
+    if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
+    if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); }
+    if (dirty) { draw(); dirty = false; }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Start ----------
+  new ResizeObserver(resize).observe(wrap);
+  mq.addEventListener && mq.addEventListener('change', () => { dirty = true; });
+  new MutationObserver(() => { dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { textW.clear(); dirty = true; });
+
+  addDriver('bike');
+  log('Hub bereit, Fahrer 1 (Fahrrad) wartet auf Aufträge');
+  for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
+  nextSpawn = simClock + 40;
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
