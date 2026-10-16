@@ -1,6 +1,6 @@
 function createEngine(D) {
   const R = D.roads, LAT0 = R.o[0], LON0 = R.o[1];
-  const REF = { lat: 51.4510, lon: 7.0140 };
+  const REF = D.ref;
   const MLAT = 110574, MLON = 111320 * Math.cos(REF.lat * Math.PI / 180);
   const proj = (lat, lon) => ({ x: (lon - REF.lon) * MLON, y: -(lat - REF.lat) * MLAT });
 
@@ -125,7 +125,7 @@ function createEngine(D) {
     return { ok, size: size[best] };
   }
 
-  const HUB = proj(51.4513, 7.0147); // Lastmile-Hub nahe Hauptbahnhof
+  const HUB = proj(D.hub.lat, D.hub.lon); // Lastmile-Hub im Zentrum
   const nets = {};
   for (const kind of ['bike', 'car']) {
     const adj = buildAdj(kind), scc = largestScc(adj);

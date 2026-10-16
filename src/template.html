@@ -181,14 +181,78 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
   .panel { overflow: visible; }
   .log { max-height: 260px; }
 }
+
+/* Startbildschirm */
+.start { position: fixed; inset: 0; z-index: 20; background: var(--bg); overflow: auto; display: flex; justify-content: center; padding: 6vh 16px 32px; }
+.start .card { width: min(640px, 100%); display: flex; flex-direction: column; gap: 22px; }
+.start .logo { display: flex; align-items: center; gap: 12px; }
+.start .logo svg { color: var(--signal); }
+.start .logo .name { font-weight: 600; font-size: 30px; letter-spacing: 0.01em; }
+.start .lead { margin: 0; color: var(--muted); font-size: 15px; max-width: 52ch; }
+.start h2 { margin: 0 0 8px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.searchrow { display: flex; gap: 8px; }
+.searchrow input { flex: 1; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 11px 12px; font: 16px var(--font-ui); }
+.searchrow input:focus-visible, .start button:focus-visible, .app button:focus-visible { outline: 2px solid var(--route); outline-offset: 2px; }
+.rlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); overflow: hidden; }
+.rlist:empty { display: none; }
+.rlist li + li { border-top: 1px solid var(--line); }
+.rlist button { width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 11px 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font: 500 14px var(--font-ui); }
+.rlist button:hover { background: var(--bg); }
+.rlist .sub { color: var(--muted); font-weight: 400; font-size: 13px; }
+.rlist .tag { font: 500 11px var(--font-mono); color: var(--ok); white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 99px; padding: 6px 13px; font: 500 13px var(--font-ui); cursor: pointer; }
+.chips button:hover { border-color: var(--muted); }
+.status { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.status .t { font-weight: 500; }
+.bar2 { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.bar2 i { display: block; height: 100%; width: 0; background: var(--signal); transition: width .4s ease; }
+.status.err .t { color: var(--warn); }
+.start .foot { font-size: 12px; color: var(--muted); margin: 0; }
+.start .foot a { color: inherit; }
+.brand .switch { margin-left: 6px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 4px; padding: 3px 8px; cursor: pointer; }
+.brand .switch:hover { color: var(--ink); border-color: var(--muted); }
 </style>
 
-<div class="app">
+<div class="start" id="start">
+  <div class="card">
+    <div class="logo">
+      <svg width="34" height="34" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h8V8h10"/><circle cx="4" cy="20" r="1.6" fill="currentColor"/><circle cx="22" cy="8" r="2.4"/></svg>
+      <span class="name">Lastmile</span>
+    </div>
+    <p class="lead">Baue einen Lieferdienst auf einer echten Karte auf. Such dir eine beliebige Stadt auf der Welt aus: Straßen, Restaurants und Wohnhäuser kommen aus OpenStreetMap.</p>
+    <section id="searchBox">
+      <h2>Startstadt</h2>
+      <form class="searchrow" id="searchForm" autocomplete="off">
+        <input id="q" type="search" placeholder="Stadt suchen, z. B. Bochum, Wien, Tokio …" aria-label="Stadt suchen" enterkeyhint="search">
+        <button type="submit" class="btn primary" id="searchBtn">Suchen</button>
+      </form>
+      <ul class="rlist" id="results" style="margin-top:10px"></ul>
+      <p class="note" id="searchMsg" style="margin-top:8px" role="status"></p>
+    </section>
+    <section id="recentBox" hidden>
+      <h2>Zuletzt gespielt (auf diesem Gerät gespeichert)</h2>
+      <ul class="rlist" id="recent"></ul>
+    </section>
+    <section id="chipBox">
+      <h2>Vorschläge</h2>
+      <div class="chips" id="chips"></div>
+    </section>
+    <div class="status" id="status" hidden role="status" aria-live="polite">
+      <div class="t" id="statusT"></div>
+      <div class="bar2" id="statusBar"><i id="statusI"></i></div>
+      <div id="statusBtns" hidden><button type="button" class="btn" id="statusBack">Zurück zur Suche</button></div>
+    </div>
+    <p class="foot">Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL). Orte werden über Nominatim gesucht und über die Overpass-API geladen. Geladene Städte bleiben in deinem Browser gespeichert.</p>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
   <header class="bar">
     <div class="brand">
       <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h8V8h10"/><circle cx="4" cy="20" r="1.6" fill="currentColor"/><circle cx="22" cy="8" r="2.4"/></svg>
       <span class="name">Lastmile</span>
-      <span class="scope">Essen · Innenstadt</span>
+      <span class="scope" id="scope"></span><button type="button" class="switch" id="switchCity">Stadt wechseln</button>
     </div>
     <div class="gauges">
       <div class="gauge"><span class="lbl">Kasse</span><span class="val cash" id="cash">100,00 €</span></div>
@@ -215,7 +279,7 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
     </aside>
 
     <section class="mapwrap" id="mapwrap">
-      <canvas id="map" role="img" aria-label="Straßenkarte der Essener Innenstadt mit Hub, Bestellungen und Fahrern"></canvas>
+      <canvas id="map" role="img" aria-label="Straßenkarte mit Hub, Bestellungen und Fahrern"></canvas>
       <div class="legend">
         <span><i style="width:12px;height:12px;border-radius:3px;background:var(--hub);"></i>Hub</span>
         <span><i style="width:10px;height:10px;border-radius:50%;background:var(--signal);"></i>Bestellung</span>
@@ -267,14 +331,17 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 </div>
 
 <script>
-const DATA = /*DATA*/null;
+const ESSEN = /*DATA*/null;
 /*ENGINE*/
+/*LOADER*/
 
-(function () {
+const $ = id => document.getElementById(id);
+function startGame(DATA) {
   'use strict';
   const E = createEngine(DATA);
+  $('scope').textContent = DATA.name + (DATA.sub ? ' · ' + DATA.sub.split(', ').pop() : '');
+  document.title = 'Lastmile – ' + DATA.name;
   const { N, nx, ny, ways, pois, homes, TYPE_LABEL, VEHICLES, nets, HUB, bounds } = E;
-  const $ = id => document.getElementById(id);
   const FONT = '"IBM Plex Sans", system-ui, sans-serif';
 
   // Spielwerte (Testwerte für Phase 2, werden in Phase 4/5 ausbalanciert)
@@ -770,7 +837,7 @@ const DATA = /*DATA*/null;
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
     tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
-    tip.textContent = h.kind === 'hub' ? 'Lastmile-Hub nahe Hauptbahnhof'
+    tip.textContent = h.kind === 'hub' ? 'Lastmile-Hub im Stadtzentrum'
       : h.kind === 'order' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.pick.name || TYPE_LABEL[h.o.pick.type]) + ' · ' + eur(h.o.pay)
       : 'Fahrer ' + h.d.id + ' · ' + driverLabel(h.d);
   });
@@ -848,5 +915,6 @@ const DATA = /*DATA*/null;
   nextSpawn = simClock + 40;
   resize();
   requestAnimationFrame(frame);
-})();
+}
+/*BOOT*/
 </script>

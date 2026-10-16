@@ -1,9 +1,16 @@
+# Baut index.html aus Vorlage, Engine, Stadtlader, Startlogik und der Essen-Demo (Aufruf im Projektordner: python3 src/build.py)
 import json
-d=json.load(open('data/essen.json',encoding='utf-8'))
-data=json.dumps(d,ensure_ascii=False,separators=(',',':')).replace('</','<\\/')
-t=open('src/template.html',encoding='utf-8').read()
-e=open('src/engine.js',encoding='utf-8').read()
-assert '/*DATA*/null' in t and '/*ENGINE*/' in t
-out=t.replace('/*DATA*/null',data).replace('/*ENGINE*/',e)
-open('index.html','w',encoding='utf-8').write(out)
+d = json.load(open('data/essen.json', encoding='utf-8'))
+d.update({'v': 1, 'name': 'Essen', 'sub': 'Innenstadt (Demo), Deutschland',
+          'ref': {'lat': 51.4510, 'lon': 7.0140}, 'hub': {'lat': 51.4513, 'lon': 7.0147}})
+rd = lambda p: open(p, encoding='utf-8').read()
+esc = lambda s: s.replace('</', '<\\/')
+t = rd('src/template.html')
+for k in ('/*DATA*/null', '/*ENGINE*/', '/*LOADER*/', '/*BOOT*/'):
+    assert k in t, k
+out = (t.replace('/*DATA*/null', esc(json.dumps(d, ensure_ascii=False, separators=(',', ':'))))
+        .replace('/*ENGINE*/', esc(rd('src/engine.js')))
+        .replace('/*LOADER*/', esc(rd('src/loader.js')))
+        .replace('/*BOOT*/', esc(rd('src/boot.js'))))
+open('index.html', 'w', encoding='utf-8').write(out)
 print(len(out))
