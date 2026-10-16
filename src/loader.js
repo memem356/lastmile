@@ -56,8 +56,7 @@ const LM = (function () {
   const bbStr = b => [b.s, b.w, b.n, b.e].map(v => v.toFixed(6)).join(',');
 
   const qRoads = b => `[out:json][timeout:60];way["highway"~"^(${HW_RE})$"](${bbStr(b)});out body;>;out skel qt;`;
-  const qPlaces = b => `[out:json][timeout:60];(nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${bbStr(b)});nwr["shop"~"^(bakery|supermarket)$"]["name"](${bbStr(b)}););out center tags;`;
-  const qHomes = b => `[out:json][timeout:60];way["building"~"^(apartments|residential|house|detached|terraced|semidetached_house|dormitory|yes)$"](${bbStr(b)});out skel center qt;`;
+  const qPlaces = b => `[out:json][timeout:90];(nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${bbStr(b)});nwr["shop"~"^(bakery|supermarket)$"]["name"](${bbStr(b)}););out center tags;way["building"~"^(apartments|residential|house|detached|terraced|semidetached_house|dormitory|yes)$"](${bbStr(b)});out skel center qt;`;
 
   // ---------- Umwandlung ins Kompaktformat ----------
   function convertRoads(osm, b) {
@@ -126,7 +125,7 @@ const LM = (function () {
   function convertHomes(osm, o, b) {
     const all = [];
     for (const el of osm.elements) {
-      const c = el.center; if (!c || c.lat < b.s || c.lat > b.n || c.lon < b.w || c.lon > b.e) continue;
+      if (el.tags) continue; const c = el.center; if (!c || c.lat < b.s || c.lat > b.n || c.lon < b.w || c.lon > b.e) continue;
       all.push([Math.round(c.lat * 1e5) - o[0], Math.round(c.lon * 1e5) - o[1]]);
     }
     const cap = 450, step = Math.max(1, all.length / cap), out = [];
@@ -145,8 +144,8 @@ const LM = (function () {
       const roadsOsm = await overpass(qRoads(b), (m, r) => { if (m || r) say(1, 'Straßennetz wird geladen' + note(m + r)); });
       const roads = convertRoads(roadsOsm, b);
       say(2, 'Restaurants, Läden und Wohnhäuser werden geladen');
-      const [placesOsm, homesOsm] = [await overpass(qPlaces(b)), await overpass(qHomes(b))];
-      const pois = convertPlaces(placesOsm, place, roads.o, b), homes = convertHomes(homesOsm, roads.o, b);
+      const placesOsm = await overpass(qPlaces(b));
+      const pois = convertPlaces(placesOsm, place, roads.o, b), homes = convertHomes(placesOsm, roads.o, b);
       last = { pois: pois.length, homes: homes.length, ways: roads.w.length };
       if (pois.length >= 6 && homes.length >= 20 && roads.w.length >= 80) {
         return {
