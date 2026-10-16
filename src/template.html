@@ -212,6 +212,19 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .start .foot a { color: inherit; }
 .brand .switch { margin-left: 6px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 4px; padding: 3px 8px; cursor: pointer; }
 .brand .switch:hover { color: var(--ink); border-color: var(--muted); }
+
+.upg { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.upg:first-of-type { border-top: 0; }
+.upg strong { font-weight: 600; font-size: 13px; }
+.upg small { grid-column: 1; color: var(--muted); font-size: 12px; }
+.upg button { grid-row: 1 / span 2; grid-column: 2; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.upg.own strong::after { content: " ✓"; color: var(--ok); }
+.ddetail { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 5px; padding: 10px; font-size: 13px; }
+.ddetail .xp { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.ddetail .xp i { display: block; height: 100%; background: var(--route); }
+.ddetail p { margin: 0; color: var(--muted); font-size: 12px; }
+.cash.neg { color: var(--warn); }
+.head2 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 </style>
 
 <div class="start" id="start">
@@ -275,6 +288,23 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
         <h2>Offene Bestellungen <span class="count" id="ocount">0</span></h2>
         <ul class="olist" id="olist"></ul>
         <p class="note" id="ohint">Bestellung wählen, dann einen freien Fahrer zuweisen.</p>
+        <button type="button" class="btn" id="autoBtn" aria-pressed="false" hidden>Auto-Disposition: aus</button>
+      </div>
+      <div class="block">
+        <h2>Betrieb</h2>
+        <dl class="rows">
+          <dt>Ruf der Kunden</dt><dd id="sRep">★ 3,0</dd>
+          <dt>Nachfrage</dt><dd id="sDem">–</dd>
+          <dt>Lieferungen</dt><dd id="sN">0</dd>
+          <dt>Storniert</dt><dd id="sCancel">0</dd>
+          <dt>Ø Lieferzeit</dt><dd id="sAge">–</dd>
+          <dt>Lieferlohn</dt><dd id="sPay">0,00 €</dd>
+          <dt>Trinkgeld</dt><dd id="sTip">0,00 €</dd>
+          <dt>Fahrzeugkosten</dt><dd id="sCost">0,00 €</dd>
+          <dt>Fahrerlöhne</dt><dd id="sWage">0,00 €</dd>
+          <div class="sep"></div>
+          <dt class="total">Gewinn</dt><dd class="total" id="sProfit">0,00 €</dd>
+        </dl>
       </div>
     </aside>
 
@@ -298,6 +328,7 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
       <div class="block">
         <h2>Fahrer <span class="count" id="dcount">1 / 4</span></h2>
         <ul class="dlist" id="dlist"></ul>
+        <div class="ddetail" id="ddetail"></div>
       </div>
 
       <div class="block hire">
@@ -308,17 +339,9 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
         <p class="note" id="hireNote"></p>
       </div>
 
-      <div class="block">
-        <h2>Betrieb heute</h2>
-        <dl class="rows">
-          <dt>Lieferungen</dt><dd id="sN">0</dd>
-          <dt>Ø Lieferzeit</dt><dd id="sAge">–</dd>
-          <dt>Lieferlohn</dt><dd id="sPay">0,00 €</dd>
-          <dt>Trinkgeld</dt><dd id="sTip">0,00 €</dd>
-          <dt>Fahrzeugkosten</dt><dd id="sCost">0,00 €</dd>
-          <div class="sep"></div>
-          <dt class="total">Gewinn</dt><dd class="total" id="sProfit">0,00 €</dd>
-        </dl>
+      <div class="block hire">
+        <h2>Ausbau</h2>
+        <div id="ulist"></div>
       </div>
 
       <div class="logwrap">
@@ -346,13 +369,25 @@ function startGame(DATA) {
 
   // Spielwerte (Testwerte für Phase 2, werden in Phase 4/5 ausbalanciert)
   const CFG = {
-    startCash: 100, hireFee: 60, maxDrivers: 4,
-    vehPrice: { bike: 80, scooter: 280, van: 650 },
+    startCash: 150, hireFee: 40,
+    hubCaps: [4, 8, 12], hubCost: [0, 400, 1200],
+    vehPrice: { bike: 60, scooter: 240, van: 600 },
     kmCost: { bike: 0, scooter: 0.12, van: 0.35 },
-    payBase: 5, payPerKm: 2.5, detour: 1.25,
-    tipMax: 0.25, targetBaseMin: 15, targetPerKm: 5,
-    spawnMean: 240, spawnMin: 45, maxOpen: 7, firstOrders: 2
+    wage: { bike: 8, scooter: 9, van: 11 }, wageLevel: 0.12,        // Euro pro Stunde, plus 12 % je Stufe
+    payBase: 6.5, payPerKm: 3.5, detour: 1.25,
+    tipMax: 0.25, targetBaseMin: 18, targetPerKm: 6, expireFactor: 2.5,
+    spawnMean: 420, spawnMin: 40, maxOpen: 8, firstOrders: 2,
+    xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l
   };
+  const UPG = [
+    { id: 'dispatch', name: 'Dispositions-Software', cost: 300, desc: 'Verteilt Bestellungen automatisch an den schnellsten freien Fahrer.' },
+    { id: 'ads', name: 'Werbekampagne', cost: 250, desc: '25 % mehr Bestellungen.' },
+    { id: 'boxes', name: 'Isolierte Boxen', cost: 200, desc: 'Essen bleibt warm: Trinkgeld bis 40 % statt 25 %.' },
+    { id: 'motor', name: 'E-Bike-Motoren', cost: 280, desc: 'Fahrräder sind 15 % schneller.' },
+    { id: 'quick', name: 'Schnellabholung', cost: 280, desc: 'Abholung dauert 30 % kürzer.' },
+    { id: 'service', name: 'Wartungsvertrag', cost: 250, desc: 'Fahrzeugkosten pro Kilometer −40 %.' }
+  ];
+
 
   const nf = d => new Intl.NumberFormat('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
   const eur = v => nf(2).format(v) + ' €';
@@ -374,8 +409,9 @@ function startGame(DATA) {
 
   // ---------- Spielzustand ----------
   let orders = [], drivers = [], orderSeq = 1001, cash = CFG.startCash;
+  let rep = 3, hubLevel = 0, autoOn = false; const owned = {};
   let simClock = 0, paused = false, speed = 10, nextSpawn = 2, dirty = true;
-  const stats = { n: 0, pay: 0, tip: 0, cost: 0, ageSum: 0 };
+  const stats = { n: 0, pay: 0, tip: 0, cost: 0, wage: 0, cancel: 0, ageSum: 0 };
   const sel = { order: null, driver: 1, preview: null };
   let plans = {};           // Zuweisungsvorschläge für die gewählte Bestellung: Fahrer-ID -> Plan
   let plansDirty = true, orderStructDirty = true, driverStructDirty = true;
@@ -581,7 +617,7 @@ function startGame(DATA) {
   }
   function addDriver(vehKey) {
     const id = drivers.length + 1;
-    drivers.push({ id, veh: vehKey, node: nets[VEHICLES[vehKey].net].depot, trip: null, st: null, phase: -1 });
+    drivers.push({ id, veh: vehKey, node: nets[VEHICLES[vehKey].net].depot, trip: null, st: null, phase: -1, lvl: 1, done: 0 });
     driverStructDirty = true; plansDirty = true;
     return drivers[drivers.length - 1];
   }
@@ -610,32 +646,74 @@ function startGame(DATA) {
     sel.order = id; sel.preview = null; plansDirty = true; orderStructDirty = true; dirty = true;
   }
 
+  // ---------- Effekte von Stufen und Ausbauten ----------
+  const cap = () => CFG.hubCaps[hubLevel];
+  const speedMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && owned.motor ? 1.15 : 1);
+  const tipMax = () => owned.boxes ? 0.4 : CFG.tipMax;
+  const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
+  const wageOf = d => CFG.wage[d.veh] * (1 + CFG.wageLevel * (d.lvl - 1));
+  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1);
+  function tune(plan, d) {
+    if (!plan) return plan;
+    const m = speedMult(d);
+    if (m !== 1) for (const L of plan.legs) { L.t = L.t.map(v => v / m); L.time /= m; L.sp = L.sp.map(v => v * m); }
+    if (owned.quick) plan.D1 *= 0.7;
+    plan.T1 = plan.legs[0].time; plan.T2 = plan.legs[1].time;
+    plan.total = plan.T1 + plan.D1 + plan.T2 + plan.D2;
+    return plan;
+  }
+  const planFor = (d, o) => tune(E.planTrip(d.veh, d.node, o.pick.i, o.home.i), d);
+
   // ---------- Pläne für die Zuweisung ----------
   function ensurePlans() {
     if (!plansDirty) return;
     plansDirty = false; plans = {};
     const o = orderById(sel.order); if (!o || o.state !== 'open') return;
-    for (const d of drivers) if (!d.trip) plans[d.id] = E.planTrip(d.veh, d.node, o.pick.i, o.home.i);
+    for (const d of drivers) if (!d.trip) plans[d.id] = planFor(d, o);
   }
-  function tripCost(plan) { return plan.len / 1000 * CFG.kmCost[plan.veh.key]; }
+  function tripCost(plan) { return plan.len / 1000 * kmCostOf(plan.veh.key); }
   function fastestFree() {
     let best = null;
     for (const id in plans) { const p = plans[id]; if (p && (!best || p.total < plans[best].total)) best = id; }
     return best === null ? null : Number(best);
+  }
+  function assignTo(d, o, plan) {
+    plan.t = 0; plan.order = o; d.trip = plan; d.phase = -1; d.st = E.tripState(plan, 0);
+    o.state = 'assigned'; o.driver = d.id; o.picked = false;
+    log('Bestellung #' + o.id + ' an Fahrer ' + d.id + ' (' + driverLabel(d) + ') übergeben, Ankunft beim Kunden in ' + fmtMin(plan.total) + ' min');
+    if (sel.order === o.id) { const next = openOrders()[0]; sel.order = next ? next.id : null; }
+    plansDirty = true; orderStructDirty = true; driverStructDirty = true; dirty = true;
   }
   function assign(driverId) {
     const o = orderById(sel.order), d = drivers.find(x => x.id === driverId);
     if (!o || o.state !== 'open' || !d || d.trip) return;
     ensurePlans();
     const plan = plans[d.id]; if (!plan) return;
-    plan.t = 0; plan.order = o; d.trip = plan; d.phase = -1; d.st = E.tripState(plan, 0);
-    o.state = 'assigned'; o.driver = d.id; o.picked = false;
-    log('Bestellung #' + o.id + ' an Fahrer ' + d.id + ' (' + driverLabel(d) + ') übergeben, Ankunft beim Kunden in ' + fmtMin(plan.total) + ' min');
+    assignTo(d, o, plan);
     sel.driver = d.id; sel.preview = null;
-    const next = openOrders()[0];
-    sel.order = next ? next.id : null;
-    plansDirty = true; orderStructDirty = true; driverStructDirty = true; dirty = true;
   }
+  function autoDispatch() {
+    if (!owned.dispatch || !autoOn) return;
+    for (const o of openOrders().sort((a, b) => a.createdAt - b.createdAt)) {
+      let best = null;
+      for (const d of drivers) {
+        if (d.trip) continue;
+        const p = planFor(d, o); if (p && (!best || p.total < best.p.total)) best = { d, p };
+      }
+      if (!best) { if (drivers.every(d => d.trip)) return; continue; }
+      assignTo(best.d, o, best.p);
+    }
+  }
+  function expireOrders() {
+    for (const o of orders) {
+      if (o.state !== 'open' || simClock - o.createdAt < o.target * CFG.expireFactor) continue;
+      o.state = 'cancelled'; stats.cancel++; rate(1, 0.08);
+      log('Bestellung #' + o.id + ' storniert: der Kunde hat nicht mehr gewartet', true);
+      if (sel.order === o.id) { const n = orders.find(x => x.state === 'open' && x !== o); sel.order = n ? n.id : null; }
+    }
+    if (orders.some(o => o.state === 'cancelled')) { orders = orders.filter(o => o.state !== 'cancelled'); orderStructDirty = true; plansDirty = true; dirty = true; }
+  }
+  const rate = (score, w) => { rep += (score - rep) * w; };
   const driverLabel = d => VEHICLES[d.veh].label;
 
   // ---------- Fahrt-Fortschritt ----------
@@ -661,11 +739,13 @@ function startGame(DATA) {
     const trip = d.trip, o = trip.order;
     const age = simClock - o.createdAt;
     const pay = o.pay;
-    const tip = age <= o.target ? Math.round(pay * CFG.tipMax * (1 - age / o.target) * 100) / 100 : 0;
+    const tip = age <= o.target ? Math.round(pay * tipMax() * (1 - age / o.target) * 100) / 100 : 0;
     const cost = Math.round(tripCost(trip) * 100) / 100;
     cash += pay + tip - cost;
     stats.n++; stats.pay += pay; stats.tip += tip; stats.cost += cost; stats.ageSum += age;
     o.state = 'delivered';
+    rate(age <= o.target ? 5 : age <= o.target * 1.5 ? 4 : age <= o.target * 2 ? 2.5 : 1.5, 0.08);
+    d.done++; while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) { d.lvl++; log('Fahrer ' + d.id + ' ist jetzt Stufe ' + d.lvl + ' und fährt schneller', true); }
     d.node = trip.endNode; d.trip = null; d.st = null; d.phase = -1;
     log('#' + o.id + ' zugestellt nach ' + fmtMin(age) + ' min: ' + seur(pay) + ' Lohn' + (tip > 0 ? ', ' + seur(tip) + ' Trinkgeld' : ', kein Trinkgeld') + (cost > 0 ? ', ' + seur(-cost) + ' Fahrzeugkosten' : ''), true);
     orders = orders.filter(x => x.state !== 'delivered');
@@ -676,21 +756,21 @@ function startGame(DATA) {
   const hireVeh = $('hireVeh');
   for (const k of ['bike', 'scooter', 'van']) {
     const o = document.createElement('option'); o.value = k;
-    o.textContent = VEHICLES[k].label + ' · ' + eur(CFG.vehPrice[k]) + ' · max. ' + Math.round(VEHICLES[k].vmax) + ' km/h';
+    o.textContent = VEHICLES[k].label + ' · ' + eur(CFG.vehPrice[k]) + ' · max. ' + Math.round(VEHICLES[k].vmax) + ' km/h · ' + eur(CFG.wage[k]) + '/h Lohn';
     hireVeh.appendChild(o);
   }
   const hireCost = () => CFG.hireFee + CFG.vehPrice[hireVeh.value];
   function syncHire() {
-    const cost = hireCost(), full = drivers.length >= CFG.maxDrivers, poor = cash < cost;
+    const cost = hireCost(), full = drivers.length >= cap(), poor = cash < cost;
     const b = $('hireBtn'); setText(b, full ? 'Alle Plätze belegt' : 'Einstellen für ' + eur(cost));
     b.disabled = full || poor;
-    setText($('hireNote'), full ? 'Mehr als ' + CFG.maxDrivers + ' Fahrer sind in dieser Phase nicht möglich.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im Hub.');
+    setText($('hireNote'), full ? 'Der Hub hat nur Platz für ' + cap() + ' Fahrer. Baue ihn unter Ausbau aus.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im Hub.');
   }
   hireVeh.addEventListener('change', syncHire);
   $('hireBtn').onclick = () => {
-    const cost = hireCost(); if (drivers.length >= CFG.maxDrivers || cash < cost) return;
+    const cost = hireCost(); if (drivers.length >= cap() || cash < cost) return;
     cash -= cost; const d = addDriver(hireVeh.value);
-    log('Fahrer ' + d.id + ' eingestellt (' + VEHICLES[d.veh].label + '), ' + seur(-cost));
+    log('Fahrer ' + d.id + ' eingestellt (' + VEHICLES[d.veh].label + '), ' + seur(-cost) + ', danach ' + eur(wageOf(d)) + ' pro Stunde');
     sel.driver = d.id; dirty = true;
   };
 
@@ -762,7 +842,7 @@ function startGame(DATA) {
   // ---------- Oberfläche: Fahrer ----------
   const dlist = $('dlist'); const dRefs = new Map();
   function renderDrivers() {
-    setText($('dcount'), drivers.length + ' / ' + CFG.maxDrivers);
+    setText($('dcount'), drivers.length + ' / ' + cap());
     for (const d of drivers) {
       let r = dRefs.get(d.id);
       if (!r) {
@@ -776,7 +856,7 @@ function startGame(DATA) {
         const line = document.createElement('span'); line.className = 'd-line';
         b.append(top, pill, line); li.appendChild(b); dlist.appendChild(li);
         b.onclick = () => { sel.driver = d.id; driverStructDirty = true; dirty = true; };
-        r = { li, btn: b, pill, line }; dRefs.set(d.id, r);
+        r = { li, btn: b, pill, line, vh }; dRefs.set(d.id, r);
       }
       r.li.className = 'driver' + (sel.driver === d.id ? ' sel' : ''); r.btn.setAttribute('aria-pressed', String(sel.driver === d.id));
     }
@@ -785,6 +865,7 @@ function startGame(DATA) {
   function updateDriverTexts() {
     for (const d of drivers) {
       const r = dRefs.get(d.id); if (!r) continue;
+      setText(r.vh, driverLabel(d) + ' · Stufe ' + d.lvl);
       if (d.trip) {
         const st = d.st || E.tripState(d.trip, d.trip.t);
         r.pill.className = 'pill ' + PHASE_CLS[Math.min(3, st.phase)];
@@ -797,13 +878,75 @@ function startGame(DATA) {
     }
   }
   function updateStats() {
-    setText($('cash'), eur(cash));
-    setText($('sN'), String(stats.n));
+    setText($('cash'), eur(cash)); $('cash').classList.toggle('neg', cash < 0);
+    setText($('sRep'), '★ ' + nf(1).format(rep));
+    setText($('sDem'), '≈ ' + Math.round(3600 / (CFG.spawnMean / demand())) + ' pro Stunde');
+    setText($('sN'), String(stats.n)); setText($('sCancel'), String(stats.cancel));
     setText($('sAge'), stats.n ? fmtMin(stats.ageSum / stats.n) + ' min' : '–');
     setText($('sPay'), eur(stats.pay)); setText($('sTip'), eur(stats.tip)); setText($('sCost'), stats.cost ? seur(-stats.cost) : eur(0));
-    const profit = stats.pay + stats.tip - stats.cost, el = $('sProfit');
+    setText($('sWage'), stats.wage ? seur(-stats.wage) : eur(0));
+    const profit = stats.pay + stats.tip - stats.cost - stats.wage, el = $('sProfit');
     setText(el, seur(profit)); el.className = 'total ' + (profit > 0 ? 'pos' : profit < 0 ? 'neg' : '');
   }
+
+  // ---------- Fahrerdetail, Schulung, Ausbau ----------
+  function updateDetail() {
+    const d = drivers.find(x => x.id === sel.driver) || drivers[0], box = $('ddetail'); if (!d) return;
+    if (!box._b) {
+      box._h = document.createElement('strong'); box._xp = document.createElement('div'); box._xp.className = 'xp'; box._xp.appendChild(document.createElement('i'));
+      box._p = document.createElement('p'); box._b = document.createElement('button'); box._b.type = 'button'; box._b.className = 'btn';
+      box.append(box._h, box._xp, box._p, box._b);
+      box._b.onclick = () => {
+        const x = drivers.find(v => v.id === box._id); if (!x || x.trip || x.lvl >= 5) return;
+        const c = CFG.trainCost(x.lvl); if (cash < c) return;
+        cash -= c; x.lvl++; x.done = Math.max(x.done, CFG.xpNeed[x.lvl - 1]);
+        log('Fahrer ' + x.id + ' wurde geschult: Stufe ' + x.lvl + ', ' + seur(-c)); driverStructDirty = true; plansDirty = true; dirty = true;
+      };
+    }
+    box._id = d.id;
+    setText(box._h, 'Fahrer ' + d.id + ' · ' + driverLabel(d) + ' · Stufe ' + d.lvl);
+    const nextN = d.lvl < 5 ? CFG.xpNeed[d.lvl] : null, prevN = CFG.xpNeed[d.lvl - 1];
+    box._xp.firstChild.style.width = (nextN ? Math.min(100, (d.done - prevN) / (nextN - prevN) * 100) : 100) + '%';
+    setText(box._p, d.done + ' Lieferungen · ' + (nextN ? 'nächste Stufe ab ' + nextN : 'höchste Stufe') + ' · Tempo +' + Math.round((speedMult(d) - 1) * 100) + ' % · Lohn ' + eur(wageOf(d)) + '/h');
+    const c = d.lvl < 5 ? CFG.trainCost(d.lvl) : 0;
+    setText(box._b, d.lvl >= 5 ? 'Höchste Stufe erreicht' : d.trip ? 'Schulung nur im Leerlauf' : 'Schulen für ' + eur(c));
+    box._b.disabled = d.lvl >= 5 || !!d.trip || cash < c;
+  }
+  const ulist = $('ulist'), uRefs = [];
+  const UPG_ALL = UPG.concat([{ id: 'hub', name: 'Hub ausbauen', desc: '' }]);
+  for (const u of UPG_ALL) {
+    const row = document.createElement('div'); row.className = 'upg';
+    const n = document.createElement('strong'), sm = document.createElement('small'), b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; row.append(n, sm, b); ulist.appendChild(row);
+    b.onclick = () => buyUpgrade(u.id);
+    uRefs.push({ u, row, n, sm, b });
+  }
+  function buyUpgrade(id) {
+    if (id === 'hub') {
+      const c = CFG.hubCost[hubLevel + 1]; if (c === undefined || cash < c) return;
+      cash -= c; hubLevel++; log('Hub ausgebaut: jetzt Platz für ' + cap() + ' Fahrer, ' + seur(-c), true); driverStructDirty = true; return;
+    }
+    const u = UPG.find(x => x.id === id); if (!u || owned[id] || cash < u.cost) return;
+    cash -= u.cost; owned[id] = true; log(u.name + ' gekauft, ' + seur(-u.cost), true);
+    if (id === 'dispatch') { autoOn = true; $('autoBtn').hidden = false; syncAuto(); }
+    plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+  function updateUpgrades() {
+    for (const r of uRefs) {
+      if (r.u.id === 'hub') {
+        const c = CFG.hubCost[hubLevel + 1], max = c === undefined;
+        setText(r.n, 'Hub ausbauen (Stufe ' + (hubLevel + 1) + ')'); r.row.classList.toggle('own', false);
+        setText(r.sm, max ? 'Größter Ausbau erreicht: ' + cap() + ' Fahrer.' : 'Platz für ' + CFG.hubCaps[hubLevel + 1] + ' statt ' + cap() + ' Fahrer.');
+        setText(r.b, max ? 'Fertig' : eur(c)); r.b.disabled = max || cash < c;
+      } else {
+        const own = !!owned[r.u.id]; r.row.classList.toggle('own', own);
+        setText(r.n, r.u.name); setText(r.sm, r.u.desc);
+        setText(r.b, own ? 'Gekauft' : eur(r.u.cost)); r.b.disabled = own || cash < r.u.cost;
+      }
+    }
+  }
+  function syncAuto() { const b = $('autoBtn'); b.setAttribute('aria-pressed', String(autoOn)); b.textContent = 'Auto-Disposition: ' + (autoOn ? 'an' : 'aus'); }
+  $('autoBtn').onclick = () => { autoOn = !autoOn; syncAuto(); };
 
   // ---------- Protokoll ----------
   function log(text, hl) {
@@ -881,7 +1024,7 @@ function startGame(DATA) {
   });
 
   // ---------- Schleife ----------
-  let last = performance.now(), lastUi = 0;
+  let last = performance.now(), lastUi = 0, lastAuto = 0;
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (!paused) {
@@ -889,16 +1032,19 @@ function startGame(DATA) {
       simClock += adv;
       for (const d of drivers) if (d.trip) d.trip.t += adv;
       updateDrivers();
+      let w = 0; for (const d of drivers) w += wageOf(d); w = w * adv / 3600; cash -= w; stats.wage += w;
+      expireOrders();
       while (simClock >= nextSpawn) {
         if (openOrders().length < CFG.maxOpen) spawnOrder();
-        nextSpawn = simClock + Math.max(CFG.spawnMin, -Math.log(1 - Math.random()) * CFG.spawnMean);
+        nextSpawn = simClock + Math.max(CFG.spawnMin, -Math.log(1 - Math.random()) * CFG.spawnMean / demand());
       }
+      if (owned.dispatch && autoOn && now - lastAuto > 400) { lastAuto = now; autoDispatch(); }
       dirty = true;
     }
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
-    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); updateDetail(); updateUpgrades(); }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
