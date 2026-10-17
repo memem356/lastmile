@@ -45,3 +45,12 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 
 ## Stoßzeitenverkehr ohne Ereignis
 - Die Grundlast je Straße enthält jetzt Rückstau an Kreuzungen (Zufahrten auf Knoten, an denen Hauptstraßen aufeinandertreffen oder Nebenstraßen einmünden) und zusammenhängende Engstellen-Zonen (ca. 350 m). Dadurch werden zur Stoßzeit auch ohne Ereignis Kreuzungsbereiche gelb bis rot, mittags bleibt es überwiegend grün. Ereignisse kommen als Zuschlag obendrauf.
+
+## Phase 8a: Spielstände absichern
+- Format v2. Beim Laden werden fehlende Felder mit Standardwerten ergänzt und unmögliche Werte begrenzt (`normalizeSave`); Stände aus älteren Versionen laden weiter.
+- Sicherung: beim Laden entsteht eine Kopie des Stands (`….bak`), außerdem etwa alle 10 Minuten im Spiel. Ist der Hauptstand defekt, wird die Sicherung geladen.
+- Defekte Stände werden nie überschrieben, sondern unter `lm.bad.*` aufgehoben (die letzten 6). Ein Hinweisfenster erlaubt, sie als Datei zu sichern; auf der Startseite stehen sie ebenfalls.
+- Stammt ein Stand aus einer neueren Spielversion, wird er nicht überschrieben (Sitzung ohne Speichern, mit Hinweis).
+- Hat sich die Karte der Stadt geändert, werden Bestellungen, Partner-Lokale, Hubs und Fahrer über Koordinaten neu zugeordnet; nicht zuordenbare Partner werden erstattet.
+- Menü: Spielstand exportieren/importieren (JSON-Datei); Import auch auf der Startseite.
+- Die Seite bittet Suchmaschinen per Meta-Tag, sie nicht aufzunehmen.

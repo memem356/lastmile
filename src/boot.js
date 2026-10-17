@@ -2,7 +2,7 @@
   const SUGGEST = ['Hamburg', 'Wien', 'Paris', 'New York', 'Tokio', 'Kapstadt', 'São Paulo', 'Sydney'];
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), recent: $('recent'),
     recentBox: $('recentBox'), chips: $('chips'), status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar') };
-  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
+  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox', 'fileBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
   let cachedList = [], saves = [], mode = 'relaxed';
   try { mode = localStorage.getItem('lm-mode') === 'rush' ? 'rush' : 'relaxed'; } catch (e) {}
   const mq2 = () => '&m=' + (mode === 'rush' ? 'r' : 'e');
@@ -80,11 +80,42 @@
   }
 
   const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 2 ? 'gerade eben' : m < 90 ? 'vor ' + m + ' Min.' : m < 2880 ? 'vor ' + Math.round(m / 60) + ' Std.' : 'vor ' + Math.round(m / 1440) + ' Tagen'; };
+  // Spielstände als Datei sichern und wieder einlesen, auch defekte Stände
+  function dl(name, text) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+  const fmsg = (t, err) => { const m = $('fileMsg'); m.hidden = !t; m.textContent = t || ''; m.style.color = err ? '#e0402a' : ''; };
+  function importFile(file) {
+    const rd = new FileReader();
+    rd.onerror = () => fmsg('Die Datei konnte nicht gelesen werden.', true);
+    rd.onload = () => {
+      try {
+        const o = JSON.parse(String(rd.result)), sv = o && o.lm === 'lastmile-save' ? o.save : null;
+        if (!sv || !sv.place || !isFinite(+sv.place.lat) || !isFinite(+sv.place.lon) || !Array.isArray(sv.drivers) || !sv.drivers.length) throw new Error('format');
+        if (!(sv.v >= 1)) throw new Error('format');
+        if (sv.v > 2) return fmsg('Dieser Spielstand stammt aus einer neueren Version des Spiels.', true);
+        const k = 'lm.save.' + (+sv.place.lat).toFixed(3) + ',' + (+sv.place.lon).toFixed(3) + '.' + (sv.mode === 'rush' ? 'rush' : 'relaxed'), old = localStorage.getItem(k);
+        if (old) localStorage.setItem(k + '.bak', old);
+        localStorage.setItem(k, JSON.stringify(sv));
+        fmsg('Importiert: ' + sv.place.name + '. Du findest ihn jetzt oben unter „Weiter spielen“.'); init.again = true; saves.length = 0; init();
+      } catch (e) { fmsg('Das ist kein gültiger Lastmile-Spielstand.', true); }
+    };
+    rd.readAsText(file);
+  }
+  function fileSection() {
+    const ul = $('fileList'); ul.textContent = '';
+    ul.appendChild(item('Spielstand importieren', '(Datei)', 'wählen', () => { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = () => { if (f.files[0]) importFile(f.files[0]); }; f.click(); }));
+    const bad = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('lm.bad.')) bad.push(k); } } catch (e) {}
+    bad.sort().reverse().forEach(k => {
+      const ts = +k.split('.')[2]; ul.appendChild(item('Beschädigter Stand', 'vom ' + new Date(ts).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }), 'sichern', () => dl('lastmile-defekt-' + ts + '.json', localStorage.getItem(k) || '')));
+    });
+  }
   async function init() {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('lm.save.')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v === 1) saves.push(sv); }
+        if (k && k.startsWith('lm.save.')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v >= 1) saves.push(sv); }
       }
     } catch (e) {}
     saves.sort((a, b) => b.at - a.at);
@@ -94,10 +125,12 @@
       $('saveList').appendChild(item(sv.place.name + ' · ' + m, cash + ' · ' + sv.stats.n + ' Lieferungen · ' + ago(sv.at), 'fortsetzen', () => { setMode(sv.mode === 'rush' ? 'rush' : 'relaxed'); begin(sv.place); }));
     }
     $('saveBox').hidden = !saves.length;
+    fileSection();
     cachedList = await LM.listCached();
     el.recent.textContent = '';
     for (const p of cachedList) el.recent.appendChild(item(p.name, p.sub, '', () => begin(p)));
     el.recentBox.hidden = !cachedList.length;
+    if (init.again) { init.again = false; return; }
     const m = location.hash.match(/^#c=(.+?)(?:&m=([re]))?$/);
     if (m) {
       if (m[2]) setMode(m[2] === 'r' ? 'rush' : 'relaxed');

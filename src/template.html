@@ -1,4 +1,5 @@
 <title>Lastmile</title>
+<meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -343,6 +344,11 @@ canvas.placing { cursor: crosshair; }
     <section id="saveBox" hidden>
       <h2>Weiter spielen</h2>
       <ul class="rlist" id="saveList"></ul>
+    </section>
+    <section id="fileBox">
+      <h2>Spielstände sichern</h2>
+      <ul class="rlist" id="fileList"></ul>
+      <p class="hint" id="fileMsg" hidden></p>
     </section>
     <section id="modeSec">
       <h2>Spielmodus</h2>
@@ -2066,6 +2072,8 @@ function startGame(DATA, MODEKEY) {
       const trf = btn('Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'), () => { setTraffic(!showTraffic); trf.textContent = 'Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'); });
       btn('Erfolge (' + ACH.filter(a => prog.ach[a.id]).length + ' von ' + ACH.length + ')', () => { closeDlg(); openAch(); });
       btn('Tutorial', () => { closeDlg(); openTutorial(); });
+      btn('Spielstand exportieren (Datei)', () => { exportSave(); closeDlg(); toast('Spielstand exportiert', 'Die Datei liegt in deinen Downloads.'); });
+      btn('Spielstand importieren (Datei)', () => { closeDlg(); const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = () => { if (f.files[0]) importSave(f.files[0]); }; f.click(); });
       btn('Jetzt speichern', () => { toast(saveNow(true) ? 'Gespeichert' : 'Speichern nicht möglich', saveNow.ok ? '' : 'Der Browser erlaubt keinen Speicher.'); });
       btn('Stadt wechseln', () => { saveNow(false); history.replaceState(null, '', location.pathname); location.reload(); });
       let armed = false;
@@ -2093,66 +2101,223 @@ function startGame(DATA, MODEKEY) {
 
   // ---------- Speichern und Laden ----------
   const SAVEKEY = 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
-  let noSave = false;
+  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 2, BUILD = '2026-10-17';
+  let noSave = false, saveCount = 0;
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsKeys = pre => { const r = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) r.push(k); } } catch (e) {} return r; };
   function snapshot() {
+    const rd = v => Math.round(v);
     return {
-      v: 1, at: Date.now(), mode: MODEKEY, N, np: pois.length, nh: homes.length,
+      v: SAVE_V, app: BUILD, at: Date.now(), mode: MODEKEY, N, np: pois.length, nh: homes.length,
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
-      simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners],
+      simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
       orderSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh },
-      led: { exp: led.exp, hist: led.hist, ontime: led.ontime, base: led.base, brk: led.brk, ev: led.ev, places: Object.fromEntries(Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 40)) }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
+      led: { exp: led.exp, hist: led.hist, ontime: led.ontime, base: led.base, brk: led.brk, ev: led.ev, places: Object.fromEntries(Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 40)), det: led.det, detSec: led.detSec }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
       wx, wxLeft, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, nextEv, selDriver: sel.driver,
-      orders: orders.filter(o => o.state === 'open' || o.state === 'assigned').map(o => ({ id: o.id, pi: o.pick.i, hi: o.home.i, createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: o.picked, partner: o.partner, big: o.big })),
-      drivers: drivers.map(d => ({
-        id: d.id, veh: d.veh, hub: d.hub, node: curNode(d), lvl: d.lvl, done: d.done, earn: d.earn || 0,
+      orders: orders.filter(o => o.state === 'open' || o.state === 'assigned').map(o => ({ id: o.id, pi: o.pick.i, hi: o.home.i, px: rd(o.pick.x), py: rd(o.pick.y), hx: rd(o.home.x), hy: rd(o.home.y), createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: o.picked, partner: o.partner, big: o.big })),
+      drivers: drivers.map(d => { const nd = curNode(d); return {
+        id: d.id, veh: d.veh, hub: d.hub, node: nd, nx: rd(nx[nd]), ny: rd(ny[nd]), lvl: d.lvl, done: d.done, earn: d.earn || 0,
         train: d.train ? Object.assign({}, d.train) : null, sick: d.sick ? { left: d.sick.left } : null, stall: d.stall ? { left: d.stall.left, kind: d.stall.kind } : null,
         trip: d.trip ? { o: d.trip.order.id, f: d.trip.total ? d.trip.t / d.trip.total : 0 } : null
-      })),
+      }; }),
       log: [...$('log').children].slice(0, 25).reverse().map(li => [li.firstChild.textContent, li.lastChild.textContent, li.className === 'hl'])
     };
+  }
+  // Alte Sicherungen defekter Spielstände: die jüngsten behalten, damit nie etwas stillschweigend verloren geht
+  function keepBad(raw, label) {
+    const suffix = '.' + label + '.' + SAVEKEY.slice(8);
+    for (const k of lsKeys('lm.bad.')) if (k.endsWith(suffix) && lsGet(k) === raw) return k;
+    const key = 'lm.bad.' + Date.now() + suffix;
+    try { localStorage.setItem(key, raw); } catch (e) { return null; }
+    const all = lsKeys('lm.bad.').sort(); while (all.length > 6) { try { localStorage.removeItem(all.shift()); } catch (e) { break; } }
+    return key;
   }
   function saveNow(manual) {
     saveNow.ok = false;
     if (noSave || !drivers.length) return false;
-    try { localStorage.setItem(SAVEKEY, JSON.stringify(snapshot())); saveNow.ok = true; } catch (e) { saveNow.ok = false; }
+    const txt = JSON.stringify(snapshot());
+    // etwa alle 10 Minuten wird der letzte gute Stand zur Sicherung
+    if (++saveCount % 40 === 0) { const cur = lsGet(SAVEKEY); if (cur) { try { localStorage.setItem(BAKKEY, cur); } catch (e) {} } }
+    try { localStorage.setItem(SAVEKEY, txt); saveNow.ok = true; }
+    catch (e) { for (const k of lsKeys('lm.bad.').sort()) { try { localStorage.removeItem(k); localStorage.setItem(SAVEKEY, txt); saveNow.ok = true; break; } catch (e2) {} } }
     return saveNow.ok;
   }
-  function readSave() { try { const t = localStorage.getItem(SAVEKEY); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+  // Prüft und repariert einen Spielstand: fehlende Felder bekommen Standardwerte, unmögliche Werte werden begrenzt.
+  const num = (x, d, lo, hi) => (typeof x === 'number' && isFinite(x)) ? Math.min(hi === undefined ? Infinity : hi, Math.max(lo === undefined ? -Infinity : lo, x)) : d;
+  const isObj = x => !!x && typeof x === 'object' && !Array.isArray(x), arr = x => Array.isArray(x) ? x : [];
+  function normalizeSave(sv) {
+    if (!isObj(sv)) throw new Error('kein Spielstand');
+    if (!(sv.v >= 1)) throw new Error('Version fehlt');
+    if (sv.v > SAVE_V) { const e = new Error('Version ' + sv.v + ' ist neuer als diese Spielversion'); e.future = true; throw e; }
+    const n = { v: SAVE_V, from: sv.v, at: num(sv.at, Date.now(), 0), mode: sv.mode, N: sv.N, np: sv.np, nh: sv.nh, place: sv.place };
+    n.drivers = [];
+    const seen = new Set();
+    for (const d of arr(sv.drivers)) {
+      if (!isObj(d) || !VEHICLES[d.veh] || !Number.isInteger(d.id) || seen.has(d.id)) continue; seen.add(d.id);
+      n.drivers.push({ id: d.id, veh: d.veh, hub: Math.max(0, Math.round(num(d.hub, 0, 0))), node: d.node, nx: d.nx, ny: d.ny, lvl: Math.round(num(d.lvl, 1, 1, 5)), done: Math.round(num(d.done, 0, 0)), earn: num(d.earn, 0, 0),
+        train: isObj(d.train) ? d.train : null, sick: isObj(d.sick) ? { left: num(d.sick.left, 0, 0) } : null, stall: isObj(d.stall) ? { left: num(d.stall.left, 0, 0), kind: String(d.stall.kind || 'Panne') } : null,
+        trip: isObj(d.trip) && Number.isInteger(d.trip.o) ? { o: d.trip.o, f: num(d.trip.f, 0, 0, 1) } : null });
+    }
+    if (!n.drivers.length) throw new Error('keine Fahrer im Spielstand');
+    n.hubs = arr(sv.hubs).filter(h => isObj(h) && isFinite(h.x) && isFinite(h.y)).slice(0, 3).map(h => ({ x: h.x, y: h.y, nb: h.nb, nc: h.nc }));
+    if (!n.hubs.length) throw new Error('kein Hub im Spielstand');
+    for (const d of n.drivers) d.hub = Math.min(d.hub, n.hubs.length - 1);
+    n.simClock = num(sv.simClock, 0, 0); n.cash = num(sv.cash, CFG.startCash); n.rep = num(sv.rep, 3, 1, 5);
+    n.hubLevel = Math.round(num(sv.hubLevel, 0, 0, CFG.hubCaps.length - 1)); n.zoneLevel = Math.round(num(sv.zoneLevel, 0, 0, CFG.zones.length - 1));
+    n.autoOn = !!sv.autoOn; n.owned = {}; for (const u of UPG) if (isObj(sv.owned) && sv.owned[u.id]) n.owned[u.id] = true;
+    n.partners = arr(sv.partners).filter(Number.isInteger); n.partnerXY = arr(sv.partnerXY).filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1]));
+    n.orderSeq = Math.round(num(sv.orderSeq, 1001, 1)); n.lastSpawnT = num(sv.lastSpawnT, 0);
+    n.bill = { wage: num(sv.bill && sv.bill.wage, 0, 0), veh: num(sv.bill && sv.bill.veh, 0, 0) };
+    const st = isObj(sv.stats) ? sv.stats : {}; n.stats = {}; for (const k of ['n', 'pay', 'tip', 'cost', 'wage', 'cancel', 'ageSum']) n.stats[k] = num(st[k], 0, 0);
+    const L = isObj(sv.led) ? sv.led : null; n.led = { exp: {}, hist: [], ontime: 0, base: n.stats.n, brk: 0, ev: {}, places: {}, det: 0, detSec: 0 };
+    if (L) {
+      for (const k of ['ontime', 'base', 'brk', 'det', 'detSec']) n.led[k] = num(L[k], k === 'base' ? n.stats.n : 0, 0);
+      for (const o of ['exp', 'ev', 'places']) if (isObj(L[o])) for (const k in L[o]) if (typeof L[o][k] === 'number' && isFinite(L[o][k])) n.led[o][k] = L[o][k];
+      n.led.hist = arr(L.hist).filter(e => isObj(e) && isFinite(e.h) && isFinite(e.inc) && isFinite(e.out)).map(e => ({ h: e.h, inc: e.inc, out: e.out })).slice(-30);
+    }
+    const P = isObj(sv.prog) ? sv.prog : {}; n.prog = { streak: num(P.streak, 0, 0), best: num(P.best, 0, 0), big: num(P.big, 0, 0), storm: num(P.storm, 0, 0), ach: {} };
+    for (const a of ACH) if (isObj(P.ach) && P.ach[a.id]) n.prog.ach[a.id] = P.ach[a.id];
+    n.wx = WX[sv.wx] ? sv.wx : 'cloud'; n.wxLeft = num(sv.wxLeft, 3 * 3600, 60, 8 * 3600);
+    n.events = arr(sv.events).filter(e => isObj(e) && typeof e.name === 'string' && isFinite(e.left));
+    n.tevents = arr(sv.tevents).filter(e => isObj(e) && TEV[e.kind] && ['x', 'y', 't0', 'dur', 'r', 'peak', 'up', 'down'].every(k => isFinite(e[k])));
+    n.teSeq = Math.round(num(sv.teSeq, 1, 1)); n.nextEv = num(sv.nextEv, 3 * 3600, 0); n.selDriver = sv.selDriver;
+    n.orders = arr(sv.orders).filter(o => isObj(o) && Number.isInteger(o.id) && (o.state === 'open' || o.state === 'assigned') && ['createdAt', 'pay', 'air', 'target'].every(k => isFinite(o[k]))).map(o => ({
+      id: o.id, pi: o.pi, hi: o.hi, px: o.px, py: o.py, hx: o.hx, hy: o.hy, createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: !!o.picked, partner: !!o.partner, big: !!o.big }));
+    n.log = arr(sv.log).filter(l => Array.isArray(l) && l.length >= 2).slice(-25);
+    return n;
+  }
+  // Übernimmt den geprüften Spielstand. Hat sich die Karte seit dem Speichern geändert, werden Orte über ihre Koordinaten neu zugeordnet.
   function applySave(sv) {
-    try {
-      if (!sv || sv.v !== 1 || sv.N !== N || sv.np !== pois.length || sv.nh !== homes.length || !sv.drivers.length) return false;
-      simClock = sv.simClock; realign(); cash = sv.cash; rep = sv.rep; hubLevel = sv.hubLevel; autoOn = !!sv.autoOn; zoneLevel = sv.zoneLevel;
-      for (const k in owned) delete owned[k]; Object.assign(owned, sv.owned);
-      partners.clear(); sv.partners.forEach(i => partners.add(i));
-      hubs.length = 0; sv.hubs.forEach(h => hubs.push({ x: h.x, y: h.y, n: { bike: h.nb, car: h.nc } }));
-      orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; if (sv.bill) { bill.wage = sv.bill.wage; bill.veh = sv.bill.veh; }
-      if (sv.led) Object.assign(led, sv.led); else led.base = sv.stats.n; Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
-      wx = sv.wx; wxLeft = sv.wxLeft; events = sv.events; nextEv = sv.nextEv; tevents = sv.tevents || []; teSeq = sv.teSeq || 1; refreshTraffic(true);
-      rezone();
-      orders = sv.orders.map(o => { const q = Object.assign({}, o, { pick: pois[o.pi], home: homes[o.hi] }); delete q.pi; delete q.hi; return q; });
-      drivers = [];
-      for (const q of sv.drivers) {
-        const d = { id: q.id, veh: q.veh, hub: q.hub, node: q.node, trip: null, ret: null, st: null, phase: -1, lvl: q.lvl, done: q.done, earn: q.earn || 0 };
-        if (q.train) d.train = q.train; if (q.sick) d.sick = q.sick; if (q.stall) d.stall = q.stall;
-        drivers.push(d);
-        if (q.trip) {
-          const o = orderById(q.trip.o), plan = o && planFor(d, o);
-          if (plan) { plan.t = q.trip.f * plan.total; plan.order = o; d.trip = plan; d.st = E.tripState(plan, plan.t); d.phase = d.st.phase; o.driver = d.id; }
-          else if (o) { o.state = 'open'; o.driver = null; o.picked = false; }
-        }
+    const notes = [], same = sv.N === N && sv.np === pois.length && sv.nh === homes.length;
+    const near = (list, x, y, maxD) => { let best = -1, bd = maxD * maxD; for (const p of list) { const d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y); if (d < bd) { bd = d; best = p.i; } } return best; };
+    simClock = sv.simClock; realign(); cash = sv.cash; rep = sv.rep; hubLevel = sv.hubLevel; autoOn = sv.autoOn; zoneLevel = sv.zoneLevel;
+    for (const k in owned) delete owned[k]; Object.assign(owned, sv.owned);
+    partners.clear();
+    if (same) sv.partners.forEach(i => { if (i >= 0 && i < pois.length) partners.add(i); });
+    else {
+      let lost = Math.max(sv.partners.length, sv.partnerXY.length);
+      for (const q of sv.partnerXY) { const i = near(pois, q[0], q[1], 60); if (i >= 0 && !partners.has(i)) { partners.add(i); lost--; } }
+      if (lost > 0) { cash += lost * CFG.partnerCost; notes.push(lost + (lost === 1 ? ' Partner-Lokal gibt es auf der aktualisierten Karte nicht mehr. Die Kosten (' + eur(lost * CFG.partnerCost) + ') wurden erstattet.' : ' Partner-Lokale gibt es auf der aktualisierten Karte nicht mehr. Die Kosten (' + eur(lost * CFG.partnerCost) + ') wurden erstattet.')); }
+    }
+    hubs.length = 0;
+    for (const h of sv.hubs) {
+      const ok = same && Number.isInteger(h.nb) && Number.isInteger(h.nc) && h.nb >= 0 && h.nb < N && h.nc >= 0 && h.nc < N;
+      hubs.push({ x: h.x, y: h.y, n: ok ? { bike: h.nb, car: h.nc } : { bike: E.hubNode('bike', h.x, h.y), car: E.hubNode('scooter', h.x, h.y) } });
+    }
+    orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; bill.wage = sv.bill.wage; bill.veh = sv.bill.veh;
+    Object.assign(led, sv.led); Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
+    wx = sv.wx; wxLeft = sv.wxLeft; events = sv.events; nextEv = sv.nextEv; tevents = sv.tevents; teSeq = sv.teSeq; refreshTraffic(true);
+    rezone();
+    let dropped = 0;
+    orders = [];
+    for (const o of sv.orders) {
+      let pi = o.pi, hi = o.hi;
+      if (!same) { pi = isFinite(o.px) && isFinite(o.py) ? near(pois, o.px, o.py, 40) : -1; hi = isFinite(o.hx) && isFinite(o.hy) ? near(homes, o.hx, o.hy, 40) : -1; }
+      if (!Number.isInteger(pi) || !Number.isInteger(hi) || pi < 0 || pi >= pois.length || hi < 0 || hi >= homes.length) { dropped++; continue; }
+      const q = Object.assign({}, o, { pick: pois[pi], home: homes[hi] }); delete q.pi; delete q.hi; delete q.px; delete q.py; delete q.hx; delete q.hy; orders.push(q);
+    }
+    if (dropped) notes.push(dropped + (dropped === 1 ? ' offene Bestellung konnte' : ' offene Bestellungen konnten') + ' auf der aktualisierten Karte nicht zugeordnet werden und ' + (dropped === 1 ? 'wurde' : 'wurden') + ' entfernt.');
+    drivers = [];
+    for (const q of sv.drivers) {
+      let node = q.node;
+      if (!same || !Number.isInteger(node) || node < 0 || node >= N) node = isFinite(q.nx) && isFinite(q.ny) ? E.hubNode(q.veh, q.nx, q.ny) : nodeFor(hubs[q.hub], q.veh);
+      const d = { id: q.id, veh: q.veh, hub: q.hub, node, trip: null, ret: null, st: null, phase: -1, lvl: q.lvl, done: q.done, earn: q.earn };
+      if (q.train) d.train = q.train; if (q.sick) d.sick = q.sick; if (q.stall) d.stall = q.stall;
+      drivers.push(d);
+      if (q.trip) {
+        const o = orderById(q.trip.o), plan = o && planFor(d, o);
+        if (plan) { plan.t = q.trip.f * plan.total; plan.order = o; d.trip = plan; d.st = E.tripState(plan, plan.t); d.phase = d.st.phase; o.driver = d.id; }
+        else if (o) { o.state = 'open'; o.driver = null; o.picked = false; }
       }
-      for (const o of orders) if (o.state === 'assigned' && !drivers.some(d => d.trip && d.trip.order === o)) { o.state = 'open'; o.driver = null; o.picked = false; }
-      for (const d of drivers) if (!d.trip && !(d.train && d.train.state === 'active')) { if (d.stall) d.stall = null; startReturn(d); }
-      for (const l of sv.log || []) {
-        const li = document.createElement('li'); if (l[2]) li.className = 'hl';
-        const t = document.createElement('time'); t.textContent = l[0]; const sp = document.createElement('span'); sp.textContent = l[1]; li.append(t, sp); $('log').prepend(li);
+    }
+    for (const o of orders) if (o.state === 'assigned' && !drivers.some(d => d.trip && d.trip.order === o)) { o.state = 'open'; o.driver = null; o.picked = false; }
+    for (const d of drivers) if (!d.trip && !(d.train && d.train.state === 'active')) { if (d.stall) d.stall = null; startReturn(d); }
+    for (const l of sv.log) {
+      const li = document.createElement('li'); if (l[2]) li.className = 'hl';
+      const t = document.createElement('time'); t.textContent = String(l[0]); const sp = document.createElement('span'); sp.textContent = String(l[1]); li.append(t, sp); $('log').prepend(li);
+    }
+    sel.driver = drivers.some(d => d.id === sv.selDriver) ? sv.selDriver : drivers[0].id;
+    const first = orders.find(o => o.state === 'open'); sel.order = first ? first.id : null;
+    plansDirty = orderStructDirty = driverStructDirty = true; dirty = true;
+    return notes;
+  }
+  // Lädt den Spielstand mit Rückfall: Hauptstand, dann Sicherung. Defekte Stände werden aufgehoben, nie überschrieben.
+  function loadSavedGame() {
+    const res = { sv: null, notes: [], bad: [], problems: [], from: null, future: null, reloading: false };
+    let skip = ''; try { skip = sessionStorage.getItem('lm-skip') || ''; sessionStorage.removeItem('lm-skip'); } catch (e) {}
+    for (const [label, key] of [['main', SAVEKEY], ['bak', BAKKEY]]) {
+      const raw = lsGet(key); if (!raw) continue;
+      if (skip.split(',').includes(label)) { const k = keepBad(raw, label); if (k) res.bad.push(k); res.problems.push(label); continue; }
+      let sv;
+      try { sv = normalizeSave(JSON.parse(raw)); }
+      catch (e) {
+        if (e.future) { res.future = e.message; noSave = true; return res; }
+        const k = keepBad(raw, label); if (k) res.bad.push(k); res.problems.push(label); continue;
       }
-      sel.driver = drivers.some(d => d.id === sv.selDriver) ? sv.selDriver : drivers[0].id;
-      const first = orders.find(o => o.state === 'open'); sel.order = first ? first.id : null;
-      plansDirty = orderStructDirty = driverStructDirty = true; dirty = true;
-      return true;
-    } catch (e) { console.error('Spielstand konnte nicht geladen werden', e); return false; }
+      try { res.notes = applySave(sv); }
+      catch (e) {
+        console.error('Spielstand konnte nicht angewendet werden', e);
+        const k = keepBad(raw, label); if (k) res.bad.push(k);
+        noSave = true; try { sessionStorage.setItem('lm-skip', (skip ? skip + ',' : '') + label); } catch (e2) {}
+        res.reloading = true; setTimeout(() => location.reload(), 50); return res;
+      }
+      res.sv = sv; res.from = label;
+      if (label === 'main' && lsGet(BAKKEY) !== raw) { try { localStorage.setItem(BAKKEY, raw); } catch (e) {} }
+      return res;
+    }
+    return res;
+  }
+  function downloadText(name, text) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+  const fileStamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const slug = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'stadt';
+  const exportPack = sv => JSON.stringify({ lm: 'lastmile-save', fmt: 1, exported: new Date().toISOString(), save: sv });
+  function exportSave() {
+    if (!drivers.length) return;
+    downloadText('lastmile-' + slug(DATA.name) + '-' + MODEKEY + '-' + fileStamp() + '.json', exportPack(snapshot()));
+  }
+  function importSave(file) {
+    const rd = new FileReader();
+    rd.onerror = () => toast('Datei nicht lesbar', '');
+    rd.onload = () => {
+      let obj, sv;
+      try { obj = JSON.parse(String(rd.result)); sv = normalizeSave(obj && obj.lm === 'lastmile-save' ? obj.save : null); }
+      catch (e) { toast('Das ist kein gültiger Lastmile-Spielstand', e && e.future ? 'Er stammt aus einer neueren Version.' : ''); return; }
+      const pl = obj.save.place || {}, key = 'lm.save.' + (+pl.lat).toFixed(3) + ',' + (+pl.lon).toFixed(3) + '.' + (obj.save.mode === 'rush' ? 'rush' : 'relaxed');
+      if (!isFinite(+pl.lat) || !isFinite(+pl.lon)) { toast('Spielstand ohne Ortsangabe', ''); return; }
+      openDlg('Spielstand importieren', b => {
+        const here = key === SAVEKEY;
+        b.appendChild(mk('p', 'big', (pl.name || 'Stadt') + ' · ' + (obj.save.mode === 'rush' ? 'Rush' : 'Entspannt') + ' · ' + eur(sv.cash) + ' · ' + sv.stats.n + ' Lieferungen'));
+        b.appendChild(mk('p', null, here ? 'Der aktuelle Spielstand dieser Stadt wird ersetzt. Er bleibt als Sicherung erhalten.' : 'Er wird unter „Weiter spielen“ auf der Startseite angeboten. Ein vorhandener Stand dieser Stadt bleibt als Sicherung erhalten.'));
+        const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Importieren'), no = mk('button', 'btn', 'Abbrechen'); ok.type = no.type = 'button';
+        ok.onclick = () => {
+          const old = key === SAVEKEY && drivers.length ? JSON.stringify(snapshot()) : lsGet(key);
+          try { if (old) localStorage.setItem(key + '.bak', old); localStorage.setItem(key, JSON.stringify(obj.save)); }
+          catch (e) { closeDlg(); toast('Speichern nicht möglich', 'Der Browser erlaubt keinen Speicher.'); return; }
+          if (here) { noSave = true; location.reload(); } else { closeDlg(); toast('Importiert', 'Zu finden unter „Weiter spielen“ auf der Startseite.'); }
+        };
+        no.onclick = closeDlg; row.append(ok, no); b.appendChild(row);
+      });
+    };
+    rd.readAsText(file);
+  }
+  function showLoadNotice(r, then) {
+    const lines = [];
+    if (r.future) lines.push(['big', 'Dieser Spielstand stammt aus einer neueren Version des Spiels (' + r.future + ').'], [null, 'Damit nichts verloren geht, wird er nicht überschrieben und diese Sitzung wird nicht gespeichert. Lade die Seite neu oder leere den Zwischenspeicher des Browsers, um die neueste Version zu bekommen.']);
+    else if (r.sv && r.from === 'bak') lines.push(['big', 'Der letzte Spielstand war beschädigt. Es wurde die Sicherung vom ' + new Date(r.sv.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) + ' geladen.'], [null, 'Den beschädigten Stand habe ich aufgehoben. Du kannst ihn als Datei sichern.']);
+    else if (!r.sv && r.problems.length) lines.push(['big', 'Der Spielstand konnte nicht gelesen werden, deshalb beginnt ein neues Spiel.'], [null, 'Der alte Stand ist nicht verloren, ich habe ihn aufgehoben. Du kannst ihn als Datei sichern und mir schicken.']);
+    for (const t of r.notes) lines.push(['big', t]);
+    if (!lines.length) return false;
+    openDlg(r.future ? 'Neuere Version' : r.notes.length && !r.problems.length ? 'Karte aktualisiert' : 'Spielstand', b => {
+      for (const [c, t] of lines) b.appendChild(mk('p', c, t));
+      const row = mk('div', 'row');
+      r.bad.forEach((k, i) => { const x = mk('button', 'btn', r.bad.length > 1 ? 'Defekten Stand ' + (i + 1) + ' sichern' : 'Defekten Stand als Datei sichern'); x.type = 'button'; x.onclick = () => downloadText('lastmile-defekt-' + fileStamp() + '-' + (i + 1) + '.json', lsGet(k) || ''); row.appendChild(x); });
+      const ok = mk('button', 'btn primary', 'Weiter'); ok.type = 'button'; ok.onclick = closeDlg; row.appendChild(ok); b.appendChild(row);
+    }, { onClose: then || null });
+    return true;
   }
   // Offline-Fortschritt: einfaches Modell, nur mit Auto-Disposition, höchstens 4 Stunden
   function offlineProgress(sv) {
@@ -2201,10 +2366,12 @@ function startGame(DATA, MODEKEY) {
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { textW.clear(); dirty = true; });
 
   rezone(); realign(); refreshTraffic(true);
-  const saved = readSave();
+  const loaded = loadSavedGame();
+  if (loaded.reloading) return;
+  const saved = loaded.sv;
   let welcome = null;
-  if (saved && applySave(saved)) welcome = offlineProgress(saved);
-  else {
+  if (saved) welcome = offlineProgress(saved);
+  if (!saved) {
     addDriver('bike', 0);
     log('Hub bereit, Fahrer 1 (Fahrrad) wartet auf Aufträge');
     for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
@@ -2216,7 +2383,9 @@ function startGame(DATA, MODEKEY) {
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(false); });
   addEventListener('pagehide', () => saveNow(false));
-  if (welcome) showWelcome(welcome);
+  const noticed = showLoadNotice(loaded, welcome ? () => showWelcome(welcome) : null);
+  if (noticed) { /* Hinweis zuerst, danach ggf. Willkommen */ }
+  else if (welcome) showWelcome(welcome);
   else if (!saved) { let seen = false; try { seen = localStorage.getItem('lm-tut') === '1'; } catch (e) {} if (!seen) openTutorial(); }
 }
 /*BOOT*/
