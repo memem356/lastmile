@@ -32,3 +32,9 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 - Ereignisse mit Ort und Symbol auf der Karte: Stau, Unfall, Baustelle, Straßenfest; dazu Großbestellung, Panne und Krankmeldung. Ihre Häufigkeit folgt der Tageszeit und dem Wetter.
 - Hauptquartier: drei Ausbaustufen für das Ausweichen (Verkehrsfunk, Live-Navigation, Prognose-Navigation). Fahrer planen mit dem Verkehr, den sie kennen, und weichen unterwegs aus.
 - Löhne und Fahrzeugkosten (Wartung und Fahrstrecke) werden gesammelt und einmal pro Stunde zur vollen Uhrzeit abgebucht. Die Anzeige "Abbuchung um HH:00" im Block Betrieb zeigt den aktuellen Betrag.
+
+## Finanzen und Statistik
+- Das linke Panel zeigt nur noch die offenen Bestellungen.
+- Klick auf die **Kasse** (oder Taste **K**) öffnet das Fenster mit den Tabs **Finanzen** (Einnahmen, laufende Kosten, Investitionen, Kennzahlen, Balkendiagramm der letzten 12 Spielstunden) und **Statistik** (Lieferungen, Pünktlichkeit, Lage, Fahrer, beliebte Orte, erlebte Ereignisse, Erfolge).
+- In der Kopfzeile zeigen drei Chips Wetter (Symbol und Temperatur, Tag/Nacht nach Sonnenstand), Verkehr (Farbpunkt, Rushhour) und Ereignisse; ein Klick öffnet die Statistik bzw. springt zum Ereignis.
+- Alle Ausgaben laufen über `spend(art, betrag)`; das Geldbuch (`led`) wird mit gespeichert (ältere Spielstände starten mit leeren Werten).
