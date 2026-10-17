@@ -1144,7 +1144,7 @@ function startGame(DATA, MODEKEY) {
     return ((6 + Math.floor(u / 86400)) % 7) * 86400 + ((u % 86400) + 86400) % 86400;
   }
   const realign = () => { START = localSecs() - simClock; };
-  const fmtClock = s => { s = Math.floor(s) + START; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, c = s % 60; return [h, m, c].map(v => String(v).padStart(2, '0')).join(':'); };
+  const fmtClock = s => { s = Math.floor(s + START); const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, c = s % 60; return [h, m, c].map(v => String(v).padStart(2, '0')).join(':'); };
   const setText = (el, t) => { if (el._t !== t) { el.textContent = t; el._t = t; } };
 
   // ---------- Theme ----------
