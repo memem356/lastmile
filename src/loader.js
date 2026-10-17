@@ -133,6 +133,23 @@ const LM = (function () {
     return out;
   }
 
+  // ---------- Höhenraster (Open-Meteo, 16 x 16 Punkte) ----------
+  async function fetchElevation(b) {
+    const n = 16, la = [], lo = [];
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { la.push((b.s + (b.n - b.s) * r / (n - 1)).toFixed(5)); lo.push((b.w + (b.e - b.w) * c / (n - 1)).toFixed(5)); }
+    const jobs = [];
+    for (let i = 0; i < la.length; i += 100) {
+      const url = 'https://api.open-meteo.com/v1/elevation?latitude=' + la.slice(i, i + 100).join(',') + '&longitude=' + lo.slice(i, i + 100).join(',');
+      jobs.push((async () => {
+        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+        try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw 0; return (await r.json()).elevation; } finally { clearTimeout(to); }
+      })());
+    }
+    const parts = await Promise.all(jobs), z = [].concat(...parts).map(v => Math.round(v * 10) / 10);
+    if (z.length !== n * n || z.some(v => typeof v !== 'number' || !isFinite(v))) throw new Error('Höhendaten unvollständig');
+    return { n, b: [b.s, b.w, b.n, b.e], z };
+  }
+
   // ---------- Stadt laden ----------
   async function loadCity(place, progress) {
     const say = (step, text) => progress && progress(step, text);
@@ -148,10 +165,12 @@ const LM = (function () {
       const pois = convertPlaces(placesOsm, place, roads.o, b), homes = convertHomes(placesOsm, roads.o, b);
       last = { pois: pois.length, homes: homes.length, ways: roads.w.length };
       if (pois.length >= 6 && homes.length >= 20 && roads.w.length >= 80) {
+        say(3, 'Höhenprofil wird geladen');
+        let elev = null; try { elev = await fetchElevation(b); } catch (e) { elev = null; }
         return {
           v: FORMAT, name: place.name, sub: place.sub,
           ref: { lat: place.lat, lon: place.lon }, hub: { lat: place.lat, lon: place.lon },
-          bbox: [b.s, b.w, b.n, b.e], roads, pois, homes, radius: R
+          bbox: [b.s, b.w, b.n, b.e], roads, pois, homes, radius: R, elev
         };
       }
     }

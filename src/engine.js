@@ -15,6 +15,22 @@ function createEngine(D) {
       nx[i] = p.x; ny[i] = p.y;
     }
   }
+  // Höhenprofil (grobes Raster, bilinear auf die Knoten übertragen); ohne Daten ist alles flach
+  const nz = new Float64Array(N); let elevRange = null;
+  if (D.elev && D.elev.z && D.elev.z.length === D.elev.n * D.elev.n) {
+    const G = D.elev, n = G.n, s0 = G.b[0], w0 = G.b[1], n0 = G.b[2], e0 = G.b[3];
+    let la = LAT0, lo = LON0, mn = Infinity, mx = -Infinity;
+    for (let i = 0; i < N; i++) {
+      la += R.n[2 * i]; lo += R.n[2 * i + 1];
+      const u = Math.min(n - 1.001, Math.max(0, (lo / 1e5 - w0) / (e0 - w0) * (n - 1)));
+      const v = Math.min(n - 1.001, Math.max(0, (la / 1e5 - s0) / (n0 - s0) * (n - 1)));
+      const c = Math.floor(u), r = Math.floor(v), fu = u - c, fv = v - r;
+      const z00 = G.z[r * n + c], z10 = G.z[r * n + c + 1], z01 = G.z[(r + 1) * n + c], z11 = G.z[(r + 1) * n + c + 1];
+      nz[i] = (z00 * (1 - fu) + z10 * fu) * (1 - fv) + (z01 * (1 - fu) + z11 * fu) * fv;
+      if (nz[i] < mn) mn = nz[i]; if (nz[i] > mx) mx = nz[i];
+    }
+    elevRange = { min: mn, max: mx };
+  }
   const ways = [];
   for (const w of R.w) {
     const nodes = []; let p = 0;
@@ -70,9 +86,9 @@ function createEngine(D) {
   // ---- Straßennetze ----
   const CS = [60, 42, 38, 32, 28, 8, 16, 16]; // Stadtgeschwindigkeit je Straßenklasse in km/h
   const VEHICLES = {
-    bike:    { key: 'bike',    label: 'Fahrrad',     net: 'bike', stop: 3, sp: c => c === 7 ? 19 : c === 5 ? 11 : c === 6 ? 15 : 17 },
-    scooter: { key: 'scooter', label: 'E-Roller',    net: 'car',  stop: 4, sp: c => Math.min(38, CS[c]) },
-    van:     { key: 'van',     label: 'Transporter', net: 'car',  stop: 6, sp: c => CS[c] * 0.9 }
+    bike:    { key: 'bike',    label: 'Fahrrad',     net: 'bike', stop: 3, sp: c => c === 7 ? 19 : c === 5 ? 11 : c === 6 ? 15 : 17, slope: g => g > 0 ? 1 / (1 + 7 * g) : 1 + Math.min(0.3, -g * 3) },
+    scooter: { key: 'scooter', label: 'E-Roller',    net: 'car',  stop: 4, sp: c => Math.min(38, CS[c]), slope: g => g > 0 ? 1 / (1 + 3 * g) : 1 + Math.min(0.15, -g * 1.5) },
+    van:     { key: 'van',     label: 'Transporter', net: 'car',  stop: 6, sp: c => CS[c] * 0.9, slope: g => g > 0 ? 1 / (1 + 2 * g) : 1 }
   };
   for (const v of Object.values(VEHICLES)) {
     let m = 0; for (let c = 0; c < 8; c++) m = Math.max(m, v.sp(c)); v.vmax = m;
@@ -87,8 +103,9 @@ function createEngine(D) {
       for (let k = 1; k < w.nodes.length; k++) {
         const a = w.nodes[k - 1], b = w.nodes[k]; if (a === b) continue;
         const len = Math.hypot(nx[b] - nx[a], ny[b] - ny[a]);
-        adj[a].push({ to: b, len, c: w.c });
-        if (!oneway) adj[b].push({ to: a, len, c: w.c });
+        const g = Math.max(-0.15, Math.min(0.15, (nz[b] - nz[a]) / Math.max(len, 8)));
+        adj[a].push({ to: b, len, c: w.c, g });
+        if (!oneway) adj[b].push({ to: a, len, c: w.c, g: -g });
       }
     }
     return adj;
@@ -159,14 +176,14 @@ function createEngine(D) {
 
   function route(net, veh, s, t) {
     const adj = net.adj, g = new Float64Array(N).fill(Infinity), pe = new Array(N).fill(null), done = new Uint8Array(N);
-    const hv = veh.vmax / 3.6;
+    const hv = veh.vmax * 1.4 / 3.6;
     const h = i => Math.hypot(nx[i] - nx[t], ny[i] - ny[t]) / hv;
     const hp = new Heap(); g[s] = 0; hp.push(h(s), s);
     while (hp.size) {
       const v = hp.pop(); if (done[v]) continue; done[v] = 1; if (v === t) break;
       for (const e of adj[v]) {
         const u = e.to; if (done[u]) continue;
-        const dt = e.len / (veh.sp(e.c) / 3.6) + (inc[u] >= 3 ? veh.stop : 0);
+        const dt = e.len / (veh.sp(e.c) * veh.slope(e.g) / 3.6) + (inc[u] >= 3 ? veh.stop : 0);
         const ng = g[v] + dt;
         if (ng < g[u]) { g[u] = ng; pe[u] = { from: v, e, dt }; hp.push(ng + h(u), u); }
       }
@@ -247,6 +264,6 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode
+    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode, elevRange, nz
   };
 }

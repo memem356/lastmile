@@ -48,7 +48,7 @@
       status(place.name + ': Gespeicherte Karte wird gesucht …', 8);
       let data = await LM.getCached(place);
       if (!data) {
-        data = await LM.loadCity(place, (step, text) => status(place.name + ': ' + text + ' … (beim ersten Mal bis zu einer Minute, danach ist die Stadt gespeichert)', step === 1 ? 25 : 60));
+        data = await LM.loadCity(place, (step, text) => status(place.name + ': ' + text + ' … (beim ersten Mal bis zu einer Minute, danach ist die Stadt gespeichert)', step === 1 ? 25 : step === 2 ? 60 : 82));
         LM.saveCity(place, data);
       }
       status(place.name + ': Straßennetz und Routen werden berechnet …', 90);
