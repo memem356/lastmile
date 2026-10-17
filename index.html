@@ -1558,12 +1558,13 @@ function startGame(DATA, MODEKEY) {
   };
   const WTRF = { clear: 1, cloud: 1, rain: 1.12, storm: 1.2, snow: 1.3 };
   const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  function rushProfile() {
-    const h = hourNow(), di = dayIdx(), tab = di === 0 ? RUSH.fr : di === 1 ? RUSH.sa : di === 2 ? RUSH.so : RUSH.wk;
+  function rushProfile(t) {
+    if (t === undefined) t = simClock;
+    const a0 = t + START, h = (a0 / 3600) % 24, di = Math.floor(a0 / 86400) % 7, tab = di === 0 ? RUSH.fr : di === 1 ? RUSH.sa : di === 2 ? RUSH.so : RUSH.wk;
     let load = 0; for (let i = 1; i < tab.length; i++) if (h <= tab[i][0]) { const a = tab[i - 1], b = tab[i]; load = a[1] + (b[1] - a[1]) * (h - a[0]) / (b[0] - a[0]); break; }
     if (di === 3 && h < 10) load = Math.min(1.1, load * 1.08);
     const bias = di === 1 || di === 2 ? 0 : 0.6 * (smooth(6, 7, h) - smooth(9, 10, h)) - 0.6 * (smooth(15, 16, h) - smooth(18.5, 19.5, h));
-    return { load: Math.min(1.2, load * WTRF[wx]), bias };
+    return { load: Math.min(1.2, load * WTRF[t === simClock ? wx : wxAtSim(t)]), bias };
   }
   const WX = {
     clear: { n: 'Klar', bike: 1, car: 1, dem: 1, risk: 1 },
@@ -1572,28 +1573,48 @@ function startGame(DATA, MODEKEY) {
     storm: { n: 'Starkregen', bike: .7, car: .85, dem: 1.5, risk: 2.2 },
     snow: { n: 'Schnee', bike: .6, car: .8, dem: 1.4, risk: 2.5 }
   };
-  const MONTH_T = [2, 3, 7, 11, 15, 19, 21, 21, 17, 12, 6, 3];
-  let wx = ['clear', 'cloud', 'cloud', 'rain'][Math.floor(Math.random() * 4)], wxLeft = (2.5 + Math.random() * 3.5) * 3600;
-  const temp = () => MONTH_T[new Date().getMonth()] + 4 * Math.cos((hourNow() - 15) / 24 * 2 * Math.PI) + (wx === 'rain' || wx === 'storm' ? -2 : wx === 'clear' ? 1.5 : 0);
-  const WX_NEXT = { clear: [['clear', .4], ['cloud', .4], ['rain', .2]], cloud: [['clear', .3], ['cloud', .35], ['rain', .3], ['storm', .05]], rain: [['cloud', .4], ['rain', .4], ['storm', .2]], storm: [['rain', .6], ['cloud', .4]], snow: [['snow', .5], ['cloud', .5]] };
-  function nextWeather() {
-    let r = Math.random(), k = wx;
-    for (const [n, p] of WX_NEXT[wx]) { r -= p; if (r <= 0) { k = n; break; } }
-    const t = temp(); if (t <= 1 && (k === 'rain' || k === 'storm')) k = 'snow'; if (t > 3 && k === 'snow') k = 'rain';
-    if (k !== wx) { wx = k; log('Wetter: ' + WX[wx].n + ', ' + Math.round(temp()) + ' °C'); plansDirty = true; }
-    wxLeft = (2.5 + Math.random() * 3.5) * 3600;
+  // ---------- Berechenbare Welt ----------
+  // Wetter, Verkehrsereignisse und Stadtereignisse folgen allein aus (Startwert, Weltzeit): zwei Spieler mit gleichem Startwert
+  // erleben zur gleichen Weltzeit dasselbe. Nur Orte (Straßen im eigenen Liefergebiet) und persönliche Folgen sind spielerbezogen.
+  const WORLD = { seed: (Math.random() * 4294967296) >>> 0, t0: 0, month: new Date().getMonth() };
+  { const sp = /[?&]seed=(\d+)/.exec(location.search); if (sp) WORLD.seed = +sp[1] >>> 0; }
+  const worldT = () => simClock + WORLD.t0;
+  function hash(a, b, c) {
+    let h = (WORLD.seed ^ 0x9e3779b9) | 0;
+    for (const x of [a, b, c]) { h = Math.imul(h ^ (x | 0), 0x85ebca6b); h ^= h >>> 15; h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); h ^= h >>> 16; }
+    return (h >>> 0) / 4294967296;
   }
-  let events = [], nextEv = (2.5 + Math.random() * 2.5) * 3600;
+  const MONTH_T = [2, 3, 7, 11, 15, 19, 21, 21, 17, 12, 6, 3];
+  const temp = () => MONTH_T[WORLD.month] + 4 * Math.cos((hourNow() - 15) / 24 * 2 * Math.PI) + (wx === 'rain' || wx === 'storm' ? -2 : wx === 'clear' ? 1.5 : 0);
+  const WX_NEXT = { clear: [['clear', .4], ['cloud', .4], ['rain', .2]], cloud: [['clear', .3], ['cloud', .35], ['rain', .3], ['storm', .05]], rain: [['cloud', .4], ['rain', .4], ['storm', .2]], storm: [['rain', .6], ['cloud', .4]], snow: [['snow', .5], ['cloud', .5]] };
+  const WX_SLOT = 10800, WX_START = ['clear', 'cloud', 'cloud', 'rain'];
+  let wxChain = [];
+  function wxAtSlot(k) {
+    k = Math.max(0, k | 0);
+    if (!wxChain.length) wxChain.push(WX_START[Math.floor(hash(6, 0, 0) * 4)]);
+    while (wxChain.length <= k) {
+      const i = wxChain.length, prev = wxChain[i - 1]; let r = hash(6, i, 1), nx = prev;
+      for (const [n, pr] of WX_NEXT[prev]) { r -= pr; if (r <= 0) { nx = n; break; } }
+      const t = MONTH_T[WORLD.month] + 4 * Math.cos(((i * 3 + 1.5) % 24 - 15) / 24 * 2 * Math.PI) + (prev === 'rain' || prev === 'storm' ? -2 : prev === 'clear' ? 1.5 : 0);
+      if (t <= 1 && (nx === 'rain' || nx === 'storm')) nx = 'snow'; if (t > 3 && nx === 'snow') nx = 'rain';
+      wxChain.push(nx);
+    }
+    return wxChain[k];
+  }
+  const wxAtSim = t => wxAtSlot(Math.floor((t + WORLD.t0) / WX_SLOT));
+  let wx = 'cloud';
+  function syncWeather(quiet) {
+    const w = wxAtSim(simClock); if (w === wx) return;
+    wx = w; plansDirty = true; if (!quiet) log('Wetter: ' + WX[wx].n + ', ' + Math.round(temp()) + ' °C');
+  }
+  let events = [];
   const ev = id => events.some(e => e.id === id);
   const EVDEF = [
     { id: 'cater', name: 'Großbestellung', dur: 0, w: 2 },
     { id: 'sick', name: 'Krankmeldung', dur: 120 * 60, w: 2 }
   ];
-  function triggerEvent() {
-    const h = hourNow(), meal = (h >= 11 && h < 13.5) || (h >= 17.5 && h < 20), morning = h >= 5 && h < 9;
-    const wts = { cater: meal ? 3 : 0.4, sick: morning ? 3 : 0.5 };
-    let r = Math.random() * EVDEF.reduce((a, e) => a + wts[e.id], 0), def = EVDEF[0];
-    for (const e of EVDEF) { r -= wts[e.id]; if (r <= 0) { def = e; break; } }
+  function triggerEvent(type) {
+    const def = EVDEF.find(e => e.id === type) || EVDEF[0];
     if (def.id === 'cater') {
       const o = spawnOrder(true); if (o) log('Ereignis: Großbestellung, ' + eur(o.pay) + '. Der Kunde plant mehr Zeit ein.', true);
     } else {
@@ -1605,10 +1626,9 @@ function startGame(DATA, MODEKEY) {
   }
   const BRK = { bike: [.2, 'Reifenpanne', 8, 14], scooter: [.14, 'Akku leer', 10, 20], van: [.12, 'Motorschaden', 15, 30] };
   function tickWorld(adv) {
-    wxLeft -= adv; if (wxLeft <= 0) nextWeather();
+    syncWeather();
     for (const e of events) e.left -= adv;
     if (events.some(e => e.left <= 0)) { for (const e of events) if (e.left <= 0) log('Ende: ' + e.name); events = events.filter(e => e.left > 0); plansDirty = true; }
-    nextEv -= adv; if (nextEv <= 0) { triggerEvent(); nextEv = (2.5 + Math.random() * 2.5) * 3600 / MODE.risk; }
     for (const d of drivers) {
       if (d.sick) { d.sick.left -= adv; if (d.sick.left <= 0) { d.sick = null; log('Fahrer ' + d.id + ' ist wieder gesund'); driverStructDirty = true; plansDirty = true; orderStructDirty = true; } }
       if (d.stall) { d.stall.left -= adv; if (d.stall.left <= 0) { log('Fahrer ' + d.id + ': ' + d.stall.kind + ' behoben, weiter geht es'); d.stall = null; driverStructDirty = true; } continue; }
@@ -1689,41 +1709,89 @@ function startGame(DATA, MODEKEY) {
     }
     ctx.restore();
   }
-  function pickHotEdge(minC, maxC) {
+  function pickHotEdge(minC, maxC, u) {
     let tot = 0; const w = new Float32Array(E.EN);
     for (let id = 0; id < E.EN; id++) {
       const c = E.eC[id]; if (c < minC || c > maxC) continue;
       w[id] = E.eBase[id] * (inZone(E.eMidX[id], E.eMidY[id]) ? 1 : 0.15); tot += w[id];
     }
     if (tot <= 0) return -1;
-    let r = Math.random() * tot; for (let id = 0; id < E.EN; id++) { r -= w[id]; if (r <= 0 && w[id] > 0) return id; }
+    let r = (u === undefined ? Math.random() : u) * tot; for (let id = 0; id < E.EN; id++) { r -= w[id]; if (r <= 0 && w[id] > 0) return id; }
     return -1;
   }
-  function spawnTrafficEvent(kind) {
-    const def = TEV[kind]; let x, y, street;
+  function spawnTrafficEvent(kind, cand, quiet) {
+    const def = TEV[kind]; let x, y, street; const U = cand ? cand.u : undefined;
     if (kind === 'fest') {
       if (!zPois.length) return null;
-      const p = zPois[Math.floor(Math.random() * zPois.length)]; x = p.x; y = p.y; street = p.street || 'der Innenstadt';
+      const p = zPois[Math.floor((U === undefined ? Math.random() : U) * zPois.length) % zPois.length]; x = p.x; y = p.y; street = p.street || 'der Innenstadt';
     } else {
-      const id = pickHotEdge(0, kind === 'works' ? 3 : 2); if (id < 0) return null;
+      const id = pickHotEdge(0, kind === 'works' ? 3 : 2, U); if (id < 0) return null;
       x = E.eMidX[id]; y = E.eMidY[id]; street = E.nodeName[E.eA[id]] || E.nodeName[E.eB[id]] || 'einer Hauptstraße';
     }
-    const e = { id: teSeq++, kind, x, y, r: def.r, peak: def.peak, t0: simClock, dur: (def.min + Math.random() * (def.max - def.min)) * 60, up: def.up, down: def.down,
+    const e = { id: teSeq++, kind, x, y, r: def.r, peak: def.peak, t0: cand ? cand.t - WORLD.t0 : simClock, dur: cand ? cand.dur : (def.min + Math.random() * (def.max - def.min)) * 60, up: def.up, down: def.down,
       street };
-    tevents.push(e); led.ev[kind] = (led.ev[kind] || 0) + 1; refreshTraffic(true);
-    log('Ereignis: ' + def.name + ' auf ' + e.street, true); toast(def.name, e.street); if (kind === 'jam' || kind === 'crash') sfx('bad');
+    tevents.push(e); refreshTraffic(true);
+    if (!quiet) { led.ev[kind] = (led.ev[kind] || 0) + 1; log('Ereignis: ' + def.name + ' auf ' + e.street, true); toast(def.name, e.street); if (kind === 'jam' || kind === 'crash') sfx('bad'); }
     return e;
   }
   function tickTraffic(adv) {
     if (tevents.some(e => simClock - e.t0 >= e.dur)) { for (const e of tevents) if (simClock - e.t0 >= e.dur) log('Ende: ' + TEV[e.kind].name + ' auf ' + e.street); tevents = tevents.filter(e => simClock - e.t0 < e.dur); refreshTraffic(true); }
-    const rp = rushProfile(), h = hourNow(), wk = dayIdx() >= 3 || dayIdx() === 0, cnt = k => tevents.filter(e => e.kind === k).length;
-    const rate = {
-      jam: 1 / (2.2 * 3600) * (0.15 + 1.6 * rp.load) * Math.sqrt(WX[wx].risk) * MODE.risk,
-      crash: 1 / (5 * 3600) * (0.3 + 1.2 * rp.load) * WX[wx].risk * MODE.risk,
-      works: wk && h >= 6 && h < 10 ? 1 / (6 * 3600) * MODE.risk : 0,
-      fest: dayIdx() === 1 || dayIdx() === 2 ? (h >= 10 && h < 18 ? 1 / (5 * 3600) : 0) * MODE.risk : dayIdx() === 0 && h >= 15 && h < 19 ? 1 / (12 * 3600) * MODE.risk : 0
-    }, cap = { jam: 2, crash: 1, works: 2, fest: 1 };
-    for (const k in rate) if (cnt(k) < cap[k] && Math.random() < 1 - Math.exp(-rate[k] * adv)) spawnTrafficEvent(k);
+    scanWorldEvents(worldT(), false);
+  }
+  // Zeitraster: je Ereignisart gibt es pro Zelle höchstens einen Kandidaten; Zeitpunkt, Dauer und Zufallszahl für den Ort folgen aus dem Startwert.
+  const TCELL = { jam: 1200, crash: 1800, works: 3600, fest: 5400 }, TKIND = { jam: 1, crash: 2, works: 3, fest: 4 }, TCAP = { jam: 2, crash: 1, works: 2, fest: 1 };
+  function evRate(kind, ts) {
+    const rp = rushProfile(ts), a0 = ts + START, h = (a0 / 3600) % 24, di = Math.floor(a0 / 86400) % 7, wk = di >= 3 || di === 0, wr = WX[wxAtSim(ts)].risk;
+    if (kind === 'jam') return 1 / (2.2 * 3600) * (0.15 + 1.6 * rp.load) * Math.sqrt(wr) * MODE.risk;
+    if (kind === 'crash') return 1 / (5 * 3600) * (0.3 + 1.2 * rp.load) * wr * MODE.risk;
+    if (kind === 'works') return wk && h >= 6 && h < 10 ? 1 / (6 * 3600) * MODE.risk : 0;
+    return di === 1 || di === 2 ? (h >= 10 && h < 18 ? 1 / (5 * 3600) : 0) * MODE.risk : di === 0 && h >= 15 && h < 19 ? 1 / (12 * 3600) * MODE.risk : 0;
+  }
+  const evRmax = kind => kind === 'jam' ? 1 / (2.2 * 3600) * (0.15 + 1.6 * 1.2) * Math.sqrt(2.5) * MODE.risk : kind === 'crash' ? 1 / (5 * 3600) * (0.3 + 1.2 * 1.2) * 2.5 * MODE.risk : kind === 'works' ? 1 / (6 * 3600) * MODE.risk : 1 / (5 * 3600) * MODE.risk;
+  // Rohkandidat einer Zelle (je Zelle höchstens einer, Ausdünnung nach der Tageslast zum Startzeitpunkt)
+  function rawCand(kind, c) {
+    const L = TCELL[kind], k = TKIND[kind], rmax = evRmax(kind), x = rmax * L;
+    if (hash(k, c, 0) >= 1 - Math.exp(-x)) return null;
+    const t = c * L + hash(k, c, 2) * L;
+    if (hash(k, c, 1) * rmax >= Math.min(rmax, evRate(kind, t - WORLD.t0) * x / (1 - Math.exp(-x)))) return null;
+    const def = TEV[kind];
+    return { kind, t, dur: (def.min + hash(k, c, 4) * (def.max - def.min)) * 60, u: hash(k, c, 3) };
+  }
+  // Angenommene Ereignisse: Höchstzahl gleichzeitiger Ereignisse je Art (wie im Einzelspiel). Die Reihenfolge ab Weltstart ist fest, daher überall gleich.
+  const tevMemo = {}; let tevSeed = null;
+  function tevCand(kind, c) {
+    if (tevSeed !== WORLD.seed) { for (const k in tevMemo) delete tevMemo[k]; tevSeed = WORLD.seed; }
+    const m = tevMemo[kind] || (tevMemo[kind] = { next: 0, acc: new Map(), recent: [] });
+    while (m.next <= c) {
+      const q = rawCand(kind, m.next);
+      if (q) {
+        m.recent = m.recent.filter(e => e.t + e.dur > q.t);
+        if (m.recent.length < TCAP[kind]) { m.recent.push(q); m.acc.set(m.next, q); }
+      }
+      m.next++;
+    }
+    return m.acc.get(c) || null;
+  }
+  const CITY_L = 3600, cityMean = () => 3.75 * 3600 / MODE.risk;
+  function cityCand(c) {
+    if (hash(5, c, 0) >= CITY_L / cityMean()) return null;
+    const t = c * CITY_L + hash(5, c, 2) * CITY_L, h = (((t - WORLD.t0) + START) / 3600) % 24;
+    const meal = (h >= 11 && h < 13.5) || (h >= 17.5 && h < 20), morning = h >= 5 && h < 9, wc = meal ? 3 : 0.4, ws = morning ? 3 : 0.5;
+    return { t, type: hash(5, c, 3) * (wc + ws) < wc ? 'cater' : 'sick' };
+  }
+  let teScan = 0; const LOOKBACK = 8 * 3600;
+  function scanWorldEvents(upTo, quiet) {
+    if (!(upTo > teScan)) return;
+    const from = teScan;
+    for (const kind of Object.keys(TCELL)) {
+      const L = TCELL[kind];
+      for (let c = Math.floor(from / L); c <= Math.floor(upTo / L); c++) {
+        const q = tevCand(kind, c);
+        if (q && q.t > from && q.t <= upTo && q.t + q.dur > upTo) spawnTrafficEvent(kind, q, quiet);
+      }
+    }
+    if (!quiet) for (let c = Math.floor(from / CITY_L); c <= Math.floor(upTo / CITY_L); c++) { const q = cityCand(c); if (q && q.t > from && q.t <= upTo) triggerEvent(q.type); }
+    teScan = upTo;
   }
   const lastRe = { t: 0 };
   function noteDetour(d, gain, tr) {
@@ -2676,7 +2744,7 @@ function startGame(DATA, MODEKEY) {
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
       orderSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh },
       led: { exp: led.exp, hist: led.hist, ontime: led.ontime, base: led.base, brk: led.brk, ev: led.ev, places: Object.fromEntries(Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 40)), det: led.det, detSec: led.detSec }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
-      wx, wxLeft, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, nextEv, selDriver: sel.driver,
+      seed: WORLD.seed, teScan, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, selDriver: sel.driver,
       orders: orders.filter(o => o.state === 'open' || o.state === 'assigned').map(o => ({ id: o.id, pi: o.pick.i, hi: o.home.i, px: rd(o.pick.x), py: rd(o.pick.y), hx: rd(o.home.x), hy: rd(o.home.y), createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: o.picked, partner: o.partner, big: o.big })),
       drivers: drivers.map(d => { const nd = curNode(d); return {
         id: d.id, veh: d.veh, hub: d.hub, node: nd, nx: rd(nx[nd]), ny: rd(ny[nd]), lvl: d.lvl, done: d.done, earn: d.earn || 0,
@@ -2740,10 +2808,10 @@ function startGame(DATA, MODEKEY) {
     }
     const P = isObj(sv.prog) ? sv.prog : {}; n.prog = { streak: num(P.streak, 0, 0), best: num(P.best, 0, 0), big: num(P.big, 0, 0), storm: num(P.storm, 0, 0), ach: {} };
     for (const a of ACH) if (isObj(P.ach) && P.ach[a.id]) n.prog.ach[a.id] = P.ach[a.id];
-    n.wx = WX[sv.wx] ? sv.wx : 'cloud'; n.wxLeft = num(sv.wxLeft, 3 * 3600, 60, 8 * 3600);
+    n.seed = Number.isInteger(sv.seed) ? sv.seed >>> 0 : null; n.teScan = typeof sv.teScan === 'number' && isFinite(sv.teScan) ? sv.teScan : null;
     n.events = arr(sv.events).filter(e => isObj(e) && typeof e.name === 'string' && isFinite(e.left));
     n.tevents = arr(sv.tevents).filter(e => isObj(e) && TEV[e.kind] && ['x', 'y', 't0', 'dur', 'r', 'peak', 'up', 'down'].every(k => isFinite(e[k])));
-    n.teSeq = Math.round(num(sv.teSeq, 1, 1)); n.nextEv = num(sv.nextEv, 3 * 3600, 0); n.selDriver = sv.selDriver;
+    n.teSeq = Math.round(num(sv.teSeq, 1, 1)); n.selDriver = sv.selDriver;
     n.orders = arr(sv.orders).filter(o => isObj(o) && Number.isInteger(o.id) && (o.state === 'open' || o.state === 'assigned') && ['createdAt', 'pay', 'air', 'target'].every(k => isFinite(o[k]))).map(o => ({
       id: o.id, pi: o.pi, hi: o.hi, px: o.px, py: o.py, hx: o.hx, hy: o.hy, createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: !!o.picked, partner: !!o.partner, big: !!o.big }));
     n.log = arr(sv.log).filter(l => Array.isArray(l) && l.length >= 2).slice(-25);
@@ -2769,7 +2837,8 @@ function startGame(DATA, MODEKEY) {
     }
     orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; bill.wage = sv.bill.wage; bill.veh = sv.bill.veh;
     Object.assign(led, sv.led); Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
-    wx = sv.wx; wxLeft = sv.wxLeft; events = sv.events; nextEv = sv.nextEv; tevents = sv.tevents; teSeq = sv.teSeq; refreshTraffic(true);
+    if (sv.seed !== null) { WORLD.seed = sv.seed; wxChain = []; }
+    events = sv.events; tevents = sv.tevents; teSeq = sv.teSeq; syncWeather(true); teScan = sv.teScan === null ? worldT() : Math.min(sv.teScan, worldT()); refreshTraffic(true);
     rezone();
     let dropped = 0;
     orders = [];
@@ -2904,7 +2973,7 @@ function startGame(DATA, MODEKEY) {
     for (const o of orders) if (o.state === 'assigned') o.createdAt += eff;
     orders = orders.filter(o => o.state !== 'open');
     for (const d of drivers) { d.sick = null; d.stall = null; }
-    events = []; tevents = []; nextEv = (1 + Math.random() * 2) * 3600; nextWeather(); plansDirty = orderStructDirty = driverStructDirty = true;
+    events = []; tevents = []; syncWeather(true); teScan = worldT() - LOOKBACK; scanWorldEvents(worldT(), true); plansDirty = orderStructDirty = driverStructDirty = true;
     return rpt;
   }
   function showWelcome(r) {
@@ -2941,7 +3010,10 @@ function startGame(DATA, MODEKEY) {
   realign(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
   resize();
   requestAnimationFrame(frame);
-  if (/[?&]debug/.test(location.search)) window.__lm = { spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade };
+  if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
+  const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
+  const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
+  window.__lm = { world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(false); });
   addEventListener('pagehide', () => saveNow(false));

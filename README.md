@@ -54,3 +54,11 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 - Hat sich die Karte der Stadt geändert, werden Bestellungen, Partner-Lokale, Hubs und Fahrer über Koordinaten neu zugeordnet; nicht zuordenbare Partner werden erstattet.
 - Menü: Spielstand exportieren/importieren (JSON-Datei); Import auch auf der Startseite.
 - Die Seite bittet Suchmaschinen per Meta-Tag, sie nicht aufzunehmen.
+
+## Phase 8b: Berechenbare Welt
+- Wetter, Stau/Unfall/Baustelle/Straßenfest sowie Großbestellung und Krankmeldung folgen jetzt allein aus einem Startwert (`WORLD.seed`) und der Weltzeit (`worldT()`), ohne Zufall pro Spieler. Zwei Spiele mit gleichem Startwert erleben zur gleichen Zeit dasselbe (Test: `?debug&seed=123`, `__lm.world`).
+- Wetter: feste 3-Stunden-Zeitfenster, Übergänge aus einer Kette ab Weltstart (`wxAtSlot`).
+- Verkehrsereignisse: Zeitraster je Art, Wahrscheinlichkeit nach Tageslast, Wetter und Modus; Höchstzahl gleichzeitiger Ereignisse wie bisher. Die Straße wird aus dem Liefergebiet des Spielers gewählt (Zeit und Art sind gleich, der Ort kann sich unterscheiden).
+- Beim Laden und nach Abwesenheit werden aktive Ereignisse und das Wetter aus der Weltzeit neu berechnet (`scanWorldEvents`, `syncWeather`). Der Startwert steht im Spielstand.
+- Bestellungen, Pannen und persönliche Folgen bleiben individuell.
+- Grundlage für Phase 8d: Dort wird die Weltzeit vom Server vorgegeben (`WORLD.t0`, 30-fach).
