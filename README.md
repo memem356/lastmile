@@ -42,3 +42,6 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 ## Rush-Modus entschärft, Ausweichen sichtbar
 - Rush startet mit 30 % der Nachfrage und steigt über 5 Spielstunden auf das volle Niveau; Aufträge laufen erst nach dem 2-fachen der Zielzeit ab (Rufverlust je Storno 0,12).
 - Weicht ein Fahrer aus (ab 30 s Zeitgewinn): Meldung im Protokoll und als Hinweis, grüner Ring mit „↪ −m:ss min“ an der Karte, „Umweg −m:ss“ in der Fahrerkarte, Zähler „Ausgewichen“ in der Statistik.
+
+## Stoßzeitenverkehr ohne Ereignis
+- Die Grundlast je Straße enthält jetzt Rückstau an Kreuzungen (Zufahrten auf Knoten, an denen Hauptstraßen aufeinandertreffen oder Nebenstraßen einmünden) und zusammenhängende Engstellen-Zonen (ca. 350 m). Dadurch werden zur Stoßzeit auch ohne Ereignis Kreuzungsbereiche gelb bis rot, mittags bleibt es überwiegend grün. Ereignisse kommen als Zuschlag obendrauf.
