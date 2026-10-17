@@ -764,7 +764,7 @@ const LM = (function () {
   // ---------- Stadt laden ----------
   async function loadCity(place, progress) {
     const say = (step, text) => progress && progress(step, text);
-    let R = 2200, last = null;
+    let R = 1800, last = null;
     for (let attempt = 0; attempt < 2; attempt++, R *= 1.5) {
       const b = bboxOf(place.lat, place.lon, R);
       const note = m => (m || attempt ? ' (anderer Server …)' : '');
