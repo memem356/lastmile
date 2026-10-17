@@ -186,7 +186,7 @@ function createEngine(D) {
       tt.push(tt[i] + s.dt); dd.push(dd[i] + s.e.len);
       sp.push(s.e.len / s.dt * 3.6);
     }
-    return { xs, ys, t: tt, d: dd, sp, len: dd[dd.length - 1], time: tt[tt.length - 1] };
+    return { xs, ys, t: tt, d: dd, sp, len: dd[dd.length - 1], time: tt[tt.length - 1], nodes: r.nodes };
   }
 
   // Fahrt ab beliebigem Startknoten: Anfahrt zum Abholort, Abholung, Lieferung, Übergabe
@@ -206,6 +206,15 @@ function createEngine(D) {
       start: { x: nx[s], y: ny[s] }, startNode: s, endNode: b
     };
   }
+
+  // Leerfahrt (z. B. zurück zum Hub)
+  function returnLeg(vehKey, from, to) {
+    const veh = VEHICLES[vehKey], net = nets[veh.net];
+    if (from === to) return null;
+    const r = route(net, veh, from, to);
+    return r ? buildLeg(r) : null;
+  }
+  const hubNode = (vehKey, x, y) => nearest(x, y, nets[VEHICLES[vehKey].net].ok);
 
   // Position auf einer Teilstrecke zum Zeitpunkt t (Sekunden)
   function sample(leg, t) {
@@ -238,6 +247,6 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj
+    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode
   };
 }

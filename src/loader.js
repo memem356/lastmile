@@ -119,7 +119,7 @@ const LM = (function () {
       pois.push({ d: (lat - ref.lat) ** 2 + ((lon - ref.lon) * 0.62) ** 2, v: [type, Math.round(lat * 1e5) - o[0], Math.round(lon * 1e5) - o[1], t.name] });
     }
     pois.sort((a, b2) => a.d - b2.d);
-    return pois.slice(0, 160).map(p => p.v);
+    return pois.slice(0, 320).map(p => p.v);
   }
 
   function convertHomes(osm, o, b) {
@@ -128,7 +128,7 @@ const LM = (function () {
       if (el.tags) continue; const c = el.center; if (!c || c.lat < b.s || c.lat > b.n || c.lon < b.w || c.lon > b.e) continue;
       all.push([Math.round(c.lat * 1e5) - o[0], Math.round(c.lon * 1e5) - o[1]]);
     }
-    const cap = 450, step = Math.max(1, all.length / cap), out = [];
+    const cap = 900, step = Math.max(1, all.length / cap), out = [];
     for (let i = 0; i < all.length; i += step) out.push(all[Math.floor(i)]);
     return out;
   }
@@ -136,8 +136,8 @@ const LM = (function () {
   // ---------- Stadt laden ----------
   async function loadCity(place, progress) {
     const say = (step, text) => progress && progress(step, text);
-    let R = 1300, last = null;
-    for (let attempt = 0; attempt < 2; attempt++, R *= 2) {
+    let R = 2200, last = null;
+    for (let attempt = 0; attempt < 2; attempt++, R *= 1.5) {
       const b = bboxOf(place.lat, place.lon, R);
       const note = m => (m || attempt ? ' (anderer Server …)' : '');
       say(1, 'Straßennetz wird geladen' + (attempt ? ' – größeres Gebiet' : ''));

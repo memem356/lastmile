@@ -225,6 +225,16 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .ddetail p { margin: 0; color: var(--muted); font-size: 12px; }
 .cash.neg { color: var(--warn); }
 .head2 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.placeban { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--ink); color: var(--panel); border-radius: 5px; padding: 8px 14px; font-size: 13px; max-width: calc(100% - 28px); }
+.placeban kbd { color: inherit; background: transparent; border-color: currentColor; }
+.prow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); }
+.prow:first-child { border-top: 0; }
+.prow strong { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow small { grid-column: 1; color: var(--muted); font-size: 12px; }
+.prow button { grid-row: 1 / span 2; grid-column: 2; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.prow .own { grid-row: 1 / span 2; grid-column: 2; color: var(--signal); font: 500 12px var(--font-mono); }
+canvas.placing { cursor: crosshair; }
 </style>
 
 <div class="start" id="start">
@@ -291,6 +301,11 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
         <button type="button" class="btn" id="autoBtn" aria-pressed="false" hidden>Auto-Disposition: aus</button>
       </div>
       <div class="block">
+        <h2>Partner-Restaurants <span class="count" id="pcount">0</span></h2>
+        <div id="plist"></div>
+        <p class="note" id="pnote"></p>
+      </div>
+      <div class="block">
         <h2>Betrieb</h2>
         <dl class="rows">
           <dt>Ruf der Kunden</dt><dd id="sRep">★ 3,0</dd>
@@ -322,6 +337,7 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
       </div>
       <div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a></div>
       <div class="tip" id="tip" hidden></div>
+      <div class="placeban" id="placeBan" hidden>Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.</div>
     </section>
 
     <aside class="panel" aria-label="Betrieb und Fahrer">
@@ -335,6 +351,8 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
         <h2>Fahrer einstellen</h2>
         <label class="field-label" for="hireVeh">Fahrzeug</label>
         <select id="hireVeh"></select>
+        <label class="field-label" for="hireHub" id="hireHubL" hidden>Standort</label>
+        <select id="hireHub" hidden></select>
         <button type="button" class="btn primary" id="hireBtn">Einstellen</button>
         <p class="note" id="hireNote"></p>
       </div>
@@ -371,6 +389,9 @@ function startGame(DATA) {
   const CFG = {
     startCash: 150, hireFee: 40,
     hubCaps: [4, 8, 12], hubCost: [0, 400, 1200],
+    zones: [600, 900, 1300, 1800, 2400], zoneCost: [0, 250, 600, 1200, 2200],
+    hubBuild: [0, 500, 1400], hubGap: 400,
+    partnerCost: 120, maxPartners: 6, partnerWeight: 4, partnerDwell: 0.6, partnerPay: 1.12,
     vehPrice: { bike: 60, scooter: 240, van: 600 },
     kmCost: { bike: 0, scooter: 0.12, van: 0.35 },
     wage: { bike: 8, scooter: 9, van: 11 }, wageLevel: 0.12,        // Euro pro Stunde, plus 12 % je Stufe
@@ -410,6 +431,15 @@ function startGame(DATA) {
   // ---------- Spielzustand ----------
   let orders = [], drivers = [], orderSeq = 1001, cash = CFG.startCash;
   let rep = 3, hubLevel = 0, autoOn = false; const owned = {};
+  const MAXR = DATA.radius || 750;
+  let zoneLevel = 0, placing = false, ghost = null, zPois = [], zHomes = [];
+  const partners = new Set();
+  const hubs = [{ x: HUB.x, y: HUB.y, n: { bike: nets.bike.depot, car: nets.car.depot } }];
+  const nodeFor = (h, vehKey) => VEHICLES[vehKey].net === 'bike' ? h.n.bike : h.n.car;
+  const zoneR = () => Math.min(CFG.zones[zoneLevel], MAXR);
+  const inZone = (x, y) => hubs.some(h => Math.hypot(h.x - x, h.y - y) <= zoneR());
+  function rezone() { zPois = pois.filter(p => inZone(p.x, p.y)); zHomes = homes.filter(h => inZone(h.x, h.y)); }
+  const slotsUsed = i => drivers.filter(d => d.hub === i).length;
   let simClock = 0, paused = false, speed = 10, nextSpawn = 2, dirty = true;
   const stats = { n: 0, pay: 0, tip: 0, cost: 0, wage: 0, cancel: 0, ageSum: 0 };
   const sel = { order: null, driver: 1, preview: null };
@@ -442,9 +472,11 @@ function startGame(DATA) {
 
   // ---------- Kamera ----------
   function fit() {
-    const bw = bounds.maxX - bounds.minX, bh = bounds.maxY - bounds.minY;
-    cam.x = (bounds.minX + bounds.maxX) / 2; cam.y = (bounds.minY + bounds.maxY) / 2;
-    cam.s = Math.max(0.05, Math.min(cw / (bw * 1.04), ch / (bh * 1.04)));
+    const R = zoneR() * 1.12; let a = Infinity, b2 = -Infinity, c = Infinity, d = -Infinity;
+    for (const h of hubs) { a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
+    a = Math.max(a, bounds.minX); b2 = Math.min(b2, bounds.maxX); c = Math.max(c, bounds.minY); d = Math.min(d, bounds.maxY);
+    cam.x = (a + b2) / 2; cam.y = (c + d) / 2;
+    cam.s = Math.max(0.05, Math.min(cw / ((b2 - a) * 1.04), ch / ((d - c) * 1.04)));
     dirty = true;
   }
   function zoomAt(px, py, k) {
@@ -568,16 +600,34 @@ function startGame(DATA) {
       }
     }
   }
+  function zonePath(list, r) { ctx.beginPath(); for (const h of list) { const x = toX(h.x), y = toY(h.y); ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); } }
+  function drawZoneOutline() {
+    const r = zoneR() * cam.s, all = ghost && placing ? hubs.concat([ghost]) : hubs;
+    ctx.save(); ctx.setLineDash([7, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = T.signal; ctx.globalAlpha = 0.7;
+    for (const h of all) { ctx.beginPath(); ctx.arc(toX(h.x), toY(h.y), r, 0, 6.283); ctx.stroke(); }
+    ctx.restore();
+  }
   function drawHub() {
-    const hx = toX(HUB.x), hy = toY(HUB.y);
-    ctx.fillStyle = T.hub; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(hx - 9, hy - 9, 18, 18, 4); else ctx.rect(hx - 9, hy - 9, 18, 18); ctx.fill();
-    ctx.fillStyle = T.hubInk; ctx.font = '600 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('H', hx, hy + 0.5);
+    const all = ghost && placing ? hubs.concat([ghost]) : hubs;
+    all.forEach((h, i) => {
+      const hx = toX(h.x), hy = toY(h.y); if (h === ghost) ctx.globalAlpha = 0.6;
+      ctx.fillStyle = T.hub; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(hx - 9, hy - 9, 18, 18, 4); else ctx.rect(hx - 9, hy - 9, 18, 18); ctx.fill();
+      ctx.fillStyle = T.hubInk; ctx.font = '600 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(h === ghost ? '+' : String(i + 1), hx, hy + 0.5);
+      ctx.globalAlpha = 1;
+    });
+  }
+  function drawPartners() {
+    ctx.lineWidth = 2; ctx.strokeStyle = T.signal;
+    for (const i of partners) {
+      const p = pois[i], x = toX(p.x), y = toY(p.y);
+      ctx.beginPath(); ctx.moveTo(x, y - 8); ctx.lineTo(x + 8, y); ctx.lineTo(x, y + 8); ctx.lineTo(x - 8, y); ctx.closePath(); ctx.stroke();
+    }
   }
   function drawDrivers() {
     for (const d of drivers) {
       const p = driverPos(d), x = toX(p.x), y = toY(p.y), selected = sel.driver === d.id;
       ctx.beginPath(); ctx.arc(x, y, selected ? 16 : 13, 0, 6.283); ctx.fillStyle = T.route; ctx.globalAlpha = selected ? 0.24 : 0.16; ctx.fill(); ctx.globalAlpha = 1;
-      if (d.trip && p.moving) {
+      if ((d.trip || d.ret) && p.moving) {
         ctx.save(); ctx.translate(x, y); ctx.rotate(p.hd);
         ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-7, -7); ctx.lineTo(-3.5, 0); ctx.lineTo(-7, 7); ctx.closePath();
         ctx.fillStyle = T.route; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke(); ctx.restore();
@@ -601,38 +651,70 @@ function startGame(DATA) {
     ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
     const s = cam.s, ox = cw / 2 - cam.x * s, oy = ch / 2 - cam.y * s;
     for (let i = 0; i < N; i++) { sx[i] = nx[i] * s + ox; sy[i] = ny[i] * s + oy; }
-    drawRoads(); drawLabels();
+    ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
+    ctx.save(); zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawLabels(); ctx.restore();
+    drawZoneOutline();
     // Vorschau einer möglichen Zuweisung
     const pv = sel.preview !== null ? plans[sel.preview] : null;
     if (pv) { drawRouteLeg(pv.legs[0], 0, null, true, 0.8); drawRouteLeg(pv.legs[1], 0, null, false, 0.8); }
     // Routen aller aktiven Fahrten, gewählter Fahrer hervorgehoben
     for (const d of drivers) if (d.trip) drawTripRoute(d.trip, d.st, sel.driver === d.id ? 1 : 0.2);
-    drawHub(); drawOrders(); drawDrivers(); drawScale();
+    drawHub(); drawPartners(); drawOrders(); drawDrivers(); drawScale();
   }
 
   // ---------- Fahrer ----------
   function driverPos(d) {
     if (d.trip && d.st) return { x: d.st.s.x, y: d.st.s.y, hd: d.st.s.hd, moving: d.st.s.sp > 0 };
+    if (d.ret) { const s = E.sample(d.ret.leg, d.ret.t); return { x: s.x, y: s.y, hd: s.hd, moving: true }; }
     return { x: nx[d.node], y: ny[d.node], hd: 0, moving: false };
   }
-  function addDriver(vehKey) {
+  function addDriver(vehKey, hubIdx) {
     const id = drivers.length + 1;
-    drivers.push({ id, veh: vehKey, node: nets[VEHICLES[vehKey].net].depot, trip: null, st: null, phase: -1, lvl: 1, done: 0 });
+    hubIdx = hubIdx || 0;
+    drivers.push({ id, veh: vehKey, hub: hubIdx, node: nodeFor(hubs[hubIdx], vehKey), trip: null, ret: null, st: null, phase: -1, lvl: 1, done: 0 });
     driverStructDirty = true; plansDirty = true;
     return drivers[drivers.length - 1];
   }
-  const driverStreet = d => E.nodeName[d.node] || 'Hub';
+  function curNode(d) {
+    if (!d.ret) return d.node;
+    const s = E.sample(d.ret.leg, d.ret.t), nodes = d.ret.leg.nodes;
+    return nodes[Math.min(nodes.length - 1, s.i + (s.f > 0.5 ? 1 : 0))];
+  }
+  const driverStreet = d => E.nodeName[curNode(d)] || 'Hub ' + (d.hub + 1);
+  function tuneLeg(leg, d) {
+    const m = speedMult(d); if (m === 1) return leg;
+    leg.t = leg.t.map(v => v / m); leg.time /= m; leg.sp = leg.sp.map(v => v * m); return leg;
+  }
+  function startReturn(d) {
+    d.ret = null;
+    let best = -1, bd = Infinity;
+    hubs.forEach((h, i) => {
+      if (drivers.filter(x => x !== d && x.hub === i).length >= CFG.hubCaps[hubLevel]) return;
+      const dd = Math.hypot(h.x - nx[d.node], h.y - ny[d.node]); if (dd < bd) { bd = dd; best = i; }
+    });
+    if (best < 0) best = d.hub; d.hub = best;
+    const to = nodeFor(hubs[best], d.veh); if (to === d.node) return;
+    const leg = E.returnLeg(d.veh, d.node, to);
+    if (leg) d.ret = { leg: tuneLeg(leg, d), t: 0, to };
+  }
 
   // ---------- Bestellungen ----------
   const rand = (a, b) => a + Math.random() * (b - a);
+  function pickPoi() {
+    let tot = 0; for (const p of zPois) tot += partners.has(p.i) ? CFG.partnerWeight : 1;
+    let r = Math.random() * tot;
+    for (const p of zPois) { r -= partners.has(p.i) ? CFG.partnerWeight : 1; if (r <= 0) return p; }
+    return zPois[zPois.length - 1];
+  }
   function spawnOrder() {
+    if (!zPois.length || !zHomes.length) return null;
     for (let k = 0; k < 120; k++) {
-      const p = pois[Math.floor(Math.random() * pois.length)], h = homes[Math.floor(Math.random() * homes.length)];
+      const p = pickPoi(), h = zHomes[Math.floor(Math.random() * zHomes.length)];
       const d = Math.hypot(p.x - h.x, p.y - h.y);
-      if (d < 400 || d > 2000) continue;
-      const km = d / 1000;
-      const pay = Math.round((CFG.payBase + CFG.payPerKm * km * CFG.detour) * 10) / 10;
-      const o = { id: orderSeq++, pick: p, home: h, createdAt: simClock, pay, air: d, target: (CFG.targetBaseMin + CFG.targetPerKm * km) * 60, state: 'open', driver: null, picked: false };
+      if (d < 300 || d > 2000) continue;
+      const km = d / 1000, partner = partners.has(p.i);
+      const pay = Math.round((CFG.payBase + CFG.payPerKm * km * CFG.detour) * (partner ? CFG.partnerPay : 1) * 10) / 10;
+      const o = { id: orderSeq++, pick: p, home: h, createdAt: simClock, pay, air: d, target: (CFG.targetBaseMin + CFG.targetPerKm * km) * 60, state: 'open', driver: null, picked: false, partner };
       orders.push(o); orderStructDirty = true;
       log('Neue Bestellung #' + o.id + ': ' + (p.name || TYPE_LABEL[p.type]) + ' → ' + (h.street ? h.street : 'Kunde') + ', ' + eur(pay));
       if (sel.order === null) { sel.order = o.id; plansDirty = true; }
@@ -647,7 +729,7 @@ function startGame(DATA) {
   }
 
   // ---------- Effekte von Stufen und Ausbauten ----------
-  const cap = () => CFG.hubCaps[hubLevel];
+  const cap = () => CFG.hubCaps[hubLevel] * hubs.length;
   const speedMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && owned.motor ? 1.15 : 1);
   const tipMax = () => owned.boxes ? 0.4 : CFG.tipMax;
   const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
@@ -658,11 +740,12 @@ function startGame(DATA) {
     const m = speedMult(d);
     if (m !== 1) for (const L of plan.legs) { L.t = L.t.map(v => v / m); L.time /= m; L.sp = L.sp.map(v => v * m); }
     if (owned.quick) plan.D1 *= 0.7;
+    if (partners.has(plan.pick.i)) plan.D1 *= CFG.partnerDwell;
     plan.T1 = plan.legs[0].time; plan.T2 = plan.legs[1].time;
     plan.total = plan.T1 + plan.D1 + plan.T2 + plan.D2;
     return plan;
   }
-  const planFor = (d, o) => tune(E.planTrip(d.veh, d.node, o.pick.i, o.home.i), d);
+  const planFor = (d, o) => tune(E.planTrip(d.veh, curNode(d), o.pick.i, o.home.i), d);
 
   // ---------- Pläne für die Zuweisung ----------
   function ensurePlans() {
@@ -678,6 +761,7 @@ function startGame(DATA) {
     return best === null ? null : Number(best);
   }
   function assignTo(d, o, plan) {
+    if (d.ret) { plan = planFor(d, o); if (!plan) return; d.node = curNode(d); d.ret = null; }
     plan.t = 0; plan.order = o; d.trip = plan; d.phase = -1; d.st = E.tripState(plan, 0);
     o.state = 'assigned'; o.driver = d.id; o.picked = false;
     log('Bestellung #' + o.id + ' an Fahrer ' + d.id + ' (' + driverLabel(d) + ') übergeben, Ankunft beim Kunden in ' + fmtMin(plan.total) + ' min');
@@ -721,6 +805,7 @@ function startGame(DATA) {
   const PHASE_CLS = ['s-drive', 's-wait', 's-drive', 's-wait', 's-done'];
   function updateDrivers() {
     for (const d of drivers) {
+      if (d.ret && d.ret.t >= d.ret.leg.time) { d.node = d.ret.to; d.ret = null; driverStructDirty = true; plansDirty = true; }
       if (!d.trip) continue;
       const trip = d.trip, o = trip.order;
       const st = E.tripState(trip, trip.t); d.st = st;
@@ -746,7 +831,7 @@ function startGame(DATA) {
     o.state = 'delivered';
     rate(age <= o.target ? 5 : age <= o.target * 1.5 ? 4 : age <= o.target * 2 ? 2.5 : 1.5, 0.08);
     d.done++; while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) { d.lvl++; log('Fahrer ' + d.id + ' ist jetzt Stufe ' + d.lvl + ' und fährt schneller', true); }
-    d.node = trip.endNode; d.trip = null; d.st = null; d.phase = -1;
+    d.node = trip.endNode; d.trip = null; d.st = null; d.phase = -1; startReturn(d);
     log('#' + o.id + ' zugestellt nach ' + fmtMin(age) + ' min: ' + seur(pay) + ' Lohn' + (tip > 0 ? ', ' + seur(tip) + ' Trinkgeld' : ', kein Trinkgeld') + (cost > 0 ? ', ' + seur(-cost) + ' Fahrzeugkosten' : ''), true);
     orders = orders.filter(x => x.state !== 'delivered');
     driverStructDirty = true; orderStructDirty = true; plansDirty = true; dirty = true;
@@ -760,17 +845,29 @@ function startGame(DATA) {
     hireVeh.appendChild(o);
   }
   const hireCost = () => CFG.hireFee + CFG.vehPrice[hireVeh.value];
+  const hireHub = $('hireHub'); let hubSig = '';
+  function syncHireHubs() {
+    const sig = hubs.length + '|' + hubLevel + '|' + drivers.map(d => d.hub).join(',');
+    if (sig === hubSig) return; hubSig = sig;
+    const keep = hireHub.value; hireHub.textContent = '';
+    hubs.forEach((h, i) => { const o = document.createElement('option'); o.value = String(i); const free = CFG.hubCaps[hubLevel] - slotsUsed(i); o.textContent = 'Hub ' + (i + 1) + ' · ' + free + ' frei'; o.disabled = free <= 0; hireHub.appendChild(o); });
+    const ok = Array.from(hireHub.options).find(o => o.value === keep && !o.disabled) || Array.from(hireHub.options).find(o => !o.disabled);
+    if (ok) hireHub.value = ok.value;
+    hireHub.hidden = $('hireHubL').hidden = hubs.length < 2;
+  }
   function syncHire() {
+    syncHireHubs();
     const cost = hireCost(), full = drivers.length >= cap(), poor = cash < cost;
     const b = $('hireBtn'); setText(b, full ? 'Alle Plätze belegt' : 'Einstellen für ' + eur(cost));
     b.disabled = full || poor;
-    setText($('hireNote'), full ? 'Der Hub hat nur Platz für ' + cap() + ' Fahrer. Baue ihn unter Ausbau aus.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im Hub.');
+    setText($('hireNote'), full ? 'Alle Hubs sind voll. Baue einen Hub aus oder einen neuen Hub unter Ausbau.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im gewählten Hub.');
   }
   hireVeh.addEventListener('change', syncHire);
   $('hireBtn').onclick = () => {
-    const cost = hireCost(); if (drivers.length >= cap() || cash < cost) return;
-    cash -= cost; const d = addDriver(hireVeh.value);
-    log('Fahrer ' + d.id + ' eingestellt (' + VEHICLES[d.veh].label + '), ' + seur(-cost) + ', danach ' + eur(wageOf(d)) + ' pro Stunde');
+    const cost = hireCost(), hi = Number(hireHub.value || 0);
+    if (drivers.length >= cap() || cash < cost || slotsUsed(hi) >= CFG.hubCaps[hubLevel]) return;
+    cash -= cost; const d = addDriver(hireVeh.value, hi);
+    log('Fahrer ' + d.id + ' eingestellt (' + VEHICLES[d.veh].label + ', Hub ' + (hi + 1) + '), ' + seur(-cost) + ', danach ' + eur(wageOf(d)) + ' pro Stunde');
     sel.driver = d.id; dirty = true;
   };
 
@@ -783,7 +880,7 @@ function startGame(DATA) {
     const nm = document.createElement('strong'); nm.textContent = o.pick.name || TYPE_LABEL[o.pick.type] + ' (ohne Namen)';
     const pay = document.createElement('span'); pay.className = 'o-pay'; pay.textContent = eur(o.pay);
     top.append(nm, pay);
-    const sub = document.createElement('span'); sub.className = 'o-sub'; sub.textContent = '#' + o.id + ' · nach ' + (o.home.street || 'Kunde') + ' · ' + fmtDist(o.air * CFG.detour);
+    const sub = document.createElement('span'); sub.className = 'o-sub'; sub.textContent = (o.partner ? '★ ' : '') + '#' + o.id + ' · nach ' + (o.home.street || 'Kunde') + ' · ' + fmtDist(o.air * CFG.detour);
     const age = document.createElement('span'); age.className = 'o-age';
     const bar = document.createElement('span'); bar.className = 'o-bar'; const fill = document.createElement('i'); bar.appendChild(fill);
     const at = document.createElement('span'); age.append(bar, at);
@@ -872,8 +969,8 @@ function startGame(DATA) {
         setText(r.pill, PHASE_TXT[Math.min(3, st.phase)]);
         setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h'));
       } else {
-        r.pill.className = 'pill s-idle'; setText(r.pill, 'Frei');
-        setText(r.line, 'Wartet' + (E.nodeName[d.node] ? ' in der Nähe von ' + E.nodeName[d.node] : ' im Hub'));
+        r.pill.className = 'pill s-idle'; setText(r.pill, d.ret ? 'Zurück zum Hub' : 'Frei');
+        setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) : 'Wartet im Hub ' + (d.hub + 1));
       }
     }
   }
@@ -913,7 +1010,7 @@ function startGame(DATA) {
     box._b.disabled = d.lvl >= 5 || !!d.trip || cash < c;
   }
   const ulist = $('ulist'), uRefs = [];
-  const UPG_ALL = UPG.concat([{ id: 'hub', name: 'Hub ausbauen', desc: '' }]);
+  const UPG_ALL = UPG.concat([{ id: 'zone', name: '', desc: '' }, { id: 'hub', name: 'Hub ausbauen', desc: '' }, { id: 'newhub', name: 'Neuen Hub bauen', desc: '' }]);
   for (const u of UPG_ALL) {
     const row = document.createElement('div'); row.className = 'upg';
     const n = document.createElement('strong'), sm = document.createElement('small'), b = document.createElement('button');
@@ -922,9 +1019,17 @@ function startGame(DATA) {
     uRefs.push({ u, row, n, sm, b });
   }
   function buyUpgrade(id) {
+    if (id === 'zone') {
+      const c = CFG.zoneCost[zoneLevel + 1]; if (c === undefined || CFG.zones[zoneLevel] >= MAXR || cash < c) return;
+      cash -= c; zoneLevel++; rezone(); log('Liefergebiet erweitert: jetzt ' + zoneR() + ' m um jeden Hub, ' + seur(-c), true); dirty = true; return;
+    }
+    if (id === 'newhub') {
+      if (hubs.length >= 3 || cash < CFG.hubBuild[hubs.length]) return;
+      placing = !placing; ghost = null; $('placeBan').hidden = !placing; cv.classList.toggle('placing', placing); dirty = true; return;
+    }
     if (id === 'hub') {
       const c = CFG.hubCost[hubLevel + 1]; if (c === undefined || cash < c) return;
-      cash -= c; hubLevel++; log('Hub ausgebaut: jetzt Platz für ' + cap() + ' Fahrer, ' + seur(-c), true); driverStructDirty = true; return;
+      cash -= c; hubLevel++; log('Hubs ausgebaut: jetzt Platz für ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub, ' + seur(-c), true); driverStructDirty = true; return;
     }
     const u = UPG.find(x => x.id === id); if (!u || owned[id] || cash < u.cost) return;
     cash -= u.cost; owned[id] = true; log(u.name + ' gekauft, ' + seur(-u.cost), true);
@@ -933,10 +1038,19 @@ function startGame(DATA) {
   }
   function updateUpgrades() {
     for (const r of uRefs) {
-      if (r.u.id === 'hub') {
+      if (r.u.id === 'zone') {
+        const c = CFG.zoneCost[zoneLevel + 1], max = c === undefined || CFG.zones[zoneLevel] >= MAXR;
+        setText(r.n, 'Liefergebiet erweitern'); r.row.classList.remove('own');
+        setText(r.sm, max ? 'Größtes Gebiet erreicht (' + zoneR() + ' m' + (CFG.zones[zoneLevel] >= MAXR && c !== undefined ? ', die geladene Karte reicht nicht weiter' : '') + ').' : 'Radius um jeden Hub: ' + CFG.zones[Math.min(zoneLevel + 1, CFG.zones.length - 1)] + ' statt ' + zoneR() + ' m.');
+        setText(r.b, max ? 'Fertig' : eur(c)); r.b.disabled = max || cash < c;
+      } else if (r.u.id === 'newhub') {
+        const c = CFG.hubBuild[hubs.length], max = hubs.length >= 3; r.row.classList.remove('own');
+        setText(r.n, 'Neuen Hub bauen'); setText(r.sm, max ? 'Mehr als 3 Hubs sind nicht möglich.' : 'Ein weiterer Standort bringt ein neues Liefergebiet und Platz für ' + CFG.hubCaps[hubLevel] + ' Fahrer.');
+        setText(r.b, max ? 'Fertig' : placing ? 'Abbrechen' : eur(c)); r.b.disabled = max || (!placing && cash < c);
+      } else if (r.u.id === 'hub') {
         const c = CFG.hubCost[hubLevel + 1], max = c === undefined;
-        setText(r.n, 'Hub ausbauen (Stufe ' + (hubLevel + 1) + ')'); r.row.classList.toggle('own', false);
-        setText(r.sm, max ? 'Größter Ausbau erreicht: ' + cap() + ' Fahrer.' : 'Platz für ' + CFG.hubCaps[hubLevel + 1] + ' statt ' + cap() + ' Fahrer.');
+        setText(r.n, 'Hubs ausbauen (Stufe ' + (hubLevel + 1) + ')'); r.row.classList.toggle('own', false);
+        setText(r.sm, max ? 'Größter Ausbau: ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub.' : CFG.hubCaps[hubLevel + 1] + ' statt ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub.');
         setText(r.b, max ? 'Fertig' : eur(c)); r.b.disabled = max || cash < c;
       } else {
         const own = !!owned[r.u.id]; r.row.classList.toggle('own', own);
@@ -944,6 +1058,35 @@ function startGame(DATA) {
         setText(r.b, own ? 'Gekauft' : eur(r.u.cost)); r.b.disabled = own || cash < r.u.cost;
       }
     }
+  }
+  // ---------- Partner-Restaurants ----------
+  const plist = $('plist'); let pSig = '', pBtns = [];
+  function updatePartners() {
+    const sig = partners.size + '|' + zPois.length;
+    if (sig !== pSig) {
+      pSig = sig; plist.textContent = ''; pBtns = [];
+      const row = (p, own) => {
+        const r = document.createElement('div'); r.className = 'prow';
+        const n = document.createElement('strong'); n.textContent = p.name || TYPE_LABEL[p.type];
+        const sm = document.createElement('small'); sm.textContent = TYPE_LABEL[p.type] + (p.street ? ' · ' + p.street : '');
+        r.append(n, sm);
+        if (own) { const t = document.createElement('span'); t.className = 'own'; t.textContent = '★ Partner'; r.appendChild(t); }
+        else { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.onclick = () => signPartner(p.i); r.appendChild(b); pBtns.push(b); }
+        plist.appendChild(r);
+      };
+      for (const i of partners) row(pois[i], true);
+      const cand = zPois.filter(p => p.name && !partners.has(p.i)).map(p => ({ p, d: Math.min(...hubs.map(h => Math.hypot(h.x - p.x, h.y - p.y))) }))
+        .sort((a, b) => a.d - b.d).slice(0, 5).map(x => x.p);
+      for (const p of cand) row(p, false);
+    }
+    const full = partners.size >= CFG.maxPartners;
+    for (const b of pBtns) { setText(b, eur(CFG.partnerCost)); b.disabled = full || cash < CFG.partnerCost; }
+    setText($('pcount'), partners.size + ' / ' + CFG.maxPartners);
+    setText($('pnote'), full ? 'Mehr Partner sind nicht möglich.' : 'Partner liefern öfter Bestellungen, packen ' + Math.round((1 - CFG.partnerDwell) * 100) + ' % schneller und zahlen ' + Math.round((CFG.partnerPay - 1) * 100) + ' % mehr.');
+  }
+  function signPartner(i) {
+    if (partners.size >= CFG.maxPartners || cash < CFG.partnerCost || partners.has(i)) return;
+    cash -= CFG.partnerCost; partners.add(i); log('Partnerschaft mit ' + (pois[i].name || TYPE_LABEL[pois[i].type]) + ', ' + seur(-CFG.partnerCost), true); plansDirty = true; dirty = true;
   }
   function syncAuto() { const b = $('autoBtn'); b.setAttribute('aria-pressed', String(autoOn)); b.textContent = 'Auto-Disposition: ' + (autoOn ? 'an' : 'aus'); }
   $('autoBtn').onclick = () => { autoOn = !autoOn; syncAuto(); };
@@ -963,7 +1106,7 @@ function startGame(DATA) {
     const test = (x, y, v) => { const dx = toX(x) - px, dy = toY(y) - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = v; } };
     for (const o of orders) if (o.state === 'open' || (o.state === 'assigned' && !o.picked)) test(o.pick.x, o.pick.y, { kind: 'order', o });
     for (const d of drivers) { const p = driverPos(d); test(p.x, p.y, { kind: 'driver', d }); }
-    test(HUB.x, HUB.y, { kind: 'hub' });
+    hubs.forEach((h, i) => test(h.x, h.y, { kind: 'hub', i }));
     return best;
   }
   const rel = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
@@ -976,11 +1119,12 @@ function startGame(DATA) {
       if (drag.moved) { cam.x = drag.cx - dx / cam.s; cam.y = drag.cy - dy / cam.s; dirty = true; }
       return;
     }
+    if (placing) { ghost = { x: (px - cw / 2) / cam.s + cam.x, y: (py - ch / 2) / cam.s + cam.y }; dirty = true; tip.hidden = true; return; }
     const h = hit(px, py, 12);
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
     tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
-    tip.textContent = h.kind === 'hub' ? 'Lastmile-Hub im Stadtzentrum'
+    tip.textContent = h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zoneR() + ' m · ' + slotsUsed(h.i) + ' / ' + CFG.hubCaps[hubLevel] + ' Fahrer'
       : h.kind === 'order' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.pick.name || TYPE_LABEL[h.o.pick.type]) + ' · ' + eur(h.o.pay)
       : 'Fahrer ' + h.d.id + ' · ' + driverLabel(h.d);
   });
@@ -988,10 +1132,23 @@ function startGame(DATA) {
   cv.addEventListener('pointerup', e => {
     const wasClick = drag && !drag.moved; drag = null; cv.classList.remove('dragging');
     if (!wasClick) return;
-    const [px, py] = rel(e), h = hit(px, py, 14); if (!h) return;
+    const [px, py] = rel(e);
+    if (placing) return placeHub((px - cw / 2) / cam.s + cam.x, (py - ch / 2) / cam.s + cam.y);
+    const h = hit(px, py, 14); if (!h) return;
     if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
     else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; }
   });
+  function endPlacing() { placing = false; ghost = null; $('placeBan').hidden = true; cv.classList.remove('placing'); dirty = true; }
+  function placeHub(x, y) {
+    const c = CFG.hubBuild[hubs.length]; if (hubs.length >= 3 || cash < c) return endPlacing();
+    const n = E.hubNode('scooter', x, y), b = E.hubNode('bike', x, y);
+    if (Math.hypot(nx[n] - x, ny[n] - y) > 150) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
+    if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return flash('Das liegt außerhalb der geladenen Karte.');
+    if (hubs.some(h => Math.hypot(h.x - nx[n], h.y - ny[n]) < CFG.hubGap)) return flash('Zu nah an einem anderen Hub (mindestens ' + CFG.hubGap + ' m Abstand).');
+    cash -= c; hubs.push({ x: nx[n], y: ny[n], n: { bike: b, car: n } }); rezone(); endPlacing();
+    log('Neuer Hub ' + hubs.length + ' an ' + (E.nodeName[n] || 'einer Straße') + ', ' + seur(-c), true); plansDirty = true; driverStructDirty = true;
+  }
+  function flash(t) { const el = $('placeBan'); el.textContent = t; setTimeout(() => { el.innerHTML = 'Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.'; }, 2600); }
   cv.addEventListener('wheel', e => { e.preventDefault(); const [px, py] = rel(e); zoomAt(px, py, Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
   $('zin').onclick = () => zoomAt(cw / 2, ch / 2, 1.4);
   $('zout').onclick = () => zoomAt(cw / 2, ch / 2, 1 / 1.4);
@@ -1014,6 +1171,7 @@ function startGame(DATA) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
     const k = e.key;
+    if (k === 'Escape' && placing) { endPlacing(); return; }
     if (k === 'a' || k === 'A') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); }
     else if (k === 'ArrowDown') { e.preventDefault(); cycleOrder(1); }
     else if (k === 'ArrowUp') { e.preventDefault(); cycleOrder(-1); }
@@ -1030,7 +1188,7 @@ function startGame(DATA) {
     if (!paused) {
       const adv = dt * speed;
       simClock += adv;
-      for (const d of drivers) if (d.trip) d.trip.t += adv;
+      for (const d of drivers) { if (d.trip) d.trip.t += adv; if (d.ret) d.ret.t += adv; }
       updateDrivers();
       let w = 0; for (const d of drivers) w += wageOf(d); w = w * adv / 3600; cash -= w; stats.wage += w;
       expireOrders();
@@ -1044,7 +1202,7 @@ function startGame(DATA) {
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
-    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); updateDetail(); updateUpgrades(); }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); updateDetail(); updateUpgrades(); updatePartners(); }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
@@ -1055,7 +1213,8 @@ function startGame(DATA) {
   new MutationObserver(() => { dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { textW.clear(); dirty = true; });
 
-  addDriver('bike');
+  rezone();
+  addDriver('bike', 0);
   log('Hub bereit, Fahrer 1 (Fahrrad) wartet auf Aufträge');
   for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
   nextSpawn = simClock + 40;
