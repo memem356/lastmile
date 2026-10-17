@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Lastmile</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -264,6 +265,44 @@ canvas.placing { cursor: crosshair; }
 .modeBox button[aria-pressed="true"] { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
 .modeBox button:hover { border-color: var(--muted); }
 @media (max-width: 560px) { .modeBox { grid-template-columns: 1fr; } }
+/* Konto-Fenster auf der Startseite */
+.accbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 9px 12px 9px 14px; }
+.accbar .accinfo { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; }
+.accbar .accinfo span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.accbar .dot.on { background: var(--ok); } .accbar .dot.warn { background: var(--signal); }
+.accwrap { position: fixed; inset: 0; z-index: 40; background: rgba(8, 12, 16, 0.55); display: flex; justify-content: center; align-items: flex-start; padding: 5vh 12px 24px; overflow: auto; }
+.accbox { width: min(540px, 100%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.accbox h3 { margin: 0; font: 600 18px var(--font-ui); }
+.accbox h4 { margin: 0 0 6px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.accbox p { margin: 0; }
+.accbox button:focus-visible, .accbox input:focus-visible, .accbar button:focus-visible { outline: 2px solid var(--route); outline-offset: 2px; }
+.acchead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.acctabs { display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.acctabs button { flex: 1; border: 0; background: transparent; color: var(--muted); font: 500 13px var(--font-ui); padding: 9px 10px; cursor: pointer; }
+.acctabs button + button { border-left: 1px solid var(--line); }
+.acctabs button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.accform { display: flex; flex-direction: column; gap: 12px; }
+.fld { display: flex; flex-direction: column; gap: 4px; }
+.fld .fl { font-size: 12px; color: var(--muted); }
+.fld input[type=text], .fld input[type=email], .fld input[type=password] { width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 10px 11px; font: 16px var(--font-ui); }
+.fld .fh { color: var(--muted); font-size: 12px; }
+.fld .nrow { display: flex; gap: 8px; } .fld .nrow input { flex: 1; min-width: 0; }
+.chk { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; }
+.chk input { margin-top: 3px; }
+.accmsg { font-size: 13px; min-height: 1.2em; } .accmsg.err { color: var(--warn); } .accmsg.ok { color: var(--ok); }
+.accrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.linkbtn { border: 0; background: none; color: var(--route); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; text-align: left; }
+.cl { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); }
+.cl:empty { display: none; }
+.cl li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px; flex-wrap: wrap; }
+.cl li + li { border-top: 1px solid var(--line); }
+.cl .tt { font-weight: 500; font-size: 14px; display: block; }
+.cl .ss { color: var(--muted); font-size: 12px; display: block; }
+.cl .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.cl button.btn { padding: 6px 10px; font-size: 12px; }
+button.btn.danger { border-color: var(--warn); color: var(--warn); }
+.privacy { font-size: 13px; line-height: 1.5; } .privacy ul { margin: 6px 0 0; padding-left: 18px; } .privacy li { margin: 4px 0; }
 .s-bad { color: var(--warn); }
 .tbar { display: inline-flex; } .tbar i { width: 12px !important; height: 6px !important; border-radius: 0 !important; }
 .legend button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 99px; padding: 1px 10px; font: 500 12px var(--font-ui, inherit); cursor: pointer; }
@@ -341,6 +380,10 @@ canvas.placing { cursor: crosshair; }
       <span class="name">Lastmile</span>
     </div>
     <p class="lead">Baue einen Lieferdienst auf einer echten Karte auf. Such dir eine beliebige Stadt auf der Welt aus: Straßen, Restaurants und Wohnhäuser kommen aus OpenStreetMap.</p>
+    <section id="accBar" class="accbar">
+      <div class="accinfo"><i class="dot" id="accDot"></i><span class="t" id="accTxt">Nicht angemeldet · Solo spielen geht ohne Konto</span></div>
+      <button type="button" class="btn" id="accBtn">Anmelden</button>
+    </section>
     <section id="saveBox" hidden>
       <h2>Weiter spielen</h2>
       <ul class="rlist" id="saveList"></ul>
@@ -380,6 +423,13 @@ canvas.placing { cursor: crosshair; }
       <div id="statusBtns" hidden><button type="button" class="btn" id="statusBack">Zurück zur Suche</button></div>
     </div>
     <p class="foot">Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL). Orte werden über Nominatim gesucht und über die Overpass-API geladen. Geladene Städte bleiben in deinem Browser gespeichert.</p>
+  </div>
+</div>
+
+<div class="accwrap" id="accWrap" hidden>
+  <div class="accbox" id="accBox" role="dialog" aria-modal="true" aria-labelledby="accTitle">
+    <div class="acchead"><h3 id="accTitle">Konto</h3><button type="button" class="btn" id="accClose">Schließen</button></div>
+    <div id="accBody"></div>
   </div>
 </div>
 
@@ -604,6 +654,7 @@ canvas.placing { cursor: crosshair; }
 const ESSEN = /*DATA*/null;
 /*ENGINE*/
 /*LOADER*/
+/*ONLINE*/
 
 const $ = id => document.getElementById(id);
 const MODES = {
@@ -2461,4 +2512,5 @@ function startGame(DATA, MODEKEY) {
   else if (!saved) { let seen = false; try { seen = localStorage.getItem('lm-tut') === '1'; } catch (e) {} if (!seen) openTutorial(); }
 }
 /*BOOT*/
+/*ACCOUNT*/
 </script>

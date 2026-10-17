@@ -62,3 +62,19 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 - Beim Laden und nach Abwesenheit werden aktive Ereignisse und das Wetter aus der Weltzeit neu berechnet (`scanWorldEvents`, `syncWeather`). Der Startwert steht im Spielstand.
 - Bestellungen, Pannen und persönliche Folgen bleiben individuell.
 - Grundlage für Phase 8d: Dort wird die Weltzeit vom Server vorgegeben (`WORLD.t0`, 30-fach).
+
+## Phase 8c: Konto und Cloud-Sicherung (Firebase)
+- **Aufbau:** Das Spiel bleibt eine statische Seite auf GitHub Pages. Konten und Cloud-Daten liegen bei Firebase (Tarif Spark, ohne Zahlungsmittel): *Authentication* (E-Mail und Passwort) und *Realtime Database*. Es werden keine Firebase-Bibliotheken geladen, `src/online.js` spricht die offenen REST-Schnittstellen direkt an (`LMO`). Die Zugangswerte in `src/online.js` (Projekt, Webschlüssel) sind öffentlich gedacht; geschützt werden die Daten durch `firebase-rules.json`.
+- **Datenbank-Adresse:** Beim ersten Start wird automatisch gefunden, in welcher Region die Datenbank liegt (Europa/USA/Asien) und gemerkt.
+- **Datenmodell** (alles unter dem Konto-Kennzeichen `uid`, der Name ist nur Anzeige und kann später geändert werden):
+  - `redeemed/<uid>`: benutzter Einladungscode (steht in den Regeln, dort änderbar). Ohne ihn darf niemand etwas schreiben.
+  - `users/<uid>`: `{name, key, created}`, nur für den Besitzer lesbar. `key` ist der Name klein geschrieben mit `_` statt Leerzeichen.
+  - `names/<key>`: gehört `<uid>`; garantiert eindeutige Namen. Einzelne Namen sind ohne Anmeldung prüfbar, die Liste nicht. Pro Konto nur ein Anspruch (er muss zum Profil passen).
+  - `saves/<uid>/<platz>` und `savemeta/<uid>/<platz>`: Cloud-Spielstände (JSON als Text, höchstens 400 000 Zeichen) und eine kurze Beschreibung. Platz = `s_<Koordinaten>_<Modus>`.
+  - `clock/<uid>`: ein Schreibzugriff mit Server-Zeitstempel liefert die Serverzeit (Vorbereitung für Phase 8d, `LMO.syncClock()`).
+- **Registrierung:** Name (3–16 Zeichen, Buchstaben/Zahlen/Leerzeichen/_/-, kurze Sperrliste und reservierte Namen, Namensvorschlag), E-Mail, Passwort (mind. 8), Einladungscode, Häkchen für die Datenschutz-Hinweise. Reihenfolge: Konto anlegen → Einladung einlösen → Profil → Namensanspruch → Bestätigungsmail. Scheitert ein Schritt, wird alles zurückgenommen. Unterbrochene Registrierungen lassen sich beim nächsten Login abschließen; fehlt nur der Namensanspruch, wird er automatisch nachgeholt.
+- **Weiteres:** Anmelden, Abmelden, „Passwort vergessen“ (E-Mail von Firebase), E-Mail-Bestätigung erneut senden/prüfen, Konto löschen (fragt das Passwort, löscht Stände, Profil, Namen und Konto).
+- **Cloud-Sicherung:** Im Konto-Fenster lassen sich Solo-Spielstände hochladen und auf einem anderen Gerät laden. Beim Laden bleibt der bisherige lokale Stand als `.bak` erhalten; ist der Gegenstand neuer, wird nachgefragt.
+- **Sicherheitsregeln** (`firebase-rules.json`, in der Firebase-Konsole unter *Realtime Database → Regeln* einfügen und veröffentlichen). Weil das Projekt öffentlich ist, steht in der Datei nur der Platzhalter `LM-BEISPIEL`; der echte Einladungscode steht ausschließlich in den Regeln in der Firebase-Konsole und kann dort jederzeit geändert werden (Zeile `redeemed`, `.validate`). Die Regeln: Fremde Daten sind weder lesbar noch schreibbar, Felder werden geprüft (Format, Größe, Zusatzfelder verboten), `created`/Zeitstempel kommen vom Server, der Anzeigename lässt sich nur zusammen mit dem Schlüssel ändern.
+- **Tests** (ohne Internet, mit einem Nachbau von Firebase samt Regelprüfung in `tests/fbmock.js`): `node tests/lmo_test.js` (Bausteine und Regeln, 129 Prüfungen) und `python3 tests/ui_account.py` (Oberfläche im Browser, 35 Prüfungen). Der Nachbau prüft die Regeln mit eigener Auswertung und ersetzt keinen Test gegen das echte Firebase.
+- Nebenbei behoben: Sicherungskopien (`….bak`) tauchten auf der Startseite doppelt unter „Weiter spielen“ auf.

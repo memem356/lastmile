@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Lastmile</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -264,6 +265,44 @@ canvas.placing { cursor: crosshair; }
 .modeBox button[aria-pressed="true"] { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
 .modeBox button:hover { border-color: var(--muted); }
 @media (max-width: 560px) { .modeBox { grid-template-columns: 1fr; } }
+/* Konto-Fenster auf der Startseite */
+.accbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 9px 12px 9px 14px; }
+.accbar .accinfo { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; }
+.accbar .accinfo span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.accbar .dot.on { background: var(--ok); } .accbar .dot.warn { background: var(--signal); }
+.accwrap { position: fixed; inset: 0; z-index: 40; background: rgba(8, 12, 16, 0.55); display: flex; justify-content: center; align-items: flex-start; padding: 5vh 12px 24px; overflow: auto; }
+.accbox { width: min(540px, 100%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.accbox h3 { margin: 0; font: 600 18px var(--font-ui); }
+.accbox h4 { margin: 0 0 6px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.accbox p { margin: 0; }
+.accbox button:focus-visible, .accbox input:focus-visible, .accbar button:focus-visible { outline: 2px solid var(--route); outline-offset: 2px; }
+.acchead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.acctabs { display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.acctabs button { flex: 1; border: 0; background: transparent; color: var(--muted); font: 500 13px var(--font-ui); padding: 9px 10px; cursor: pointer; }
+.acctabs button + button { border-left: 1px solid var(--line); }
+.acctabs button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.accform { display: flex; flex-direction: column; gap: 12px; }
+.fld { display: flex; flex-direction: column; gap: 4px; }
+.fld .fl { font-size: 12px; color: var(--muted); }
+.fld input[type=text], .fld input[type=email], .fld input[type=password] { width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 10px 11px; font: 16px var(--font-ui); }
+.fld .fh { color: var(--muted); font-size: 12px; }
+.fld .nrow { display: flex; gap: 8px; } .fld .nrow input { flex: 1; min-width: 0; }
+.chk { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; }
+.chk input { margin-top: 3px; }
+.accmsg { font-size: 13px; min-height: 1.2em; } .accmsg.err { color: var(--warn); } .accmsg.ok { color: var(--ok); }
+.accrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.linkbtn { border: 0; background: none; color: var(--route); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; text-align: left; }
+.cl { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); }
+.cl:empty { display: none; }
+.cl li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px; flex-wrap: wrap; }
+.cl li + li { border-top: 1px solid var(--line); }
+.cl .tt { font-weight: 500; font-size: 14px; display: block; }
+.cl .ss { color: var(--muted); font-size: 12px; display: block; }
+.cl .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.cl button.btn { padding: 6px 10px; font-size: 12px; }
+button.btn.danger { border-color: var(--warn); color: var(--warn); }
+.privacy { font-size: 13px; line-height: 1.5; } .privacy ul { margin: 6px 0 0; padding-left: 18px; } .privacy li { margin: 4px 0; }
 .s-bad { color: var(--warn); }
 .tbar { display: inline-flex; } .tbar i { width: 12px !important; height: 6px !important; border-radius: 0 !important; }
 .legend button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 99px; padding: 1px 10px; font: 500 12px var(--font-ui, inherit); cursor: pointer; }
@@ -341,6 +380,10 @@ canvas.placing { cursor: crosshair; }
       <span class="name">Lastmile</span>
     </div>
     <p class="lead">Baue einen Lieferdienst auf einer echten Karte auf. Such dir eine beliebige Stadt auf der Welt aus: Straßen, Restaurants und Wohnhäuser kommen aus OpenStreetMap.</p>
+    <section id="accBar" class="accbar">
+      <div class="accinfo"><i class="dot" id="accDot"></i><span class="t" id="accTxt">Nicht angemeldet · Solo spielen geht ohne Konto</span></div>
+      <button type="button" class="btn" id="accBtn">Anmelden</button>
+    </section>
     <section id="saveBox" hidden>
       <h2>Weiter spielen</h2>
       <ul class="rlist" id="saveList"></ul>
@@ -380,6 +423,13 @@ canvas.placing { cursor: crosshair; }
       <div id="statusBtns" hidden><button type="button" class="btn" id="statusBack">Zurück zur Suche</button></div>
     </div>
     <p class="foot">Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL). Orte werden über Nominatim gesucht und über die Overpass-API geladen. Geladene Städte bleiben in deinem Browser gespeichert.</p>
+  </div>
+</div>
+
+<div class="accwrap" id="accWrap" hidden>
+  <div class="accbox" id="accBox" role="dialog" aria-modal="true" aria-labelledby="accTitle">
+    <div class="acchead"><h3 id="accTitle">Konto</h3><button type="button" class="btn" id="accClose">Schließen</button></div>
+    <div id="accBody"></div>
   </div>
 </div>
 
@@ -1164,6 +1214,336 @@ const LM = (function () {
   const removeCached = place => tx('readwrite', s => s.delete(idOf(place)));
 
   return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz };
+})();
+
+// Lastmile Online: Konto und Cloud über die offenen Schnittstellen von Firebase (ohne Bibliothek, nur fetch)
+// Die Zugangsdaten unten sind öffentlich gedacht (Webschlüssel). Geschützt werden die Daten durch die Regeln in firebase-rules.json.
+const LMO = (function () {
+  const CFG = {
+    apiKey: 'AIzaSyAdEbVh2P13tdupXlrT07nTGabqq9kLb1I',
+    projectId: 'lastmile-c6976',
+    // Die Datenbank liegt je nach Wahl in einer dieser Regionen; die richtige wird beim ersten Start gefunden und gemerkt.
+    db: ['https://lastmile-c6976-default-rtdb.europe-west1.firebasedatabase.app', 'https://lastmile-c6976-default-rtdb.firebaseio.com', 'https://lastmile-c6976-default-rtdb.asia-southeast1.firebasedatabase.app']
+  };
+  const AUTH = 'https://identitytoolkit.googleapis.com/v1/accounts:', TOKEN = 'https://securetoken.googleapis.com/v1/token';
+  const LSK = 'lm.auth', DBK = 'lm.fbdb';
+  const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+
+  // ---------- Fehler ----------
+  const TEXT = {
+    NETWORK: 'Keine Verbindung zum Server. Bitte Internet prüfen und noch einmal versuchen.',
+    DB_NOT_FOUND: 'Die Datenbank wurde nicht gefunden. Bitte melde das dem Betreiber.',
+    EMAIL_EXISTS: 'Zu dieser E-Mail-Adresse gibt es schon ein Konto. Melde dich an oder setze das Passwort zurück.',
+    INVALID_EMAIL: 'Die E-Mail-Adresse sieht nicht richtig aus.',
+    MISSING_EMAIL: 'Bitte eine E-Mail-Adresse eingeben.',
+    MISSING_PASSWORD: 'Bitte ein Passwort eingeben.',
+    WEAK_PASSWORD: 'Das Passwort ist zu schwach. Nimm mindestens 8 Zeichen.',
+    INVALID_LOGIN_CREDENTIALS: 'E-Mail oder Passwort stimmt nicht.',
+    INVALID_PASSWORD: 'E-Mail oder Passwort stimmt nicht.',
+    EMAIL_NOT_FOUND: 'E-Mail oder Passwort stimmt nicht.',
+    USER_DISABLED: 'Dieses Konto wurde gesperrt.',
+    TOO_MANY_ATTEMPTS_TRY_LATER: 'Zu viele Versuche. Bitte warte ein paar Minuten.',
+    OPERATION_NOT_ALLOWED: 'Die Anmeldung mit E-Mail und Passwort ist im Firebase-Projekt noch nicht eingeschaltet (Authentication, Anmeldemethode).',
+    CREDENTIAL_TOO_OLD_LOGIN_AGAIN: 'Bitte melde dich neu an und versuche es dann noch einmal.',
+    TOKEN_EXPIRED: 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.',
+    INVALID_REFRESH_TOKEN: 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.',
+    USER_NOT_FOUND: 'Dieses Konto gibt es nicht mehr.',
+    NOT_SIGNED_IN: 'Du bist nicht angemeldet.',
+    NAME_TAKEN: 'Dieser Name ist schon vergeben.',
+    BAD_NAME: 'Dieser Name ist nicht möglich.',
+    BAD_CODE: 'Der Einladungscode stimmt nicht.',
+    PERMISSION_DENIED: 'Der Server hat das abgelehnt (keine Berechtigung).',
+    RULES: 'Die Datenbank ist noch nicht für Konten eingerichtet (Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.',
+    ADMIN_ONLY_OPERATION: 'Neue Konten sind im Firebase-Projekt gerade nicht erlaubt (Authentication, Einstellungen).',
+    NO_PROFILE: 'Die Registrierung ist noch nicht abgeschlossen.',
+    QUOTA: 'Der Server ist gerade überlastet. Bitte später noch einmal versuchen.',
+    API_KEY: 'Der Zugangsschlüssel zu Firebase wird abgelehnt. Bitte melde das dem Betreiber.',
+    CLOCK: 'Die Serverzeit konnte nicht gelesen werden.'
+  };
+  class OErr extends Error {
+    constructor(code, detail) { super(TEXT[code] || ('Unbekannter Fehler (' + code + ')')); this.code = code; this.detail = detail || ''; }
+  }
+  const oerr = (c, d) => new OErr(c, d);
+
+  // ---------- Netz ----------
+  async function http(url, opt, ms) {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 20000);
+    let r, txt;
+    try { r = await fetch(url, Object.assign({ signal: ctl.signal }, opt)); txt = await r.text(); }
+    catch (e) { throw oerr('NETWORK', String(e && e.message || e)); }
+    finally { clearTimeout(to); }
+    let json = null; try { json = txt ? JSON.parse(txt) : null; } catch (e) {}
+    return { ok: r.ok, status: r.status, json, text: txt };
+  }
+  async function authApi(method, body, extraHeaders) {
+    const url = AUTH + method + '?key=' + encodeURIComponent(CFG.apiKey), send = h => http(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, h), body: JSON.stringify(body) });
+    let r;
+    // Sprachkopf für die E-Mail-Vorlage: lehnt der Browser ihn ab (Vorabprüfung), geht es ohne ihn noch einmal
+    try { r = await send(extraHeaders); } catch (e) { if (e.code === 'NETWORK' && extraHeaders) r = await send(); else throw e; }
+    if (!r.ok) {
+      const m = String((r.json && r.json.error && r.json.error.message) || ('HTTP ' + r.status)), code = m.split(/[ :]/)[0];
+      throw oerr(code === 'API_KEY_INVALID' || /API key/i.test(m) ? 'API_KEY' : code, m);
+    }
+    return r.json || {};
+  }
+
+  // ---------- Sitzung ----------
+  let sess = null, profile = null, offset = 0, base = null, refreshing = null, dead = false;
+  const subs = new Set();
+  const emit = () => { for (const f of subs) { try { f(state()); } catch (e) { console.error(e); } } };
+  function persist() { if (sess) ls.set(LSK, JSON.stringify({ uid: sess.uid, email: sess.email, refreshToken: sess.refreshToken, idToken: sess.idToken, exp: sess.exp, verified: !!sess.verified, name: profile ? profile.name : (sess.name || null) })); else ls.del(LSK); }
+  function setSession(o, keep) {
+    sess = { uid: o.localId || o.user_id || (sess && sess.uid), email: o.email || (sess && sess.email) || '', idToken: o.idToken || o.id_token, refreshToken: o.refreshToken || o.refresh_token,
+      exp: Date.now() + (+(o.expiresIn || o.expires_in) || 3600) * 1000, verified: keep && sess ? sess.verified : false, name: keep && sess ? sess.name : null };
+    persist();
+  }
+  function clearSession() { sess = null; profile = null; ls.del(LSK); emit(); }
+  function state() {
+    return { signedIn: !!sess, uid: sess && sess.uid, email: sess && sess.email, verified: !!(sess && sess.verified), name: profile ? profile.name : (sess && sess.name) || null, profile, hasProfile: !!profile, offset };
+  }
+  async function fresh() {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    if (sess.exp - Date.now() > 120000) return sess.idToken;
+    if (!refreshing) {
+      refreshing = (async () => {
+        const r = await http(TOKEN + '?key=' + encodeURIComponent(CFG.apiKey), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(sess.refreshToken) });
+        if (!r.ok) {
+          const m = String((r.json && r.json.error && r.json.error.message) || '');
+          if (/TOKEN_EXPIRED|USER_DISABLED|USER_NOT_FOUND|INVALID_REFRESH_TOKEN|CREDENTIAL_MISMATCH/.test(m)) { clearSession(); throw oerr('TOKEN_EXPIRED', m); }
+          throw oerr('NETWORK', m || ('HTTP ' + r.status));
+        }
+        const j = r.json; sess.idToken = j.id_token; sess.refreshToken = j.refresh_token || sess.refreshToken; sess.exp = Date.now() + (+j.expires_in || 3600) * 1000; persist();
+      })().finally(() => { refreshing = null; });
+    }
+    await refreshing;
+    return sess.idToken;
+  }
+
+  // ---------- Datenbank (REST) ----------
+  async function baseUrl() {
+    if (base) return base;
+    const saved = ls.get(DBK), cands = (saved ? [saved] : []).concat(CFG.db.filter(u => u !== saved));
+    let net = 0;
+    for (const u of cands) {
+      let r;
+      try { r = await http(u + '/.json?shallow=true', {}, 12000); } catch (e) { net++; continue; }
+      if (r.status === 200 || r.status === 401 || r.status === 403) { base = u; ls.set(DBK, u); return u; }
+    }
+    throw oerr(net === cands.length ? 'NETWORK' : 'DB_NOT_FOUND');
+  }
+  // method: GET, PUT, DELETE. auth=false liest ohne Anmeldung (nur dort erlaubt, wo die Regeln es erlauben).
+  async function db(method, path, body, o) {
+    o = o || {};
+    const b = await baseUrl(), q = [];
+    if (o.auth !== false) q.push('auth=' + encodeURIComponent(await fresh()));
+    if (o.shallow) q.push('shallow=true');
+    const r = await http(b + '/' + path.split('/').map(encodeURIComponent).join('/') + '.json' + (q.length ? '?' + q.join('&') : ''), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (r.status === 401 || r.status === 403) throw oerr('PERMISSION_DENIED', (r.json && r.json.error) || '');
+    if (r.status === 429 || r.status === 503) throw oerr('QUOTA', r.text);
+    if (!r.ok) throw oerr('DB_' + r.status, (r.json && r.json.error) || r.text);
+    return r.json;
+  }
+  const SV = { '.sv': 'timestamp' };
+
+  // Serverzeit: ein Schreibzugriff mit Zeitstempel des Servers liefert die Zeit zurück (Mitte der Laufzeit als Näherung)
+  async function syncClock() {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    const t0 = Date.now();
+    let v = await db('PUT', 'clock/' + sess.uid, SV);
+    const t1 = Date.now();
+    if (typeof v !== 'number') v = await db('GET', 'clock/' + sess.uid); // falls die Antwort nur den Platzhalter enthält
+    if (typeof v !== 'number') throw oerr('CLOCK');
+    offset = v - Math.round((t0 + t1) / 2); emit();
+    return { offset, rtt: t1 - t0 };
+  }
+  const serverNow = () => Date.now() + offset;
+
+  // ---------- Namen ----------
+  const NAME_OK = /^[A-Za-zÄÖÜäöüß0-9_-]([A-Za-zÄÖÜäöüß0-9 _-]{1,14})[A-Za-zÄÖÜäöüß0-9_-]$/;
+  const nameKey = n => String(n).toLowerCase().replace(/ /g, '_');
+  const tidyName = n => String(n || '').replace(/\s+/g, ' ').trim();
+  // Namensfilter: Zahlen-Buchstaben-Tricks (4=a, 3=e …) werden mitgeprüft. Die Listen sind bewusst kurz; alles Weitere geht über „Melden“.
+  const RESERVED = ['admin', 'administrator', 'moderator', 'support', 'system', 'lastmile', 'claude', 'anthropic', 'server', 'staff', 'team', 'gast', 'guest', 'root', 'null', 'undefined'];
+  const RES_SUB = ['lastmile', 'admin', 'moderator'];
+  const BAD_SUB = ['nazi', 'hitler', 'fotze', 'wichser', 'scheiss', 'fuck', 'shit', 'bitch', 'nigger', 'nigga', 'neger', 'schwuchtel', 'hurensohn', 'vergewalt', 'pimmel', 'nutte', 'porn', 'ficker', 'ficken', 'spast', 'behindert', 'mongo'];
+  const BAD_EXACT = ['sex', 'kz', 'arsch', 'idiot', 'isis', 'heil', 'sieg', 'dumm', 'penis', 'vagina', 'terror', 'hure', 'fick', 'kacke', 'depp'];
+  function checkName(raw) {
+    const n = tidyName(raw);
+    if (n.length < 3) return 'Der Name braucht mindestens 3 Zeichen.';
+    if (n.length > 16) return 'Der Name darf höchstens 16 Zeichen haben.';
+    if (!NAME_OK.test(n)) return 'Erlaubt sind Buchstaben, Zahlen, Leerzeichen, Unterstrich und Bindestrich (nicht am Anfang oder Ende).';
+    const k = nameKey(n).replace(/_/g, '');
+    if (!/[a-zäöüß]/.test(k)) return 'Der Name braucht mindestens einen Buchstaben.';
+    const flat = k.replace(/-/g, '').replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't').replace(/ß/g, 'ss').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
+    const stem = flat.replace(/[0-9]+$/, '');
+    if (RESERVED.includes(stem) || RES_SUB.some(w => flat.includes(w))) return 'Dieser Name ist reserviert.';
+    if (BAD_SUB.some(w => flat.includes(w)) || BAD_EXACT.includes(stem)) return 'Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.';
+    return '';
+  }
+  const ADJ = ['Flinker', 'Schneller', 'Rasanter', 'Wendiger', 'Cooler', 'Kluger', 'Mutiger', 'Fixer', 'Ruhiger', 'Sturer'];
+  const NOUN = ['Kurier', 'Bote', 'Radler', 'Fahrer', 'Flitzer', 'Lotse', 'Pedal', 'Express', 'Pizzabote', 'Lieferant'];
+  function suggestName() {
+    for (let i = 0; i < 40; i++) {
+      const n = ADJ[Math.floor(Math.random() * ADJ.length)] + NOUN[Math.floor(Math.random() * NOUN.length)] + (10 + Math.floor(Math.random() * 90));
+      if (n.length <= 16 && !checkName(n)) return n;
+    }
+    return 'Kurier' + (1000 + Math.floor(Math.random() * 9000));
+  }
+  const mailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+
+  // ---------- Konto ----------
+  async function lookup() {
+    const j = await authApi('lookup', { idToken: await fresh() }), u = j.users && j.users[0];
+    if (!u) throw oerr('USER_NOT_FOUND');
+    sess.verified = !!u.emailVerified; if (u.email) sess.email = u.email; persist();
+    return sess.verified;
+  }
+  async function loadProfile() {
+    profile = await db('GET', 'users/' + sess.uid);
+    if (profile && typeof profile !== 'object') profile = null;
+    persist(); emit();
+    if (profile && profile.key) {
+      // Ist der Name aus einer unterbrochenen Registrierung noch nicht beansprucht, wird das nachgeholt
+      try { const owner = await db('GET', 'names/' + profile.key, undefined, { auth: false }); if (!owner) await db('PUT', 'names/' + profile.key, sess.uid); } catch (e) {}
+    }
+    return profile;
+  }
+  async function sendVerify() {
+    await authApi('sendOobCode', { requestType: 'VERIFY_EMAIL', idToken: await fresh() }, { 'X-Firebase-Locale': 'de' });
+  }
+  // Legt Einladung, Profil und Namensanspruch an (auch zum Abschluss einer unterbrochenen Registrierung). Wirft bei Fehlern, räumt aber nicht auf.
+  async function claim(name, code) {
+    const uid = sess.uid, key = nameKey(name);
+    try { await db('PUT', 'redeemed/' + uid, String(code).trim().toUpperCase()); }
+    catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('BAD_CODE') : e; }
+    try { await db('PUT', 'users/' + uid, { name, key, created: SV }); }
+    catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('NAME_TAKEN') : e; }
+    try { await db('PUT', 'names/' + key, uid); }
+    catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('NAME_TAKEN') : e; }
+  }
+  async function rollbackAll() {
+    try { const uid = sess.uid; for (const p of ['names/' + nameKey(pend.name || '_'), 'users/' + uid, 'redeemed/' + uid]) { try { await db('DELETE', p); } catch (e) {} } } catch (e) {}
+    try { await authApi('delete', { idToken: await fresh() }); } catch (e) {}
+    clearSession();
+  }
+  let pend = {};
+  // Wer hat den Namen? Ohne passende Regeln darf niemand lesen: dann fehlt die Einrichtung der Datenbank.
+  async function nameOwner(name) {
+    try { return await db('GET', 'names/' + nameKey(name), undefined, { auth: false }); }
+    catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('RULES') : e; }
+  }
+  async function register(o) {
+    const name = tidyName(o.name), email = String(o.email || '').trim(), pw = String(o.password || ''), code = String(o.code || '').trim();
+    const bad = checkName(name); if (bad) { const e = oerr('BAD_NAME'); e.message = bad; throw e; }
+    if (!mailOk(email)) throw oerr('INVALID_EMAIL');
+    if (pw.length < 8) throw oerr('WEAK_PASSWORD');
+    if (!code) throw oerr('BAD_CODE');
+    const taken = await nameOwner(name);
+    if (taken) throw oerr('NAME_TAKEN');
+    const j = await authApi('signUp', { email, password: pw, returnSecureToken: true });
+    setSession(j); pend = { name };
+    try { await claim(name, code); }
+    catch (e) { await rollbackAll(); throw e; }
+    profile = { name, key: nameKey(name), created: Date.now() };
+    persist(); emit();
+    try { await sendVerify(); } catch (e) { console.warn('Bestätigungsmail:', e); }
+    try { await loadProfile(); } catch (e) {}
+    return state();
+  }
+  async function completeRegistration(o) {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    const name = tidyName(o.name), code = String(o.code || '').trim();
+    const bad = checkName(name); if (bad) { const e = oerr('BAD_NAME'); e.message = bad; throw e; }
+    if (!code) throw oerr('BAD_CODE');
+    const owner = await nameOwner(name);
+    if (owner && owner !== sess.uid) throw oerr('NAME_TAKEN');
+    await claim(name, code);
+    await loadProfile();
+    return state();
+  }
+  async function login(email, password) {
+    email = String(email || '').trim();
+    if (!email) throw oerr('MISSING_EMAIL');
+    if (!password) throw oerr('MISSING_PASSWORD');
+    const j = await authApi('signInWithPassword', { email, password, returnSecureToken: true });
+    setSession(j);
+    try { await lookup(); } catch (e) {}
+    try { await loadProfile(); } catch (e) { if (e.code === 'NETWORK') throw e; }
+    emit();
+    return state();
+  }
+  const logout = () => clearSession();
+  async function resetPassword(email) {
+    email = String(email || '').trim(); if (!mailOk(email)) throw oerr('INVALID_EMAIL');
+    try { await authApi('sendOobCode', { requestType: 'PASSWORD_RESET', email }, { 'X-Firebase-Locale': 'de' }); }
+    catch (e) { if (e.code !== 'EMAIL_NOT_FOUND') throw e; }
+  }
+  async function checkVerified() { const v = await lookup(); emit(); return v; }
+  // Löscht alle Daten des Kontos und das Konto selbst. Das Passwort wird zur Sicherheit noch einmal abgefragt.
+  async function deleteAccount(password) {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    const email = sess.email, uid = sess.uid;
+    const j = await authApi('signInWithPassword', { email, password: String(password || ''), returnSecureToken: true });
+    setSession(j, true);
+    let key = profile && profile.key; if (!key) { try { const p = await db('GET', 'users/' + uid); key = p && p.key; } catch (e) {} }
+    // Erst alle Daten, dann das Konto: scheitert ein Schritt, bleibt das Konto bestehen und es kann erneut versucht werden.
+    // Ohne Profil (unterbrochene Registrierung) darf der Server manche Löschungen ablehnen, weil es nichts zu löschen gibt.
+    const lenient = !key, del = async p => { try { await db('DELETE', p); } catch (e) { if (!(lenient && e.code === 'PERMISSION_DENIED')) throw e; } };
+    for (const p of ['saves/' + uid, 'savemeta/' + uid, 'clock/' + uid]) await del(p);
+    if (key) await del('names/' + key);
+    await del('users/' + uid);
+    await del('redeemed/' + uid);
+    await authApi('delete', { idToken: await fresh() });
+    clearSession();
+  }
+
+  // ---------- Cloud-Spielstände ----------
+  // Plätze heißen s_<Stadt-Koordinaten>_<Modus>; erlaubt sind nur Buchstaben, Zahlen, _ und -
+  const slotOf = localKey => 's_' + String(localKey).replace(/^lm\.save\./, '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 60);
+  async function cloudList() {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    const m = await db('GET', 'savemeta/' + sess.uid) || {};
+    return Object.keys(m).map(slot => ({ slot, t: m[slot].t, info: m[slot].info, v: m[slot].v })).sort((a, b) => b.t - a.t);
+  }
+  async function cloudPut(slot, raw, info, v) {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    await db('PUT', 'saves/' + sess.uid + '/' + slot, { t: SV, v: v || 1, data: raw });
+    await db('PUT', 'savemeta/' + sess.uid + '/' + slot, { t: SV, v: v || 1, info: String(info || '').slice(0, 160) });
+  }
+  async function cloudGet(slot) {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    const d = await db('GET', 'saves/' + sess.uid + '/' + slot);
+    if (!d || typeof d.data !== 'string') throw oerr('USER_NOT_FOUND', 'Spielstand nicht gefunden');
+    return d;
+  }
+  async function cloudDel(slot) {
+    if (!sess) throw oerr('NOT_SIGNED_IN');
+    await db('DELETE', 'saves/' + sess.uid + '/' + slot);
+    await db('DELETE', 'savemeta/' + sess.uid + '/' + slot);
+  }
+
+  // ---------- Start ----------
+  function init() {
+    const raw = ls.get(LSK); if (!raw) return;
+    try {
+      const o = JSON.parse(raw);
+      if (!o || !o.uid || !o.refreshToken) throw 0;
+      sess = { uid: o.uid, email: o.email || '', refreshToken: o.refreshToken, idToken: o.idToken || '', exp: +o.exp || 0, verified: !!o.verified, name: o.name || null };
+    } catch (e) { ls.del(LSK); return; }
+    (async () => { try { await lookup(); await loadProfile(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Konto:', e.code); } emit(); })();
+  }
+
+  return {
+    CFG, OErr, init, state, on(f) { subs.add(f); return () => subs.delete(f); },
+    checkName, suggestName, mailOk, nameKey, tidyName,
+    register, completeRegistration, login, logout, resetPassword, sendVerify, checkVerified, loadProfile, deleteAccount,
+    syncClock, serverNow, cloud: { slotOf, list: cloudList, put: cloudPut, get: cloudGet, del: cloudDel },
+    _db: db
+  };
 })();
 
 
@@ -3026,7 +3406,7 @@ function startGame(DATA, MODEKEY) {
   const SUGGEST = ['Hamburg', 'Wien', 'Paris', 'New York', 'Tokio', 'Kapstadt', 'São Paulo', 'Sydney'];
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), recent: $('recent'),
     recentBox: $('recentBox'), chips: $('chips'), status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar') };
-  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox', 'fileBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
+  const lock = on => { for (const id of ['accBar', 'modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox', 'fileBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
   let cachedList = [], saves = [], mode = 'relaxed';
   try { mode = localStorage.getItem('lm-mode') === 'rush' ? 'rush' : 'relaxed'; } catch (e) {}
   const mq2 = () => '&m=' + (mode === 'rush' ? 'r' : 'e');
@@ -3110,23 +3490,42 @@ function startGame(DATA, MODEKEY) {
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   }
   const fmsg = (t, err) => { const m = $('fileMsg'); m.hidden = !t; m.textContent = t || ''; m.style.color = err ? '#e0402a' : ''; };
+  // Prüft einen Spielstand und legt ihn unter seinem Speicherplatz ab (ein vorhandener Stand bleibt als Sicherung). Gibt eine Fehlermeldung oder null zurück.
+  const saveKeyOf = sv => 'lm.save.' + (+sv.place.lat).toFixed(3) + ',' + (+sv.place.lon).toFixed(3) + '.' + (sv.mode === 'rush' ? 'rush' : 'relaxed');
+  function storeSave(sv) {
+    if (!sv || !sv.place || !isFinite(+sv.place.lat) || !isFinite(+sv.place.lon) || !Array.isArray(sv.drivers) || !sv.drivers.length) return 'Das ist kein gültiger Lastmile-Spielstand.';
+    if (!(sv.v >= 1)) return 'Das ist kein gültiger Lastmile-Spielstand.';
+    if (sv.v > 2) return 'Dieser Spielstand stammt aus einer neueren Version des Spiels.';
+    try {
+      const k = saveKeyOf(sv), old = localStorage.getItem(k);
+      if (old) localStorage.setItem(k + '.bak', old);
+      localStorage.setItem(k, JSON.stringify(sv));
+    } catch (e) { return 'Der Browser erlaubt keinen Speicher.'; }
+    return null;
+  }
   function importFile(file) {
     const rd = new FileReader();
     rd.onerror = () => fmsg('Die Datei konnte nicht gelesen werden.', true);
     rd.onload = () => {
-      try {
-        const o = JSON.parse(String(rd.result)), sv = o && o.lm === 'lastmile-save' ? o.save : null;
-        if (!sv || !sv.place || !isFinite(+sv.place.lat) || !isFinite(+sv.place.lon) || !Array.isArray(sv.drivers) || !sv.drivers.length) throw new Error('format');
-        if (!(sv.v >= 1)) throw new Error('format');
-        if (sv.v > 2) return fmsg('Dieser Spielstand stammt aus einer neueren Version des Spiels.', true);
-        const k = 'lm.save.' + (+sv.place.lat).toFixed(3) + ',' + (+sv.place.lon).toFixed(3) + '.' + (sv.mode === 'rush' ? 'rush' : 'relaxed'), old = localStorage.getItem(k);
-        if (old) localStorage.setItem(k + '.bak', old);
-        localStorage.setItem(k, JSON.stringify(sv));
-        fmsg('Importiert: ' + sv.place.name + '. Du findest ihn jetzt oben unter „Weiter spielen“.'); init.again = true; saves.length = 0; init();
-      } catch (e) { fmsg('Das ist kein gültiger Lastmile-Spielstand.', true); }
+      let sv = null;
+      try { const o = JSON.parse(String(rd.result)); sv = o && o.lm === 'lastmile-save' ? o.save : null; } catch (e) {}
+      const err = storeSave(sv);
+      if (err) return fmsg(err, true);
+      fmsg('Importiert: ' + sv.place.name + '. Du findest ihn jetzt oben unter „Weiter spielen“.'); refreshStart();
     };
     rd.readAsText(file);
   }
+  function refreshStart() { init.again = true; saves.length = 0; init(); }
+  // Schnittstelle für das Konto-Fenster (account.js)
+  window.LMUI = {
+    saveKeyOf,
+    importSave(sv) { const e = storeSave(sv); if (!e) refreshStart(); return e; },
+    localSaves() {
+      const out = [];
+      try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('lm.save.') && !k.endsWith('.bak')) { const raw = localStorage.getItem(k), sv = JSON.parse(raw); if (sv && sv.place && sv.v >= 1 && Array.isArray(sv.drivers)) out.push({ key: k, sv, raw }); } } } catch (e) {}
+      return out.sort((a, b) => b.sv.at - a.sv.at);
+    }
+  };
   function fileSection() {
     const ul = $('fileList'); ul.textContent = '';
     ul.appendChild(item('Spielstand importieren', '(Datei)', 'wählen', () => { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = () => { if (f.files[0]) importFile(f.files[0]); }; f.click(); }));
@@ -3139,14 +3538,14 @@ function startGame(DATA, MODEKEY) {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('lm.save.')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v >= 1) saves.push(sv); }
+        if (k && k.startsWith('lm.save.') && !k.endsWith('.bak')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v >= 1) saves.push(sv); }
       }
     } catch (e) {}
     saves.sort((a, b) => b.at - a.at);
     $('saveList').textContent = '';
     for (const sv of saves) {
       const m = sv.mode === 'rush' ? 'Rush' : 'Entspannt', cash = Math.round(sv.cash).toLocaleString('de-DE') + ' €';
-      $('saveList').appendChild(item(sv.place.name + ' · ' + m, cash + ' · ' + sv.stats.n + ' Lieferungen · ' + ago(sv.at), 'fortsetzen', () => { setMode(sv.mode === 'rush' ? 'rush' : 'relaxed'); begin(sv.place); }));
+      $('saveList').appendChild(item(sv.place.name + ' · ' + m, cash + ' · ' + sv.stats.n + (sv.stats.n === 1 ? ' Lieferung' : ' Lieferungen') + ' · ' + ago(sv.at), 'fortsetzen', () => { setMode(sv.mode === 'rush' ? 'rush' : 'relaxed'); begin(sv.place); }));
     }
     $('saveBox').hidden = !saves.length;
     fileSection();
@@ -3168,6 +3567,250 @@ function startGame(DATA, MODEKEY) {
     el.q.focus();
   }
   init();
+})();
+
+// Konto-Fenster der Startseite: Anmelden, Registrieren, Cloud-Sicherung der Spielstände, Konto löschen
+(function accountUI() {
+  const L = LMO, el = id => document.getElementById(id);
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const btn = (text, cls, fn) => { const b = mk('button', 'btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.onclick = fn; return b; };
+  const link = (text, fn) => { const b = mk('button', 'linkbtn', text); b.type = 'button'; b.onclick = fn; return b; };
+  function field(label, o) {
+    const w = mk('label', 'fld'); w.appendChild(mk('span', 'fl', label));
+    const i = document.createElement('input'); i.type = o.type || 'text'; i.name = o.name; i.autocomplete = o.auto || 'off';
+    if (o.max) i.maxLength = o.max; if (o.value) i.value = o.value; if (o.ph) i.placeholder = o.ph;
+    i.setAttribute('autocapitalize', 'off'); i.spellcheck = false;
+    if (o.extra) { const row = mk('div', 'nrow'); row.appendChild(i); row.appendChild(o.extra); w.appendChild(row); } else w.appendChild(i);
+    if (o.hint) w.appendChild(mk('small', 'fh', o.hint));
+    return { w, i };
+  }
+  const ago = (ms, ref) => { const m = Math.round(((ref || Date.now()) - ms) / 60000); return m < 2 ? 'gerade eben' : m < 90 ? 'vor ' + m + ' Min.' : m < 2880 ? 'vor ' + Math.round(m / 60) + ' Std.' : 'vor ' + Math.round(m / 1440) + ' Tagen'; };
+  const eur = v => Math.round(v).toLocaleString('de-DE') + ' €', lief = n => n + (n === 1 ? ' Lieferung' : ' Lieferungen');
+
+  let open = false, view = 'main', tab = 'login', last = null, rendered = '', note = null, lastFocus = null;
+  const draft = { email: '', name: '' };
+
+  // ---------- Leiste auf der Startseite ----------
+  function updateBar() {
+    const s = L.state(), dot = el('accDot'), txt = el('accTxt'), b = el('accBtn');
+    dot.className = 'dot' + (s.signedIn && s.hasProfile ? (s.verified ? ' on' : ' warn') : '');
+    if (!s.signedIn) { txt.textContent = 'Nicht angemeldet · Solo spielen geht ohne Konto'; b.textContent = 'Anmelden'; }
+    else if (!s.hasProfile) { txt.textContent = 'Angemeldet · Registrierung noch nicht abgeschlossen'; b.textContent = 'Fortsetzen'; }
+    else { txt.textContent = 'Angemeldet als ' + s.name + (s.verified ? '' : ' · E-Mail noch nicht bestätigt'); b.textContent = 'Konto'; }
+  }
+
+  // ---------- Fenster ----------
+  function openWin(v) {
+    lastFocus = document.activeElement; view = v || 'main'; open = true;
+    el('accWrap').hidden = false; render(true);
+  }
+  function closeWin() { open = false; el('accWrap').hidden = true; if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} } }
+  el('accBtn').onclick = () => openWin('main');
+  el('accClose').onclick = closeWin;
+  el('accWrap').addEventListener('mousedown', e => { if (e.target === el('accWrap')) closeWin(); });
+  document.addEventListener('keydown', e => { if (open && e.key === 'Escape') { e.preventDefault(); if (view !== 'main') { view = 'main'; render(true); } else closeWin(); } });
+
+  const modeKey = () => { const s = L.state(); return !s.signedIn ? 'out' : s.hasProfile ? 'in' : 'noprof'; };
+  function render(force) {
+    if (!open) return;
+    const k = view + '|' + modeKey() + '|' + tab;
+    if (!force && k === rendered) return;
+    rendered = k;
+    const body = el('accBody'); body.textContent = '';
+    const s = L.state();
+    if (view === 'privacy') { el('accTitle').textContent = 'Datenschutz'; body.appendChild(privacyView()); }
+    else if (view === 'forgot') { el('accTitle').textContent = 'Passwort vergessen'; body.appendChild(forgotView()); }
+    else if (!s.signedIn) { el('accTitle').textContent = 'Konto'; body.appendChild(authView()); }
+    else if (!s.hasProfile) { el('accTitle').textContent = 'Registrierung abschließen'; body.appendChild(completeView()); }
+    else { el('accTitle').textContent = 'Konto'; body.appendChild(accountView()); }
+    const f = body.querySelector('input:not([type=checkbox])'); if (f && modeKey() !== 'in') { try { f.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  function msgBox() { const m = mk('p', 'accmsg'); m.setAttribute('role', 'status'); m.setAttribute('aria-live', 'polite'); const set = (t, kind) => { m.textContent = t || ''; m.className = 'accmsg' + (kind ? ' ' + kind : ''); }; return { m, set }; }
+  async function run(b, mb, work) {
+    const old = b.textContent; b.disabled = true; b.textContent = 'Bitte warten …'; mb.set('');
+    try { await work(); } catch (e) { fail(mb, e); console.warn('Konto:', e && e.code, e && e.detail); }
+    b.disabled = false; b.textContent = old;
+  }
+  // Bei technischen Fehlern steht darunter eine kurze Angabe, die man dem Betreiber nennen kann
+  const KNOWN = ['BAD_CODE', 'NAME_TAKEN', 'BAD_NAME', 'EMAIL_EXISTS', 'INVALID_EMAIL', 'WEAK_PASSWORD', 'INVALID_LOGIN_CREDENTIALS', 'INVALID_PASSWORD', 'EMAIL_NOT_FOUND', 'MISSING_EMAIL', 'MISSING_PASSWORD', 'TOO_MANY_ATTEMPTS_TRY_LATER', 'USER_DISABLED', 'TOKEN_EXPIRED', 'NOT_SIGNED_IN', 'UI'];
+  const errText = e => { if (!e) return ''; const m = e.message || String(e); return e.code && !KNOWN.includes(e.code) ? m + ' [Technisch: ' + e.code + (e.detail ? ', ' + String(e.detail).slice(0, 120) : '') + ']' : m; };
+  function fail(mb, e) { mb.set(errText(e), 'err'); }
+
+  // ---------- Ansichten ----------
+  function authView() {
+    const root = mk('div', 'accform');
+    const tabs = mk('div', 'acctabs');
+    for (const [id, t] of [['login', 'Anmelden'], ['reg', 'Registrieren']]) { const b = mk('button', '', t); b.type = 'button'; b.setAttribute('aria-pressed', String(tab === id)); b.onclick = () => { tab = id; render(true); }; tabs.appendChild(b); }
+    root.appendChild(tabs);
+    if (note) { const n = mk('p', 'accmsg ok', note); root.appendChild(n); note = null; }
+    const mb = msgBox();
+    if (tab === 'login') {
+      root.appendChild(mk('p', 'note', 'Mit einem Konto kannst du bald Online spielen, in Ranglisten erscheinen und Spielstände in der Cloud sichern. Solo spielen geht weiterhin ohne Konto.'));
+      const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'username', value: draft.email }), fp = field('Passwort', { type: 'password', name: 'password', auto: 'current-password' });
+      const go = btn('Anmelden', 'primary');
+      const submit = () => run(go, mb, async () => { draft.email = fe.i.value; await L.login(fe.i.value, fp.i.value); view = 'main'; render(true); updateBar(); });
+      go.onclick = submit; root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); submit(); } });
+      root.append(fe.w, fp.w, mb.m, go, link('Passwort vergessen?', () => { draft.email = fe.i.value; view = 'forgot'; render(true); }));
+    } else {
+      root.appendChild(mk('p', 'note', 'Dein Name steht später in den Ranglisten und ist für alle sichtbar. Wähle am besten keinen echten Namen. Die E-Mail-Adresse sieht niemand außer dir.'));
+      const sug = btn('Vorschlag', '', () => { fn.i.value = L.suggestName(); fn.i.dispatchEvent(new Event('input')); });
+      const fn = field('Spielername (3 bis 16 Zeichen)', { name: 'name', max: 16, auto: 'nickname', value: draft.name, extra: sug });
+      const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'email', value: draft.email, hint: 'Für die Bestätigung und, falls nötig, zum Zurücksetzen des Passworts.' });
+      const fp = field('Passwort (mindestens 8 Zeichen)', { type: 'password', name: 'password', auto: 'new-password' });
+      const fc = field('Einladungscode', { name: 'code', auto: 'off', ph: 'LM-XXXX-XXXX', hint: 'Den Code bekommst du vom Betreiber.' });
+      const chk = mk('label', 'chk'), cb = document.createElement('input'); cb.type = 'checkbox'; chk.appendChild(cb);
+      const ct = mk('span', ''); ct.appendChild(document.createTextNode('Ich habe die ')); ct.appendChild(link('Datenschutz-Hinweise', () => { draft.name = fn.i.value; draft.email = fe.i.value; view = 'privacy'; render(true); })); ct.appendChild(document.createTextNode(' gelesen.')); chk.appendChild(ct);
+      const go = btn('Konto erstellen', 'primary');
+      const hint = () => { const e = L.tidyName(fn.i.value) ? L.checkName(fn.i.value) : ''; if (e) mb.set(e, 'err'); else if (mb.m.className.includes('err')) mb.set(''); };
+      fn.i.addEventListener('input', () => { draft.name = fn.i.value; if (fn.i.value.length >= 3) hint(); });
+      fe.i.addEventListener('input', () => { draft.email = fe.i.value; });
+      go.onclick = () => run(go, mb, async () => {
+        if (!cb.checked) throw Object.assign(new Error('Bitte bestätige, dass du die Datenschutz-Hinweise gelesen hast.'), { code: 'UI' });
+        const s = await L.register({ name: fn.i.value, email: fe.i.value, password: fp.i.value, code: fc.i.value });
+        note = 'Willkommen, ' + s.name + '! Wir haben eine E-Mail an ' + s.email + ' geschickt. Bitte bestätige die Adresse über den Link darin.';
+        draft.name = ''; view = 'main'; render(true); updateBar();
+      });
+      root.append(fn.w, fe.w, fp.w, fc.w, chk, mb.m, go);
+    }
+    return root;
+  }
+  function forgotView() {
+    const root = mk('div', 'accform'), mb = msgBox();
+    root.appendChild(mk('p', 'note', 'Wir schicken dir eine E-Mail mit einem Link, über den du ein neues Passwort festlegen kannst.'));
+    const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'email', value: draft.email }), go = btn('E-Mail senden', 'primary');
+    go.onclick = () => run(go, mb, async () => { draft.email = fe.i.value; await L.resetPassword(fe.i.value); mb.set('Wenn es zu dieser Adresse ein Konto gibt, ist die E-Mail unterwegs. Sieh auch im Spam-Ordner nach.', 'ok'); });
+    root.append(fe.w, mb.m, go, link('Zurück zur Anmeldung', () => { tab = 'login'; view = 'main'; render(true); }));
+    return root;
+  }
+  function completeView() {
+    const root = mk('div', 'accform'), mb = msgBox(), s = L.state();
+    root.appendChild(mk('p', 'note', 'Dein Zugang (' + s.email + ') besteht, aber der Spielername ist noch nicht festgelegt. Das holen wir jetzt nach.'));
+    const sug = btn('Vorschlag', '', () => { fn.i.value = L.suggestName(); });
+    const fn = field('Spielername (3 bis 16 Zeichen)', { name: 'name', max: 16, value: draft.name, extra: sug }), fc = field('Einladungscode', { name: 'code', ph: 'LM-XXXX-XXXX' });
+    const go = btn('Registrierung abschließen', 'primary');
+    go.onclick = () => run(go, mb, async () => { await L.completeRegistration({ name: fn.i.value, code: fc.i.value }); try { await L.sendVerify(); } catch (e) {} view = 'main'; render(true); updateBar(); });
+    const re = btn('Neu laden', '', () => run(re, mb, async () => { await L.loadProfile(); render(true); updateBar(); }));
+    const out = btn('Abmelden', '', () => { L.logout(); view = 'main'; render(true); updateBar(); });
+    const row = mk('div', 'accrow'); row.append(re, out);
+    root.append(fn.w, fc.w, mb.m, go, row);
+    return root;
+  }
+  function privacyView() {
+    const root = mk('div', 'privacy');
+    root.appendChild(mk('p', '', 'Kurz gesagt: Solo spielen funktioniert ohne Konto und ohne Daten an Server. Für ein Konto werden die folgenden Daten verarbeitet.'));
+    const ul = mk('ul'), items = [
+      'Solo: Spielstände, Städte und Einstellungen bleiben ausschließlich in deinem Browser.',
+      'Konto: E-Mail-Adresse und Passwort verwaltet Google Firebase Authentication (Google). Das Spiel selbst sieht dein Passwort nie. Die E-Mail wird für die Bestätigung und das Zurücksetzen des Passworts genutzt.',
+      'Datenbank (Google Firebase Realtime Database): Spielername (für andere sichtbar), Kontokennung, Zeitpunkt der Registrierung, der benutzte Einladungscode und die Spielstände, die du selbst in die Cloud lädst. Die E-Mail-Adresse steht nicht in der Datenbank.',
+      'Später kommen für Ranglisten dazu: Name, Stadt und Spielkennzahlen (z. B. Unternehmenswachstum, Lieferungen).',
+      'Keine Werbung, keine Tracking-Cookies, keine Analyse-Dienste. Damit du angemeldet bleibst, speichert dein Browser eine Anmeldemarke im lokalen Speicher; „Abmelden“ löscht sie.',
+      'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
+      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände und das Konto selbst.',
+      'Kontakt zum Betreiber dieses Hobby-Projekts: über die Projektseite github.com/memem356/lastmile.'
+    ];
+    for (const t of items) ul.appendChild(mk('li', '', t));
+    root.appendChild(ul);
+    const back = btn('Zurück', '', () => { view = 'main'; render(true); }); back.style.marginTop = '12px';
+    root.appendChild(back);
+    return root;
+  }
+
+  // ---------- Konto und Cloud ----------
+  function accountView() {
+    const s = L.state(), root = mk('div', 'accform');
+    if (note) { root.appendChild(mk('p', 'accmsg ok', note)); note = null; }
+    const who = mk('div', ''); const nm = mk('p', '', ''); const b = mk('b', '', s.name); nm.appendChild(b); nm.appendChild(document.createTextNode('  ·  ' + s.email)); who.appendChild(nm);
+    root.appendChild(who);
+    const vm = msgBox();
+    if (!s.verified) {
+      vm.set('Die E-Mail-Adresse ist noch nicht bestätigt. Öffne den Link in der E-Mail von Firebase (auch im Spam-Ordner nachsehen) und tippe dann auf „Ich habe bestätigt“.', 'err');
+      const row = mk('div', 'accrow');
+      const chk = btn('Ich habe bestätigt', 'primary', () => run(chk, vm, async () => { const v = await L.checkVerified(); if (v) { render(true); updateBar(); } else vm.set('Noch nicht bestätigt. Bitte erst den Link in der E-Mail öffnen.', 'err'); }));
+      const again = btn('E-Mail erneut senden', '', () => run(again, vm, async () => { await L.sendVerify(); vm.set('Die E-Mail wurde erneut gesendet.', 'ok'); }));
+      row.append(chk, again); root.append(vm.m, row);
+    } else root.appendChild(mk('p', 'accmsg ok', 'E-Mail-Adresse bestätigt.'));
+
+    const cs = mk('section', ''); cs.appendChild(mk('h4', '', 'Cloud-Sicherung (nur für dich sichtbar)'));
+    cs.appendChild(mk('p', 'note', 'Lade Solo-Spielstände hoch, um sie auf einem anderen Gerät weiterzuspielen. Beim Laden bleibt der bisherige Stand auf diesem Gerät als Sicherung erhalten.'));
+    const box = mk('div', ''); box.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:10px'; cs.appendChild(box); root.appendChild(cs);
+    loadCloud(box);
+
+    const acts = mk('div', 'accrow'); acts.appendChild(btn('Abmelden', '', () => { L.logout(); view = 'main'; tab = 'login'; render(true); updateBar(); }));
+    acts.appendChild(link('Datenschutz', () => { view = 'privacy'; render(true); }));
+    root.appendChild(acts);
+
+    const del = mk('details', ''); del.appendChild(mk('summary', '', 'Konto löschen …'));
+    const dm = msgBox(), dp = field('Passwort zur Bestätigung', { type: 'password', name: 'password', auto: 'current-password' });
+    const dgo = btn('Konto endgültig löschen', 'danger', () => run(dgo, dm, async () => { await L.deleteAccount(dp.i.value); note = 'Dein Konto und alle Daten dazu wurden gelöscht.'; tab = 'login'; view = 'main'; render(true); updateBar(); }));
+    const dw = mk('div', 'accform'); dw.style.marginTop = '10px'; dw.append(mk('p', 'note', 'Löscht Profil, Spielernamen, Cloud-Spielstände und das Konto. Das lässt sich nicht rückgängig machen. Spielstände auf diesem Gerät bleiben erhalten.'), dp.w, dm.m, dgo);
+    del.appendChild(dw); root.appendChild(del);
+    return root;
+  }
+
+  function confirmBtn(b, ask, fn) {
+    let armed = false, t = null; const orig = b.textContent;
+    b.onclick = () => {
+      if (!armed) { armed = true; b.textContent = ask; t = setTimeout(() => { armed = false; b.textContent = orig; }, 5000); return; }
+      clearTimeout(t); armed = false; b.textContent = orig; fn(b);
+    };
+  }
+  async function loadCloud(box, flash) {
+    box.textContent = ''; box.appendChild(mk('p', 'note', 'Cloud-Stände werden geladen …'));
+    const seq = loadCloud.seq = (loadCloud.seq || 0) + 1;
+    let list;
+    try { try { await L.syncClock(); } catch (e) { if (e.code === 'NETWORK') throw e; } list = await L.cloud.list(); }
+    catch (e) { if (seq !== loadCloud.seq) return; box.textContent = ''; const m = mk('p', 'accmsg err', e.message); box.appendChild(m); box.appendChild(btn('Erneut versuchen', '', () => loadCloud(box))); return; }
+    if (seq !== loadCloud.seq || !box.isConnected) return;
+    box.textContent = '';
+    const ref = L.serverNow(), clouds = new Map(list.map(x => [x.slot, x])), locals = LMUI.localSaves().map(x => Object.assign(x, { slot: L.cloud.slotOf(x.key) }));
+    const msg = msgBox(); box.appendChild(msg.m); if (flash) msg.set(flash, 'ok');
+
+    const h1 = mk('h4', '', 'Auf diesem Gerät'); box.appendChild(h1);
+    const u1 = mk('ul', 'cl'); box.appendChild(u1);
+    if (!locals.length) u1.replaceWith(mk('p', 'note', 'Noch keine Spielstände auf diesem Gerät.'));
+    for (const x of locals) {
+      const sv = x.sv, c = clouds.get(x.slot), li = mk('li', '');
+      const tx = mk('div', ''); tx.appendChild(mk('span', 'tt', sv.place.name + ' · ' + (sv.mode === 'rush' ? 'Rush' : 'Entspannt')));
+      tx.appendChild(mk('span', 'ss', eur(sv.cash) + ' · ' + lief(sv.stats ? sv.stats.n : 0) + ' · gespielt ' + ago(sv.at) + (c ? ' · Cloud: ' + ago(c.t, ref) : ' · noch nicht in der Cloud')));
+      const acts = mk('div', 'acts'), up = btn(c ? 'Hochladen (ersetzt)' : 'Hochladen', '');
+      const cloudNewer = c && c.t > sv.at + 120000;
+      const doUp = async () => {
+        up.disabled = true; msg.set('');
+        try {
+          if (x.raw.length > 390000) throw Object.assign(new Error('Dieser Spielstand ist zu groß für die Cloud.'), { code: 'UI' });
+          await L.cloud.put(x.slot, x.raw, sv.place.name + ' · ' + (sv.mode === 'rush' ? 'Rush' : 'Entspannt') + ' · ' + eur(sv.cash) + ' · ' + lief(sv.stats ? sv.stats.n : 0), sv.v);
+          await loadCloud(box, '„' + sv.place.name + '“ ist in der Cloud gesichert.');
+        } catch (e) { fail(msg, e); up.disabled = false; }
+      };
+      if (cloudNewer) { up.onclick = null; confirmBtn(up, 'Neueren Cloud-Stand ersetzen?', doUp); } else up.onclick = doUp;
+      acts.appendChild(up); li.append(tx, acts); u1.appendChild(li);
+    }
+
+    const h2 = mk('h4', '', 'In der Cloud'); box.appendChild(h2);
+    const u2 = mk('ul', 'cl'); box.appendChild(u2);
+    if (!list.length) u2.replaceWith(mk('p', 'note', 'Noch nichts in der Cloud.'));
+    for (const c of list) {
+      const li = mk('li', ''), loc = locals.find(x => x.slot === c.slot), tx = mk('div', '');
+      tx.appendChild(mk('span', 'tt', c.info || c.slot)); tx.appendChild(mk('span', 'ss', 'gesichert ' + ago(c.t, ref)));
+      const acts = mk('div', 'acts'), dl = btn('Hierher laden', ''), rm = btn('Löschen', 'danger');
+      const localNewer = loc && loc.sv.at > c.t + 120000;
+      const doDl = async () => {
+        dl.disabled = true; msg.set('');
+        try {
+          const d = await L.cloud.get(c.slot); let sv; try { sv = JSON.parse(d.data); } catch (e) { throw Object.assign(new Error('Der Cloud-Stand ist beschädigt.'), { code: 'UI' }); }
+          const err = LMUI.importSave(sv); if (err) throw Object.assign(new Error(err), { code: 'UI' });
+          await loadCloud(box, 'Geladen. Du findest den Stand oben unter „Weiter spielen“.');
+        } catch (e) { fail(msg, e); dl.disabled = false; }
+      };
+      if (localNewer) confirmBtn(dl, 'Neueren Stand hier ersetzen?', doDl); else dl.onclick = doDl;
+      confirmBtn(rm, 'Wirklich löschen?', async () => { rm.disabled = true; try { await L.cloud.del(c.slot); await loadCloud(box); } catch (e) { fail(msg, e); rm.disabled = false; } });
+      acts.append(dl, rm); li.append(tx, acts); u2.appendChild(li);
+    }
+  }
+
+  L.on(() => { updateBar(); if (open) render(false); });
+  L.init(); updateBar();
+  window.__lmAcc = { open: openWin, close: closeWin };
 })();
 
 </script>

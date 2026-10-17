@@ -1,0 +1,86 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "clock": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.val() === now"
+      }
+    },
+    "redeemed": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && ((!data.exists() && newData.exists()) || (data.exists() && (!newData.exists() || data.val() === newData.val())))",
+        ".validate": "newData.isString() && newData.val() === 'LM-BEISPIEL'"
+      }
+    },
+    "names": {
+      "$key": {
+        ".read": true,
+        ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid && root.child('users').child(auth.uid).child('key').val() === $key) || (data.val() === auth.uid && (!newData.exists() || newData.val() === auth.uid)))",
+        ".validate": "newData.isString() && newData.val() === auth.uid && $key.matches(/^[a-zäöüß0-9_-][a-zäöüß0-9_-]+[a-zäöüß0-9_-]$/) && $key.length <= 16"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && root.child('redeemed').child($uid).exists()",
+        ".validate": "newData.hasChildren(['name', 'key', 'created'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Za-zÄÖÜäöüß0-9_-][A-Za-zÄÖÜäöüß0-9 _-]+[A-Za-zÄÖÜäöüß0-9_-]$/) && !newData.val().matches(/^.*  .*$/) && newData.val().length <= 16 && newData.parent().child('key').val() === newData.val().toLowerCase().replace(' ', '_')"
+        },
+        "key": {
+          ".validate": "newData.isString() && newData.val() === newData.parent().child('name').val().toLowerCase().replace(' ', '_') && (!root.child('names').child(newData.val()).exists() || root.child('names').child(newData.val()).val() === $uid)"
+        },
+        "created": {
+          ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() === now)"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "saves": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists()",
+        "$slot": {
+          ".validate": "$slot.matches(/^[so]_[A-Za-z0-9_-]+$/) && $slot.length <= 62 && newData.hasChildren(['t', 'v', 'data'])",
+          "t": {
+            ".validate": "newData.val() === now"
+          },
+          "v": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 99"
+          },
+          "data": {
+            ".validate": "newData.isString() && newData.val().length >= 20 && newData.val().length <= 400000"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "savemeta": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists()",
+        "$slot": {
+          ".validate": "$slot.matches(/^[so]_[A-Za-z0-9_-]+$/) && $slot.length <= 62 && newData.hasChildren(['t', 'v', 'info'])",
+          "t": {
+            ".validate": "newData.val() === now"
+          },
+          "v": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 99"
+          },
+          "info": {
+            ".validate": "newData.isString() && newData.val().length <= 160"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}

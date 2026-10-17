@@ -2,7 +2,7 @@
   const SUGGEST = ['Hamburg', 'Wien', 'Paris', 'New York', 'Tokio', 'Kapstadt', 'São Paulo', 'Sydney'];
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), recent: $('recent'),
     recentBox: $('recentBox'), chips: $('chips'), status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar') };
-  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox', 'fileBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
+  const lock = on => { for (const id of ['accBar', 'modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox', 'fileBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
   let cachedList = [], saves = [], mode = 'relaxed';
   try { mode = localStorage.getItem('lm-mode') === 'rush' ? 'rush' : 'relaxed'; } catch (e) {}
   const mq2 = () => '&m=' + (mode === 'rush' ? 'r' : 'e');
@@ -86,23 +86,42 @@
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   }
   const fmsg = (t, err) => { const m = $('fileMsg'); m.hidden = !t; m.textContent = t || ''; m.style.color = err ? '#e0402a' : ''; };
+  // Prüft einen Spielstand und legt ihn unter seinem Speicherplatz ab (ein vorhandener Stand bleibt als Sicherung). Gibt eine Fehlermeldung oder null zurück.
+  const saveKeyOf = sv => 'lm.save.' + (+sv.place.lat).toFixed(3) + ',' + (+sv.place.lon).toFixed(3) + '.' + (sv.mode === 'rush' ? 'rush' : 'relaxed');
+  function storeSave(sv) {
+    if (!sv || !sv.place || !isFinite(+sv.place.lat) || !isFinite(+sv.place.lon) || !Array.isArray(sv.drivers) || !sv.drivers.length) return 'Das ist kein gültiger Lastmile-Spielstand.';
+    if (!(sv.v >= 1)) return 'Das ist kein gültiger Lastmile-Spielstand.';
+    if (sv.v > 2) return 'Dieser Spielstand stammt aus einer neueren Version des Spiels.';
+    try {
+      const k = saveKeyOf(sv), old = localStorage.getItem(k);
+      if (old) localStorage.setItem(k + '.bak', old);
+      localStorage.setItem(k, JSON.stringify(sv));
+    } catch (e) { return 'Der Browser erlaubt keinen Speicher.'; }
+    return null;
+  }
   function importFile(file) {
     const rd = new FileReader();
     rd.onerror = () => fmsg('Die Datei konnte nicht gelesen werden.', true);
     rd.onload = () => {
-      try {
-        const o = JSON.parse(String(rd.result)), sv = o && o.lm === 'lastmile-save' ? o.save : null;
-        if (!sv || !sv.place || !isFinite(+sv.place.lat) || !isFinite(+sv.place.lon) || !Array.isArray(sv.drivers) || !sv.drivers.length) throw new Error('format');
-        if (!(sv.v >= 1)) throw new Error('format');
-        if (sv.v > 2) return fmsg('Dieser Spielstand stammt aus einer neueren Version des Spiels.', true);
-        const k = 'lm.save.' + (+sv.place.lat).toFixed(3) + ',' + (+sv.place.lon).toFixed(3) + '.' + (sv.mode === 'rush' ? 'rush' : 'relaxed'), old = localStorage.getItem(k);
-        if (old) localStorage.setItem(k + '.bak', old);
-        localStorage.setItem(k, JSON.stringify(sv));
-        fmsg('Importiert: ' + sv.place.name + '. Du findest ihn jetzt oben unter „Weiter spielen“.'); init.again = true; saves.length = 0; init();
-      } catch (e) { fmsg('Das ist kein gültiger Lastmile-Spielstand.', true); }
+      let sv = null;
+      try { const o = JSON.parse(String(rd.result)); sv = o && o.lm === 'lastmile-save' ? o.save : null; } catch (e) {}
+      const err = storeSave(sv);
+      if (err) return fmsg(err, true);
+      fmsg('Importiert: ' + sv.place.name + '. Du findest ihn jetzt oben unter „Weiter spielen“.'); refreshStart();
     };
     rd.readAsText(file);
   }
+  function refreshStart() { init.again = true; saves.length = 0; init(); }
+  // Schnittstelle für das Konto-Fenster (account.js)
+  window.LMUI = {
+    saveKeyOf,
+    importSave(sv) { const e = storeSave(sv); if (!e) refreshStart(); return e; },
+    localSaves() {
+      const out = [];
+      try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('lm.save.') && !k.endsWith('.bak')) { const raw = localStorage.getItem(k), sv = JSON.parse(raw); if (sv && sv.place && sv.v >= 1 && Array.isArray(sv.drivers)) out.push({ key: k, sv, raw }); } } } catch (e) {}
+      return out.sort((a, b) => b.sv.at - a.sv.at);
+    }
+  };
   function fileSection() {
     const ul = $('fileList'); ul.textContent = '';
     ul.appendChild(item('Spielstand importieren', '(Datei)', 'wählen', () => { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = () => { if (f.files[0]) importFile(f.files[0]); }; f.click(); }));
@@ -115,14 +134,14 @@
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('lm.save.')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v >= 1) saves.push(sv); }
+        if (k && k.startsWith('lm.save.') && !k.endsWith('.bak')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v >= 1) saves.push(sv); }
       }
     } catch (e) {}
     saves.sort((a, b) => b.at - a.at);
     $('saveList').textContent = '';
     for (const sv of saves) {
       const m = sv.mode === 'rush' ? 'Rush' : 'Entspannt', cash = Math.round(sv.cash).toLocaleString('de-DE') + ' €';
-      $('saveList').appendChild(item(sv.place.name + ' · ' + m, cash + ' · ' + sv.stats.n + ' Lieferungen · ' + ago(sv.at), 'fortsetzen', () => { setMode(sv.mode === 'rush' ? 'rush' : 'relaxed'); begin(sv.place); }));
+      $('saveList').appendChild(item(sv.place.name + ' · ' + m, cash + ' · ' + sv.stats.n + (sv.stats.n === 1 ? ' Lieferung' : ' Lieferungen') + ' · ' + ago(sv.at), 'fortsetzen', () => { setMode(sv.mode === 'rush' ? 'rush' : 'relaxed'); begin(sv.place); }));
     }
     $('saveBox').hidden = !saves.length;
     fileSection();
