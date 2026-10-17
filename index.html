@@ -415,6 +415,7 @@ canvas.placing { cursor: crosshair; }
           <dt>Trinkgeld</dt><dd id="sTip">0,00 €</dd>
           <dt>Fahrzeugkosten</dt><dd id="sCost">0,00 €</dd>
           <dt>Fahrerlöhne</dt><dd id="sWage">0,00 €</dd>
+          <dt id="sBillL">Nächste Abbuchung</dt><dd id="sBill">–</dd>
           <div class="sep"></div>
           <dt class="total">Gewinn</dt><dd class="total" id="sProfit">0,00 €</dd>
         </dl>
@@ -1656,6 +1657,15 @@ function startGame(DATA, MODEKEY) {
   }
   const pace = (leg, i, d) => leg.eid ? Math.min(2, Math.max(0.15, E.trafficMul(d.veh, leg.eid[i]) / leg.mp[i])) : 1;
 
+  // ---------- Stündliche Abbuchung von Löhnen und Fahrzeugkosten ----------
+  const bill = { wage: 0, veh: 0, hr: 0 };
+  const hourLabel = h => String(((h % 24) + 24) % 24).padStart(2, '0') + ':00';
+  function chargeBill() {
+    const w = Math.round(bill.wage * 100) / 100, v = Math.round(bill.veh * 100) / 100, sum = w + v;
+    bill.wage = 0; bill.veh = 0; if (sum <= 0) return;
+    cash -= sum; stats.wage += w; stats.cost += v;
+    log('Abbuchung um ' + hourLabel(bill.hr) + ': ' + eur(w) + ' Löhne' + (v > 0 ? ', ' + eur(v) + ' Fahrzeugkosten' : '') + ', zusammen ' + seur(-sum), true);
+  }
   // ---------- Fahrer ----------
   function driverPos(d) {
     if (d.trip && d.st) return { x: d.st.s.x, y: d.st.s.y, hd: d.st.s.hd, moving: d.st.s.sp > 0 && !d.stall };
@@ -1837,8 +1847,8 @@ function startGame(DATA, MODEKEY) {
     const pay = o.pay;
     const tip = age <= o.target ? Math.round(pay * tipMax() * (1 - age / o.target) * 100) / 100 : 0;
     const cost = Math.round(tripCost(trip) * 100) / 100;
-    cash += pay + tip - cost;
-    stats.n++; stats.pay += pay; stats.tip += tip; stats.cost += cost; stats.ageSum += age;
+    cash += pay + tip; bill.veh += cost;
+    stats.n++; stats.pay += pay; stats.tip += tip; stats.ageSum += age;
     o.state = 'delivered'; sfx('done');
     if (age <= o.target) { prog.streak++; prog.best = Math.max(prog.best, prog.streak); } else prog.streak = 0;
     if (o.big) prog.big++;
@@ -1846,7 +1856,7 @@ function startGame(DATA, MODEKEY) {
     rate(age <= o.target ? 5 : age <= o.target * 1.5 ? 4 : age <= o.target * 2 ? 2.5 : 1.5, MODE.repW);
     d.done++; while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) { d.lvl++; log('Fahrer ' + d.id + ' ist jetzt Stufe ' + d.lvl + ' und fährt schneller', true); }
     d.node = trip.endNode; d.trip = null; d.st = null; d.phase = -1; startReturn(d);
-    log('#' + o.id + ' zugestellt nach ' + fmtMin(age) + ' min: ' + seur(pay) + ' Lohn' + (tip > 0 ? ', ' + seur(tip) + ' Trinkgeld' : ', kein Trinkgeld') + (cost > 0 ? ', ' + seur(-cost) + ' Fahrzeugkosten' : ''), true);
+    log('#' + o.id + ' zugestellt nach ' + fmtMin(age) + ' min: ' + seur(pay) + ' Lohn' + (tip > 0 ? ', ' + seur(tip) + ' Trinkgeld' : ', kein Trinkgeld') + (cost > 0 ? ', ' + eur(cost) + ' Fahrzeugkosten vorgemerkt' : ''), true);
     orders = orders.filter(x => x.state !== 'delivered');
     driverStructDirty = true; orderStructDirty = true; plansDirty = true; dirty = true;
   }
@@ -2016,6 +2026,8 @@ function startGame(DATA, MODEKEY) {
     setText($('sAge'), stats.n ? fmtMin(stats.ageSum / stats.n) + ' min' : '–');
     setText($('sPay'), eur(stats.pay)); setText($('sTip'), eur(stats.tip)); setText($('sCost'), stats.cost ? seur(-stats.cost) : eur(0));
     setText($('sWage'), stats.wage ? seur(-stats.wage) : eur(0));
+    setText($('sBillL'), 'Abbuchung um ' + hourLabel(bill.hr + 1)); setText($('sBill'), eur(bill.wage + bill.veh));
+    $('sBill').title = 'Löhne ' + eur(bill.wage) + ', Fahrzeugkosten ' + eur(bill.veh) + ' (Wartung und Fahrstrecke)';
     const profit = stats.pay + stats.tip - stats.cost - stats.wage, el = $('sProfit');
     setText(el, seur(profit)); el.className = 'total ' + (profit > 0 ? 'pos' : profit < 0 ? 'neg' : '');
   }
@@ -2283,7 +2295,8 @@ function startGame(DATA, MODEKEY) {
         if (d.train && d.train.state === 'active') d.train.t += adv;
       }
       updateDrivers(); tickWorld(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
-      let w = 0; for (const d of drivers) w += wageOf(d); w = w * adv / 3600; cash -= w; stats.wage += w;
+      let w = 0; for (const d of drivers) w += wageOf(d); bill.wage += w * adv / 3600;
+      const hr = Math.floor((simClock + START) / 3600); if (hr > bill.hr) { bill.hr = hr; chargeBill(); }
       expireOrders();
       if (simClock - lastSpawnT >= CFG.spawnMin && openOrders().length < CFG.maxOpen && Math.random() < 1 - Math.exp(-adv * demand() / CFG.spawnMean)) { spawnOrder(); lastSpawnT = simClock; }
       if (owned.dispatch && autoOn && now - lastAuto > 400) { lastAuto = now; autoDispatch(); }
@@ -2448,7 +2461,7 @@ function startGame(DATA, MODEKEY) {
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
       simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners],
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
-      orderSeq, lastSpawnT, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
+      orderSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
       wx, wxLeft, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, nextEv, selDriver: sel.driver,
       orders: orders.filter(o => o.state === 'open' || o.state === 'assigned').map(o => ({ id: o.id, pi: o.pick.i, hi: o.home.i, createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: o.picked, partner: o.partner, big: o.big })),
       drivers: drivers.map(d => ({
@@ -2473,7 +2486,7 @@ function startGame(DATA, MODEKEY) {
       for (const k in owned) delete owned[k]; Object.assign(owned, sv.owned);
       partners.clear(); sv.partners.forEach(i => partners.add(i));
       hubs.length = 0; sv.hubs.forEach(h => hubs.push({ x: h.x, y: h.y, n: { bike: h.nb, car: h.nc } }));
-      orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
+      orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; if (sv.bill) { bill.wage = sv.bill.wage; bill.veh = sv.bill.veh; } Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
       wx = sv.wx; wxLeft = sv.wxLeft; events = sv.events; nextEv = sv.nextEv; tevents = sv.tevents || []; teSeq = sv.teSeq || 1; refreshTraffic(true);
       rezone();
       orders = sv.orders.map(o => { const q = Object.assign({}, o, { pick: pois[o.pi], home: homes[o.hi] }); delete q.pi; delete q.hi; return q; });
@@ -2555,7 +2568,7 @@ function startGame(DATA, MODEKEY) {
     log('Hub bereit, Fahrer 1 (Fahrrad) wartet auf Aufträge');
     for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
   }
-  realign(); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
+  realign(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
   resize();
   requestAnimationFrame(frame);
   if (/[?&]debug/.test(location.search)) window.__lm = { spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade };
