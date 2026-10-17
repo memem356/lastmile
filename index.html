@@ -235,6 +235,32 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .prow button { grid-row: 1 / span 2; grid-column: 2; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
 .prow .own { grid-row: 1 / span 2; grid-column: 2; color: var(--signal); font: 500 12px var(--font-mono); }
 canvas.placing { cursor: crosshair; }
+
+.win { position: fixed; z-index: 15; left: 50%; top: 64px; transform: translateX(-50%); width: min(660px, calc(100vw - 24px)); max-height: calc(100vh - 88px); overflow: auto;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--muted); border-radius: 8px; box-shadow: 0 18px 50px rgba(0,0,0,.35); padding: 0 0 6px; }
+.whead { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.whead h2 { margin: 0; font: 600 16px var(--font-ui); flex: 1; min-width: 0; }
+.whead .btn { padding: 5px 10px; font-size: 12px; }
+.wclose { width: 30px; height: 30px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 4px; font: 500 18px var(--font-mono); cursor: pointer; line-height: 1; }
+.wclose:hover { border-color: var(--muted); }
+.wtabs { display: flex; gap: 6px; padding: 10px 14px 0; }
+.wtabs button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 4px 4px 0 0; padding: 7px 14px; font: 500 13px var(--font-ui); cursor: pointer; }
+.wtabs button[aria-selected="true"] { background: var(--panel); color: var(--ink); border-bottom-color: var(--panel); }
+.wbody { padding: 10px 14px 12px; display: grid; gap: 10px; align-content: start; }
+.wbody h3 { margin: 6px 0 0; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.wbody .xp { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.wbody .xp i { display: block; height: 100%; width: 0; background: var(--route); transition: width .25s linear; }
+.wbody .xp.t i { background: var(--signal); }
+.wbody p { margin: 0; color: var(--muted); font-size: 13px; }
+.hrow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.hrow:first-child { border-top: 0; }
+.hrow small { color: var(--muted); font-size: 12px; grid-column: 1; }
+.modeBox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modeBox button { text-align: left; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 12px 14px; cursor: pointer; display: grid; gap: 3px; font: 500 14px var(--font-ui); }
+.modeBox button small { color: var(--muted); font-weight: 400; font-size: 12px; line-height: 1.4; }
+.modeBox button[aria-pressed="true"] { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
+.modeBox button:hover { border-color: var(--muted); }
+@media (max-width: 560px) { .modeBox { grid-template-columns: 1fr; } }
 </style>
 
 <div class="start" id="start">
@@ -244,6 +270,13 @@ canvas.placing { cursor: crosshair; }
       <span class="name">Lastmile</span>
     </div>
     <p class="lead">Baue einen Lieferdienst auf einer echten Karte auf. Such dir eine beliebige Stadt auf der Welt aus: Straßen, Restaurants und Wohnhäuser kommen aus OpenStreetMap.</p>
+    <section id="modeSec">
+      <h2>Spielmodus</h2>
+      <div class="modeBox" id="modeBox">
+        <button type="button" data-m="relaxed" aria-pressed="true">Entspannt<small>Kein Zeitdruck: Bestellungen laufen nicht ab, wenig Abzug bei Verspätung. Dafür etwas weniger Lohn und Trinkgeld.</small></button>
+        <button type="button" data-m="rush" aria-pressed="false">Rush<small>Zeitdruck: knappe Zielzeiten, Kunden stornieren schneller, der Ruf leidet. Dafür viel mehr Lohn, Trinkgeld und Nachfrage.</small></button>
+      </div>
+    </section>
     <section id="searchBox">
       <h2>Startstadt</h2>
       <form class="searchrow" id="searchForm" autocomplete="off">
@@ -288,6 +321,7 @@ canvas.placing { cursor: crosshair; }
         <button type="button" data-s="30" aria-pressed="false">30×</button>
         <button type="button" data-s="60" aria-pressed="false">60×</button>
       </div>
+      <button type="button" class="btn" id="hqBtn">Hauptquartier</button>
       <button type="button" class="btn" id="pauseBtn" aria-pressed="false">Pause</button>
     </div>
   </header>
@@ -299,11 +333,6 @@ canvas.placing { cursor: crosshair; }
         <ul class="olist" id="olist"></ul>
         <p class="note" id="ohint">Bestellung wählen, dann einen freien Fahrer zuweisen.</p>
         <button type="button" class="btn" id="autoBtn" aria-pressed="false" hidden>Auto-Disposition: aus</button>
-      </div>
-      <div class="block">
-        <h2>Partner-Restaurants <span class="count" id="pcount">0</span></h2>
-        <div id="plist"></div>
-        <p class="note" id="pnote"></p>
       </div>
       <div class="block">
         <h2>Betrieb</h2>
@@ -344,7 +373,7 @@ canvas.placing { cursor: crosshair; }
       <div class="block">
         <h2>Fahrer <span class="count" id="dcount">1 / 4</span></h2>
         <ul class="dlist" id="dlist"></ul>
-        <div class="ddetail" id="ddetail"></div>
+        <p class="note">Klicke einen Fahrer an, um Details und Schulungen zu öffnen.</p>
       </div>
 
       <div class="block hire">
@@ -357,11 +386,6 @@ canvas.placing { cursor: crosshair; }
         <p class="note" id="hireNote"></p>
       </div>
 
-      <div class="block hire">
-        <h2>Ausbau</h2>
-        <div id="ulist"></div>
-      </div>
-
       <div class="logwrap">
         <h2>Protokoll</h2>
         <ol class="log" id="log"></ol>
@@ -369,6 +393,47 @@ canvas.placing { cursor: crosshair; }
       <p class="keys"><span><kbd>A</kbd> schnellsten Fahrer zuweisen</span><span><kbd>↑</kbd><kbd>↓</kbd> Bestellung wählen</span><span><kbd>Leertaste</kbd> Pause</span><span><kbd>F</kbd> Karte einpassen</span></p>
     </aside>
   </main>
+
+  <section class="win" id="win" role="dialog" aria-labelledby="winT" hidden>
+    <header class="whead">
+      <h2 id="winT"></h2>
+      <button type="button" class="btn" id="winPause">Pause</button>
+      <button type="button" class="wclose" id="winClose" aria-label="Fenster schließen">×</button>
+    </header>
+    <div id="winHQ">
+      <div class="wtabs" role="tablist" id="hqTabs">
+        <button type="button" role="tab" data-tab="up" aria-selected="true">Ausbau</button>
+        <button type="button" role="tab" data-tab="pa" aria-selected="false">Partner</button>
+        <button type="button" role="tab" data-tab="hu" aria-selected="false">Standorte</button>
+      </div>
+      <div class="wbody" id="tab-up"><div id="ulist"></div></div>
+      <div class="wbody" id="tab-pa" hidden>
+        <div class="head2"><p id="pnote"></p><span class="count" id="pcount">0</span></div>
+        <div id="plist"></div>
+      </div>
+      <div class="wbody" id="tab-hu" hidden><div id="hlist"></div></div>
+    </div>
+    <div id="winDrv" hidden>
+      <div class="wbody">
+        <div class="head2"><span class="pill s-idle" id="dwPill">Frei</span><span class="note" id="dwLine"></span></div>
+        <dl class="rows">
+          <dt>Fahrzeug</dt><dd id="dwVeh"></dd>
+          <dt>Standort</dt><dd id="dwHub"></dd>
+          <dt>Stufe</dt><dd id="dwLvl"></dd>
+          <dt>Tempo</dt><dd id="dwSpd"></dd>
+          <dt>Lieferungen</dt><dd id="dwDone"></dd>
+          <dt>Lohn</dt><dd id="dwWage"></dd>
+        </dl>
+        <div class="xp"><i id="dwXpBar"></i></div>
+        <p id="dwXp"></p>
+        <h3>Schulung</h3>
+        <p id="dwTInfo"></p>
+        <div class="xp t" id="dwTBarW"><i id="dwTBar"></i></div>
+        <button type="button" class="btn primary" id="dwTBtn"></button>
+        <button type="button" class="btn" id="dwTCancel" hidden>Schulung absagen und Geld zurück</button>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -819,10 +884,15 @@ const LM = (function () {
 
 
 const $ = id => document.getElementById(id);
-function startGame(DATA) {
+const MODES = {
+  relaxed: { name: 'Entspannt', pay: 0.85, target: 1.7, expire: null, tip: 0.6, demand: 0.8, repW: 0.04, repC: 0 },
+  rush:    { name: 'Rush',      pay: 1.4,  target: 0.8, expire: 1.7,  tip: 1.4, demand: 1.25, repW: 0.12, repC: 0.15 }
+};
+function startGame(DATA, MODEKEY) {
+  const MODE = MODES[MODEKEY] || MODES.relaxed;
   'use strict';
   const E = createEngine(DATA);
-  $('scope').textContent = DATA.name + (DATA.sub ? ' · ' + DATA.sub.split(', ').pop() : '');
+  $('scope').textContent = DATA.name + ' · ' + MODE.name;
   document.title = 'Lastmile – ' + DATA.name;
   const { N, nx, ny, ways, pois, homes, TYPE_LABEL, VEHICLES, nets, HUB, bounds } = E;
   const FONT = '"IBM Plex Sans", system-ui, sans-serif';
@@ -1155,8 +1225,8 @@ function startGame(DATA) {
       const d = Math.hypot(p.x - h.x, p.y - h.y);
       if (d < 300 || d > 2000) continue;
       const km = d / 1000, partner = partners.has(p.i);
-      const pay = Math.round((CFG.payBase + CFG.payPerKm * km * CFG.detour) * (partner ? CFG.partnerPay : 1) * 10) / 10;
-      const o = { id: orderSeq++, pick: p, home: h, createdAt: simClock, pay, air: d, target: (CFG.targetBaseMin + CFG.targetPerKm * km) * 60, state: 'open', driver: null, picked: false, partner };
+      const pay = Math.round((CFG.payBase + CFG.payPerKm * km * CFG.detour) * (partner ? CFG.partnerPay : 1) * MODE.pay * 10) / 10;
+      const o = { id: orderSeq++, pick: p, home: h, createdAt: simClock, pay, air: d, target: (CFG.targetBaseMin + CFG.targetPerKm * km) * 60 * MODE.target, state: 'open', driver: null, picked: false, partner };
       orders.push(o); orderStructDirty = true;
       log('Neue Bestellung #' + o.id + ': ' + (p.name || TYPE_LABEL[p.type]) + ' → ' + (h.street ? h.street : 'Kunde') + ', ' + eur(pay));
       if (sel.order === null) { sel.order = o.id; plansDirty = true; }
@@ -1171,12 +1241,13 @@ function startGame(DATA) {
   }
 
   // ---------- Effekte von Stufen und Ausbauten ----------
+  const isFree = d => !d.trip && !d.train;
   const cap = () => CFG.hubCaps[hubLevel] * hubs.length;
   const speedMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && owned.motor ? 1.15 : 1);
-  const tipMax = () => owned.boxes ? 0.4 : CFG.tipMax;
+  const tipMax = () => (owned.boxes ? 0.4 : CFG.tipMax) * MODE.tip;
   const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
   const wageOf = d => CFG.wage[d.veh] * (1 + CFG.wageLevel * (d.lvl - 1));
-  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1);
+  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1) * MODE.demand;
   function tune(plan, d) {
     if (!plan) return plan;
     const m = speedMult(d);
@@ -1194,7 +1265,7 @@ function startGame(DATA) {
     if (!plansDirty) return;
     plansDirty = false; plans = {};
     const o = orderById(sel.order); if (!o || o.state !== 'open') return;
-    for (const d of drivers) if (!d.trip) plans[d.id] = planFor(d, o);
+    for (const d of drivers) if (isFree(d)) plans[d.id] = planFor(d, o);
   }
   function tripCost(plan) { return plan.len / 1000 * kmCostOf(plan.veh.key); }
   function fastestFree() {
@@ -1223,17 +1294,18 @@ function startGame(DATA) {
     for (const o of openOrders().sort((a, b) => a.createdAt - b.createdAt)) {
       let best = null;
       for (const d of drivers) {
-        if (d.trip) continue;
+        if (!isFree(d)) continue;
         const p = planFor(d, o); if (p && (!best || p.total < best.p.total)) best = { d, p };
       }
-      if (!best) { if (drivers.every(d => d.trip)) return; continue; }
+      if (!best) { if (!drivers.some(isFree)) return; continue; }
       assignTo(best.d, o, best.p);
     }
   }
   function expireOrders() {
+    if (!MODE.expire) return;
     for (const o of orders) {
-      if (o.state !== 'open' || simClock - o.createdAt < o.target * CFG.expireFactor) continue;
-      o.state = 'cancelled'; stats.cancel++; rate(1, 0.08);
+      if (o.state !== 'open' || simClock - o.createdAt < o.target * MODE.expire) continue;
+      o.state = 'cancelled'; stats.cancel++; rate(1, MODE.repC);
       log('Bestellung #' + o.id + ' storniert: der Kunde hat nicht mehr gewartet', true);
       if (sel.order === o.id) { const n = orders.find(x => x.state === 'open' && x !== o); sel.order = n ? n.id : null; }
     }
@@ -1248,6 +1320,17 @@ function startGame(DATA) {
   function updateDrivers() {
     for (const d of drivers) {
       if (d.ret && d.ret.t >= d.ret.leg.time) { d.node = d.ret.to; d.ret = null; driverStructDirty = true; plansDirty = true; }
+      if (d.train && !d.trip) {
+        const tr = d.train;
+        if (tr.state === 'planned' && !d.ret) {
+          const hn = nodeFor(hubs[d.hub], d.veh);
+          if (d.node !== hn) { startReturn(d); if (!d.ret) d.node = nodeFor(hubs[d.hub], d.veh); }
+          if (!d.ret) { tr.state = 'active'; tr.t = 0; log('Fahrer ' + d.id + ' beginnt im Hub ' + (d.hub + 1) + ' die Schulung (' + fmtMin(tr.dur) + ' min)'); driverStructDirty = true; plansDirty = true; }
+        } else if (tr.state === 'active' && tr.t >= tr.dur) {
+          d.lvl = tr.to; d.done = Math.max(d.done, CFG.xpNeed[d.lvl - 1]); d.train = null;
+          log('Fahrer ' + d.id + ' hat die Schulung abgeschlossen: Stufe ' + d.lvl, true); driverStructDirty = true; plansDirty = true; orderStructDirty = true;
+        }
+      }
       if (!d.trip) continue;
       const trip = d.trip, o = trip.order;
       const st = E.tripState(trip, trip.t); d.st = st;
@@ -1271,7 +1354,7 @@ function startGame(DATA) {
     cash += pay + tip - cost;
     stats.n++; stats.pay += pay; stats.tip += tip; stats.cost += cost; stats.ageSum += age;
     o.state = 'delivered';
-    rate(age <= o.target ? 5 : age <= o.target * 1.5 ? 4 : age <= o.target * 2 ? 2.5 : 1.5, 0.08);
+    rate(age <= o.target ? 5 : age <= o.target * 1.5 ? 4 : age <= o.target * 2 ? 2.5 : 1.5, MODE.repW);
     d.done++; while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) { d.lvl++; log('Fahrer ' + d.id + ' ist jetzt Stufe ' + d.lvl + ' und fährt schneller', true); }
     d.node = trip.endNode; d.trip = null; d.st = null; d.phase = -1; startReturn(d);
     log('#' + o.id + ' zugestellt nach ' + fmtMin(age) + ' min: ' + seur(pay) + ' Lohn' + (tip > 0 ? ', ' + seur(tip) + ' Trinkgeld' : ', kein Trinkgeld') + (cost > 0 ? ', ' + seur(-cost) + ' Fahrzeugkosten' : ''), true);
@@ -1349,7 +1432,7 @@ function startGame(DATA) {
   function renderAssign(o) {
     ensurePlans();
     const box = document.createElement('div'); box.className = 'assign';
-    const free = drivers.filter(d => !d.trip);
+    const free = drivers.filter(isFree);
     if (!free.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Alle Fahrer sind unterwegs. Sobald einer frei ist, kannst du ihm die Bestellung geben.'; box.appendChild(p); return box; }
     const best = fastestFree();
     for (const d of free) {
@@ -1394,7 +1477,7 @@ function startGame(DATA) {
         const pill = document.createElement('span');
         const line = document.createElement('span'); line.className = 'd-line';
         b.append(top, pill, line); li.appendChild(b); dlist.appendChild(li);
-        b.onclick = () => { sel.driver = d.id; driverStructDirty = true; dirty = true; };
+        b.onclick = () => { sel.driver = d.id; driverStructDirty = true; dirty = true; openDriverWin(d.id); };
         r = { li, btn: b, pill, line, vh }; dRefs.set(d.id, r);
       }
       r.li.className = 'driver' + (sel.driver === d.id ? ' sel' : ''); r.btn.setAttribute('aria-pressed', String(sel.driver === d.id));
@@ -1409,7 +1492,13 @@ function startGame(DATA) {
         const st = d.st || E.tripState(d.trip, d.trip.t);
         r.pill.className = 'pill ' + PHASE_CLS[Math.min(3, st.phase)];
         setText(r.pill, PHASE_TXT[Math.min(3, st.phase)]);
-        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h'));
+        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (d.train ? ' · danach Schulung' : ''));
+      } else if (d.train && d.train.state === 'active') {
+        r.pill.className = 'pill s-wait'; setText(r.pill, 'In Schulung');
+        setText(r.line, 'Hub ' + (d.hub + 1) + ' · noch ' + fmtMin(d.train.dur - d.train.t) + ' min');
+      } else if (d.train) {
+        r.pill.className = 'pill s-wait'; setText(r.pill, 'Zur Schulung');
+        setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) : 'Schulung beginnt');
       } else {
         r.pill.className = 'pill s-idle'; setText(r.pill, d.ret ? 'Zurück zum Hub' : 'Frei');
         setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) : 'Wartet im Hub ' + (d.hub + 1));
@@ -1429,27 +1518,66 @@ function startGame(DATA) {
   }
 
   // ---------- Fahrerdetail, Schulung, Ausbau ----------
-  function updateDetail() {
-    const d = drivers.find(x => x.id === sel.driver) || drivers[0], box = $('ddetail'); if (!d) return;
-    if (!box._b) {
-      box._h = document.createElement('strong'); box._xp = document.createElement('div'); box._xp.className = 'xp'; box._xp.appendChild(document.createElement('i'));
-      box._p = document.createElement('p'); box._b = document.createElement('button'); box._b.type = 'button'; box._b.className = 'btn';
-      box.append(box._h, box._xp, box._p, box._b);
-      box._b.onclick = () => {
-        const x = drivers.find(v => v.id === box._id); if (!x || x.trip || x.lvl >= 5) return;
-        const c = CFG.trainCost(x.lvl); if (cash < c) return;
-        cash -= c; x.lvl++; x.done = Math.max(x.done, CFG.xpNeed[x.lvl - 1]);
-        log('Fahrer ' + x.id + ' wurde geschult: Stufe ' + x.lvl + ', ' + seur(-c)); driverStructDirty = true; plansDirty = true; dirty = true;
-      };
-    }
-    box._id = d.id;
-    setText(box._h, 'Fahrer ' + d.id + ' · ' + driverLabel(d) + ' · Stufe ' + d.lvl);
+  // ---------- Fenster: Hauptquartier und Fahrer ----------
+  const winEl = $('win'), win = { kind: null, id: null };
+  const trainDur = l => (10 + 10 * l) * 60;
+  function openHQ() { win.kind = 'hq'; win.id = null; $('winHQ').hidden = false; $('winDrv').hidden = true; setText($('winT'), 'Hauptquartier'); winEl.hidden = false; updateUpgrades(); updatePartners(); updateHubs(); }
+  function openDriverWin(id) { win.kind = 'drv'; win.id = id; $('winHQ').hidden = true; $('winDrv').hidden = false; winEl.hidden = false; updateDriverWin(); }
+  function closeWin() { winEl.hidden = true; win.kind = null; }
+  $('winClose').onclick = closeWin; $('hqBtn').onclick = () => (win.kind === 'hq' && !winEl.hidden ? closeWin() : openHQ());
+  $('winPause').onclick = () => togglePause();
+  $('hqTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-tab]'); if (!b) return;
+    for (const x of $('hqTabs').children) x.setAttribute('aria-selected', String(x === b));
+    for (const t of ['up', 'pa', 'hu']) $('tab-' + t).hidden = t !== b.dataset.tab;
+  });
+  function planTraining(d) {
+    if (!d || d.train || d.lvl >= 5) return; const c = CFG.trainCost(d.lvl); if (cash < c) return;
+    cash -= c; d.train = { state: 'planned', cost: c, dur: trainDur(d.lvl), t: 0, to: d.lvl + 1 };
+    log('Schulung für Fahrer ' + d.id + ' geplant (Stufe ' + d.train.to + ', ' + fmtMin(d.train.dur) + ' min), ' + seur(-c) + (d.trip ? ', beginnt nach der Lieferung im Hub' : ''));
+    driverStructDirty = true; plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+  function cancelTraining(d) {
+    if (!d || !d.train || d.train.state !== 'planned') return;
+    cash += d.train.cost; log('Schulung für Fahrer ' + d.id + ' abgesagt, ' + seur(d.train.cost)); d.train = null;
+    driverStructDirty = true; plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+  $('dwTBtn').onclick = () => planTraining(drivers.find(x => x.id === win.id));
+  $('dwTCancel').onclick = () => cancelTraining(drivers.find(x => x.id === win.id));
+  function updateDriverWin() {
+    if (win.kind !== 'drv') return;
+    const d = drivers.find(x => x.id === win.id); if (!d) return closeWin();
+    setText($('winT'), 'Fahrer ' + d.id + ' · ' + driverLabel(d));
+    const r = dRefs.get(d.id); if (r) { $('dwPill').className = r.pill.className; setText($('dwPill'), r.pill.textContent); setText($('dwLine'), r.line.textContent); }
+    setText($('dwVeh'), driverLabel(d)); setText($('dwHub'), 'Hub ' + (d.hub + 1)); setText($('dwLvl'), d.lvl + ' von 5');
+    setText($('dwSpd'), '+' + Math.round((speedMult(d) - 1) * 100) + ' %'); setText($('dwDone'), String(d.done)); setText($('dwWage'), eur(wageOf(d)) + ' pro Stunde');
     const nextN = d.lvl < 5 ? CFG.xpNeed[d.lvl] : null, prevN = CFG.xpNeed[d.lvl - 1];
-    box._xp.firstChild.style.width = (nextN ? Math.min(100, (d.done - prevN) / (nextN - prevN) * 100) : 100) + '%';
-    setText(box._p, d.done + ' Lieferungen · ' + (nextN ? 'nächste Stufe ab ' + nextN : 'höchste Stufe') + ' · Tempo +' + Math.round((speedMult(d) - 1) * 100) + ' % · Lohn ' + eur(wageOf(d)) + '/h');
-    const c = d.lvl < 5 ? CFG.trainCost(d.lvl) : 0;
-    setText(box._b, d.lvl >= 5 ? 'Höchste Stufe erreicht' : d.trip ? 'Schulung nur im Leerlauf' : 'Schulen für ' + eur(c));
-    box._b.disabled = d.lvl >= 5 || !!d.trip || cash < c;
+    $('dwXpBar').style.width = (nextN ? Math.min(100, (d.done - prevN) / (nextN - prevN) * 100) : 100) + '%';
+    setText($('dwXp'), nextN ? 'Erfahrung: nächste Stufe nach ' + nextN + ' Lieferungen, oder durch eine Schulung.' : 'Höchste Stufe erreicht.');
+    const tr = d.train, c = d.lvl < 5 ? CFG.trainCost(d.lvl) : 0;
+    if (tr) {
+      const act = tr.state === 'active';
+      setText($('dwTInfo'), act ? 'Schulung läuft im Hub ' + (d.hub + 1) + ': noch ' + fmtMin(tr.dur - tr.t) + ' min bis Stufe ' + tr.to + '.' : d.trip ? 'Geplant: Der Fahrer beendet die laufende Lieferung, fährt dann zum Hub ' + (d.hub + 1) + ' und beginnt die Schulung (Stufe ' + tr.to + ', ' + fmtMin(tr.dur) + ' min).' : 'Der Fahrer ist auf dem Weg zum Hub ' + (d.hub + 1) + ', dort beginnt die Schulung (Stufe ' + tr.to + ', ' + fmtMin(tr.dur) + ' min).');
+      $('dwTBarW').hidden = false; $('dwTBar').style.width = (act ? Math.min(100, tr.t / tr.dur * 100) : 0) + '%';
+      setText($('dwTBtn'), 'Schulung ist ' + (act ? 'im Gange' : 'geplant')); $('dwTBtn').disabled = true;
+      $('dwTCancel').hidden = act;
+    } else {
+      $('dwTBarW').hidden = true; $('dwTCancel').hidden = true;
+      setText($('dwTInfo'), d.lvl >= 5 ? 'Dieser Fahrer hat die höchste Stufe.' : 'Fahrtraining auf Stufe ' + (d.lvl + 1) + ': dauert ' + fmtMin(trainDur(d.lvl)) + ' min und macht den Fahrer 4 % schneller (Lohn +12 %). Während der Schulung nimmt er keine Aufträge an. Bei einer laufenden Lieferung wartet er, bis sie fertig ist.');
+      setText($('dwTBtn'), d.lvl >= 5 ? 'Höchste Stufe erreicht' : 'Schulung planen für ' + eur(c)); $('dwTBtn').disabled = d.lvl >= 5 || cash < c;
+    }
+  }
+  let hSig = '';
+  function updateHubs() {
+    const sig = hubs.length + '|' + hubLevel + '|' + zoneLevel + '|' + drivers.map(d => d.hub).join(',');
+    if (sig === hSig) return; hSig = sig; const box = $('hlist'); box.textContent = '';
+    hubs.forEach((h, i) => {
+      const row = document.createElement('div'); row.className = 'hrow';
+      const n = document.createElement('strong'); n.textContent = 'Hub ' + (i + 1) + (i === 0 ? ' (Hauptquartier)' : '');
+      const sm = document.createElement('small'); sm.textContent = slotsUsed(i) + ' von ' + CFG.hubCaps[hubLevel] + ' Plätzen belegt · Liefergebiet ' + zoneR() + ' m';
+      const v = document.createElement('span'); v.className = 'note'; v.textContent = drivers.filter(d => d.hub === i).map(d => 'Fahrer ' + d.id).join(', ') || 'keine Fahrer';
+      row.append(n, v, sm); box.appendChild(row);
+    });
   }
   const ulist = $('ulist'), uRefs = [];
   const UPG_ALL = UPG.concat([{ id: 'zone', name: '', desc: '' }, { id: 'hub', name: 'Hub ausbauen', desc: '' }, { id: 'newhub', name: 'Neuen Hub bauen', desc: '' }]);
@@ -1467,7 +1595,7 @@ function startGame(DATA) {
     }
     if (id === 'newhub') {
       if (hubs.length >= 3 || cash < CFG.hubBuild[hubs.length]) return;
-      placing = !placing; ghost = null; $('placeBan').hidden = !placing; cv.classList.toggle('placing', placing); dirty = true; return;
+      placing = !placing; ghost = null; $('placeBan').hidden = !placing; cv.classList.toggle('placing', placing); if (placing) closeWin(); dirty = true; return;
     }
     if (id === 'hub') {
       const c = CFG.hubCost[hubLevel + 1]; if (c === undefined || cash < c) return;
@@ -1578,7 +1706,8 @@ function startGame(DATA) {
     if (placing) return placeHub((px - cw / 2) / cam.s + cam.x, (py - ch / 2) / cam.s + cam.y);
     const h = hit(px, py, 14); if (!h) return;
     if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
-    else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; }
+    else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; openDriverWin(h.d.id); }
+    else if (h.kind === 'hub') openHQ();
   });
   function endPlacing() { placing = false; ghost = null; $('placeBan').hidden = true; cv.classList.remove('placing'); dirty = true; }
   function placeHub(x, y) {
@@ -1601,7 +1730,7 @@ function startGame(DATA) {
     const b = e.target.closest('button[data-s]'); if (!b) return; speed = Number(b.dataset.s);
     for (const x of $('speedSeg').children) x.setAttribute('aria-pressed', String(x === b));
   });
-  function togglePause() { paused = !paused; $('pauseBtn').setAttribute('aria-pressed', String(paused)); $('pauseBtn').textContent = paused ? 'Weiter' : 'Pause'; dirty = true; }
+  function togglePause() { paused = !paused; $('pauseBtn').setAttribute('aria-pressed', String(paused)); $('pauseBtn').textContent = paused ? 'Weiter' : 'Pause'; $('winPause').textContent = paused ? 'Weiter' : 'Pause'; dirty = true; }
   $('pauseBtn').onclick = togglePause;
   function cycleOrder(dir) {
     const open = openOrders(); if (!open.length) return;
@@ -1613,7 +1742,7 @@ function startGame(DATA) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
     const k = e.key;
-    if (k === 'Escape' && placing) { endPlacing(); return; }
+    if (k === 'Escape') { if (placing) endPlacing(); else if (!winEl.hidden) closeWin(); return; }
     if (k === 'a' || k === 'A') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); }
     else if (k === 'ArrowDown') { e.preventDefault(); cycleOrder(1); }
     else if (k === 'ArrowUp') { e.preventDefault(); cycleOrder(-1); }
@@ -1630,7 +1759,7 @@ function startGame(DATA) {
     if (!paused) {
       const adv = dt * speed;
       simClock += adv;
-      for (const d of drivers) { if (d.trip) d.trip.t += adv; if (d.ret) d.ret.t += adv; }
+      for (const d of drivers) { if (d.trip) d.trip.t += adv; if (d.ret) d.ret.t += adv; if (d.train && d.train.state === 'active') d.train.t += adv; }
       updateDrivers();
       let w = 0; for (const d of drivers) w += wageOf(d); w = w * adv / 3600; cash -= w; stats.wage += w;
       expireOrders();
@@ -1644,7 +1773,7 @@ function startGame(DATA) {
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
-    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); updateDetail(); updateUpgrades(); updatePartners(); }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); syncHire(); if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); updateHubs(); } else updateDriverWin(); } }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
@@ -1667,8 +1796,16 @@ function startGame(DATA) {
   const SUGGEST = ['Hamburg', 'Wien', 'Paris', 'New York', 'Tokio', 'Kapstadt', 'São Paulo', 'Sydney'];
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), recent: $('recent'),
     recentBox: $('recentBox'), chips: $('chips'), status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar') };
-  const lock = on => { for (const id of ['searchBox', 'recentBox', 'chipBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length); };
-  let cachedList = [];
+  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length); };
+  let cachedList = [], mode = 'relaxed';
+  try { mode = localStorage.getItem('lm-mode') === 'rush' ? 'rush' : 'relaxed'; } catch (e) {}
+  const mq2 = () => '&m=' + (mode === 'rush' ? 'r' : 'e');
+  function setMode(m) {
+    mode = m; try { localStorage.setItem('lm-mode', m); } catch (e) {}
+    for (const b of $('modeBox').children) b.setAttribute('aria-pressed', String(b.dataset.m === m));
+  }
+  for (const b of $('modeBox').children) b.onclick = () => setMode(b.dataset.m);
+  setMode(mode);
 
   function item(label, sub, tag, fn) {
     const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
@@ -1690,17 +1827,17 @@ function startGame(DATA) {
 
   function launch(data) {
     $('start').hidden = true; $('app').hidden = false;
-    startGame(data);
+    startGame(data, mode);
   }
 
   async function begin(place) {
     lock(true);
     if (place.demo) {
-      history.replaceState(null, '', '#c=essen-demo');
+      history.replaceState(null, '', '#c=essen-demo' + mq2());
       status('Essen-Innenstadt wird gestartet …', 80);
       return setTimeout(() => launch(ESSEN), 30);
     }
-    history.replaceState(null, '', '#c=' + place.lat.toFixed(4) + ',' + place.lon.toFixed(4) + ',' + encodeURIComponent(place.name));
+    history.replaceState(null, '', '#c=' + place.lat.toFixed(4) + ',' + place.lon.toFixed(4) + ',' + encodeURIComponent(place.name) + mq2());
     try {
       status(place.name + ': Gespeicherte Karte wird gesucht …', 8);
       let data = await LM.getCached(place);
@@ -1740,8 +1877,9 @@ function startGame(DATA) {
     el.recent.textContent = '';
     for (const p of cachedList) el.recent.appendChild(item(p.name, p.sub, '', () => begin(p)));
     el.recentBox.hidden = !cachedList.length;
-    const m = location.hash.match(/^#c=(.+)$/);
+    const m = location.hash.match(/^#c=(.+?)(?:&m=([re]))?$/);
     if (m) {
+      if (m[2]) setMode(m[2] === 'r' ? 'rush' : 'relaxed');
       if (m[1] === 'essen-demo') return begin({ demo: true });
       const [lat, lon, ...rest] = m[1].split(',');
       if (isFinite(+lat) && isFinite(+lon) && rest.length) {

@@ -2,8 +2,16 @@
   const SUGGEST = ['Hamburg', 'Wien', 'Paris', 'New York', 'Tokio', 'Kapstadt', 'São Paulo', 'Sydney'];
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), recent: $('recent'),
     recentBox: $('recentBox'), chips: $('chips'), status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar') };
-  const lock = on => { for (const id of ['searchBox', 'recentBox', 'chipBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length); };
-  let cachedList = [];
+  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length); };
+  let cachedList = [], mode = 'relaxed';
+  try { mode = localStorage.getItem('lm-mode') === 'rush' ? 'rush' : 'relaxed'; } catch (e) {}
+  const mq2 = () => '&m=' + (mode === 'rush' ? 'r' : 'e');
+  function setMode(m) {
+    mode = m; try { localStorage.setItem('lm-mode', m); } catch (e) {}
+    for (const b of $('modeBox').children) b.setAttribute('aria-pressed', String(b.dataset.m === m));
+  }
+  for (const b of $('modeBox').children) b.onclick = () => setMode(b.dataset.m);
+  setMode(mode);
 
   function item(label, sub, tag, fn) {
     const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
@@ -25,17 +33,17 @@
 
   function launch(data) {
     $('start').hidden = true; $('app').hidden = false;
-    startGame(data);
+    startGame(data, mode);
   }
 
   async function begin(place) {
     lock(true);
     if (place.demo) {
-      history.replaceState(null, '', '#c=essen-demo');
+      history.replaceState(null, '', '#c=essen-demo' + mq2());
       status('Essen-Innenstadt wird gestartet …', 80);
       return setTimeout(() => launch(ESSEN), 30);
     }
-    history.replaceState(null, '', '#c=' + place.lat.toFixed(4) + ',' + place.lon.toFixed(4) + ',' + encodeURIComponent(place.name));
+    history.replaceState(null, '', '#c=' + place.lat.toFixed(4) + ',' + place.lon.toFixed(4) + ',' + encodeURIComponent(place.name) + mq2());
     try {
       status(place.name + ': Gespeicherte Karte wird gesucht …', 8);
       let data = await LM.getCached(place);
@@ -75,8 +83,9 @@
     el.recent.textContent = '';
     for (const p of cachedList) el.recent.appendChild(item(p.name, p.sub, '', () => begin(p)));
     el.recentBox.hidden = !cachedList.length;
-    const m = location.hash.match(/^#c=(.+)$/);
+    const m = location.hash.match(/^#c=(.+?)(?:&m=([re]))?$/);
     if (m) {
+      if (m[2]) setMode(m[2] === 'r' ? 'rush' : 'relaxed');
       if (m[1] === 'essen-demo') return begin({ demo: true });
       const [lat, lon, ...rest] = m[1].split(',');
       if (isFinite(+lat) && isFinite(+lon) && rest.length) {

@@ -2,7 +2,7 @@
 
 Browsergame: Du baust einen Lieferdienst auf einer echten Karte auf (OpenStreetMap-Daten).
 
-Aktueller Stand: Phase 4 (Wirtschaft: Ruf, Löhne, Fahrerstufen, Ausbau-Shop, Auto-Disposition; Hubs, Liefergebiet, Partner-Restaurants) auf Basis von Phase 3. Beliebige Stadt weltweit suchen (Nominatim), Straßen, Läden und Häuser live laden (Overpass), im Browser speichern (IndexedDB). Spielschleife aus Phase 2: Bestellungen, Fahrer, Kasse.
+Aktueller Stand: Phase 5 (Spielmodi Entspannt und Rush; Hauptquartier- und Fahrerfenster mit geplanten Schulungen) auf Basis von Phase 4 (Wirtschaft: Ruf, Löhne, Fahrerstufen, Ausbau-Shop, Auto-Disposition; Hubs, Liefergebiet, Partner-Restaurants) auf Basis von Phase 3. Beliebige Stadt weltweit suchen (Nominatim), Straßen, Läden und Häuser live laden (Overpass), im Browser speichern (IndexedDB). Spielschleife aus Phase 2: Bestellungen, Fahrer, Kasse.
 
 Spiel: https://memem356.github.io/lastmile/
 
