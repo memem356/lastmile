@@ -19,3 +19,9 @@ Kartendaten: © OpenStreetMap-Mitwirkende (ODbL), https://www.openstreetmap.org/
 
 ## Phase 6 (Realismus)
 Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (Stau, Straßenfest, Großbestellung, Krankmeldung), Nachfrage-Karte (Taste H) und Höhenprofil: Steigungen bremsen vor allem Fahrräder. Höhendaten kommen von Open-Meteo (für neu geladene Städte live, für das Essen-Demo eingebettet). Bereits gespeicherte Städte sind flach, bis sie neu geladen werden.
+
+## Phase 7 (Speichern, Erfolge, Ton, Handy)
+- Automatisches Speichern im Browser (pro Stadt und Modus), Fortsetzen über den Startbildschirm, Neues Spiel im Menü.
+- Offline-Fortschritt: Mit Dispositions-Software und eingeschalteter Auto-Disposition arbeitet der Betrieb bis zu 4 Stunden weiter, wenn die Seite geschlossen ist (vereinfachtes Modell).
+- 18 Erfolge, synthetischer Ton (abschaltbar im Menü), Tutorial beim ersten Start.
+- Handy-Layout mit Tabs (Aufträge, Karte, Fahrer), Pinch-Zoom und größeren Tippflächen.

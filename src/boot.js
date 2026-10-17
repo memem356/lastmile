@@ -2,8 +2,8 @@
   const SUGGEST = ['Hamburg', 'Wien', 'Paris', 'New York', 'Tokio', 'Kapstadt', 'São Paulo', 'Sydney'];
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), recent: $('recent'),
     recentBox: $('recentBox'), chips: $('chips'), status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar') };
-  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length); };
-  let cachedList = [], mode = 'relaxed';
+  const lock = on => { for (const id of ['modeSec', 'searchBox', 'recentBox', 'chipBox', 'saveBox']) $(id).hidden = on || (id === 'recentBox' && !cachedList.length) || (id === 'saveBox' && !saves.length); };
+  let cachedList = [], saves = [], mode = 'relaxed';
   try { mode = localStorage.getItem('lm-mode') === 'rush' ? 'rush' : 'relaxed'; } catch (e) {}
   const mq2 = () => '&m=' + (mode === 'rush' ? 'r' : 'e');
   function setMode(m) {
@@ -78,7 +78,21 @@
     el.chips.appendChild(b);
   }
 
+  const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 2 ? 'gerade eben' : m < 90 ? 'vor ' + m + ' Min.' : m < 2880 ? 'vor ' + Math.round(m / 60) + ' Std.' : 'vor ' + Math.round(m / 1440) + ' Tagen'; };
   async function init() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('lm.save.')) { const sv = JSON.parse(localStorage.getItem(k)); if (sv && sv.place && sv.v === 1) saves.push(sv); }
+      }
+    } catch (e) {}
+    saves.sort((a, b) => b.at - a.at);
+    $('saveList').textContent = '';
+    for (const sv of saves) {
+      const m = sv.mode === 'rush' ? 'Rush' : 'Entspannt', cash = Math.round(sv.cash).toLocaleString('de-DE') + ' €';
+      $('saveList').appendChild(item(sv.place.name + ' · ' + m, cash + ' · ' + sv.stats.n + ' Lieferungen · ' + ago(sv.at), 'fortsetzen', () => { setMode(sv.mode === 'rush' ? 'rush' : 'relaxed'); begin(sv.place); }));
+    }
+    $('saveBox').hidden = !saves.length;
     cachedList = await LM.listCached();
     el.recent.textContent = '';
     for (const p of cachedList) el.recent.appendChild(item(p.name, p.sub, '', () => begin(p)));
