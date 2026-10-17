@@ -38,3 +38,7 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 - Klick auf die **Kasse** (oder Taste **K**) öffnet das Fenster mit den Tabs **Finanzen** (Einnahmen, laufende Kosten, Investitionen, Kennzahlen, Balkendiagramm der letzten 12 Spielstunden) und **Statistik** (Lieferungen, Pünktlichkeit, Lage, Fahrer, beliebte Orte, erlebte Ereignisse, Erfolge).
 - In der Kopfzeile zeigen drei Chips Wetter (Symbol und Temperatur, Tag/Nacht nach Sonnenstand), Verkehr (Farbpunkt, Rushhour) und Ereignisse; ein Klick öffnet die Statistik bzw. springt zum Ereignis.
 - Alle Ausgaben laufen über `spend(art, betrag)`; das Geldbuch (`led`) wird mit gespeichert (ältere Spielstände starten mit leeren Werten).
+
+## Rush-Modus entschärft, Ausweichen sichtbar
+- Rush startet mit 30 % der Nachfrage und steigt über 5 Spielstunden auf das volle Niveau; Aufträge laufen erst nach dem 2-fachen der Zielzeit ab (Rufverlust je Storno 0,12).
+- Weicht ein Fahrer aus (ab 30 s Zeitgewinn): Meldung im Protokoll und als Hinweis, grüner Ring mit „↪ −m:ss min“ an der Karte, „Umweg −m:ss“ in der Fahrerkarte, Zähler „Ausgewichen“ in der Statistik.

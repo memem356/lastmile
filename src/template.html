@@ -559,6 +559,7 @@ canvas.placing { cursor: crosshair; }
         <h3>Bisher erlebt</h3>
         <dl class="rows">
           <dt>Pannen</dt><dd id="stBrk">0</dd>
+          <dt>Ausgewichen</dt><dd id="stDet">–</dd>
           <dt>Staus und Unfälle</dt><dd id="stJam">0</dd>
           <dt>Baustellen</dt><dd id="stWorks">0</dd>
           <dt>Straßenfeste</dt><dd id="stFest">0</dd>
@@ -601,7 +602,7 @@ const ESSEN = /*DATA*/null;
 const $ = id => document.getElementById(id);
 const MODES = {
   relaxed: { name: 'Entspannt', pay: 0.85, target: 1.7, expire: null, tip: 0.6, demand: 0.8, repW: 0.04, repC: 0, risk: 0.6 },
-  rush:    { name: 'Rush',      pay: 1.4,  target: 0.8, expire: 1.7,  tip: 1.4, demand: 1.25, repW: 0.12, repC: 0.15, risk: 1.2 }
+  rush:    { name: 'Rush',      pay: 1.4,  target: 0.8, expire: 2.0,  tip: 1.4, demand: 1.25, repW: 0.12, repC: 0.12, risk: 1.2, ramp: 0.3, rampH: 5 }
 };
 function startGame(DATA, MODEKEY) {
   const MODE = MODES[MODEKEY] || MODES.relaxed;
@@ -873,6 +874,11 @@ function startGame(DATA, MODEKEY) {
       const p = driverPos(d), x = toX(p.x), y = toY(p.y), selected = sel.driver === d.id;
       if (d.sick) ctx.globalAlpha = 0.45;
       if (d.stall) { const k = (performance.now() / 700) % 1; ctx.beginPath(); ctx.arc(x, y, 14 + k * 8, 0, 6.283); ctx.strokeStyle = '#e0402a'; ctx.globalAlpha = 0.8 * (1 - k); ctx.lineWidth = 2.5; ctx.stroke(); ctx.globalAlpha = 1; dirty = true; }
+      if (d.detAt && performance.now() - d.detAt < 6000) {
+        const k = (performance.now() - d.detAt) / 6000, w = performance.now() / 500 % 1;
+        ctx.beginPath(); ctx.arc(x, y, 15 + w * 9, 0, 6.283); ctx.strokeStyle = '#2fa35a'; ctx.globalAlpha = 0.85 * (1 - w) * (1 - k * 0.5); ctx.lineWidth = 2.5; ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.font = '600 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; halo('↪ −' + fmtMin(d.detGain) + ' min', x + 16, y + 16, '#2fa35a'); dirty = true;
+      }
       ctx.beginPath(); ctx.arc(x, y, selected ? 16 : 13, 0, 6.283); ctx.fillStyle = T.route; ctx.globalAlpha = selected ? 0.24 : 0.16; ctx.fill(); ctx.globalAlpha = 1;
       if ((d.trip || d.ret) && p.moving) {
         ctx.save(); ctx.translate(x, y); ctx.rotate(p.hd);
@@ -1152,6 +1158,11 @@ function startGame(DATA, MODEKEY) {
     for (const k in rate) if (cnt(k) < cap[k] && Math.random() < 1 - Math.exp(-rate[k] * adv)) spawnTrafficEvent(k);
   }
   const lastRe = { t: 0 };
+  function noteDetour(d, gain, tr) {
+    led.det++; led.detSec += gain; d.detAt = performance.now(); d.detGain = gain; if (tr) tr.det = (tr.det || 0) + gain;
+    if (gain >= 30) { log('Fahrer ' + d.id + ' weicht dem Verkehr aus und spart etwa ' + fmtMin(gain) + ' min', true); toast('Fahrer ' + d.id + ' weicht aus', 'Umweg spart etwa ' + fmtMin(gain) + ' min'); }
+    dirty = true;
+  }
   function rerouteAll() {
     const q = avoidQ(); if (q <= 0 || simClock - lastRe.t < 45) return; lastRe.t = simClock;
     for (const d of drivers) {
@@ -1161,11 +1172,11 @@ function startGame(DATA, MODEKEY) {
         if (r && r.gain > Math.max(25, 0.1 * r.cur)) {
           tr.legs[li] = r.leg; if (li === 0) tr.T1 = r.leg.time; else tr.T2 = r.leg.time;
           tr.total = tr.T1 + tr.D1 + tr.T2 + tr.D2; tr.len = tr.legs[0].len + tr.legs[1].len; plansDirty = true;
-          if (r.gain > 60) log('Fahrer ' + d.id + ' weicht dem Verkehr aus und spart etwa ' + fmtMin(r.gain) + ' min');
+          noteDetour(d, r.gain, tr);
         }
       } else if (d.ret) {
         const r = E.reroute(d.veh, d.ret.leg, d.ret.t, q, speedMult(d));
-        if (r && r.gain > Math.max(25, 0.1 * r.cur)) d.ret.leg = r.leg;
+        if (r && r.gain > Math.max(25, 0.1 * r.cur)) { d.ret.leg = r.leg; noteDetour(d, r.gain, null); }
       }
     }
   }
@@ -1252,7 +1263,7 @@ function startGame(DATA, MODEKEY) {
       if (dsig !== drvSig + 'x') { drvSig = dsig + 'x'; listRows($('stDrv'), drivers.slice().sort((a, b) => b.done - a.done).map(d => ['Fahrer ' + d.id + ' · ' + driverLabel(d) + ' · Stufe ' + d.lvl, d.done + ' Lieferungen'])); }
       const top = Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 5), psig = top.join('|');
       if (psig !== plSig) { plSig = psig; listRows($('stPl'), top.map(([k, v]) => [k, v + '×'])); }
-      setText($('stBrk'), String(led.brk)); setText($('stJam'), String((led.ev.jam || 0) + (led.ev.crash || 0)));
+      setText($('stBrk'), String(led.brk)); setText($('stDet'), led.det ? led.det + '× · spart ' + fmtMin(led.detSec) + ' min' : '–'); setText($('stJam'), String((led.ev.jam || 0) + (led.ev.crash || 0)));
       setText($('stWorks'), String(led.ev.works || 0)); setText($('stFest'), String(led.ev.fest || 0));
       setText($('stTime'), Math.floor(simClock / 3600) + ' h ' + Math.floor(simClock / 60) % 60 + ' min');
       setText($('stAch'), ACH.filter(a => prog.ach[a.id]).length + ' von ' + ACH.length);
@@ -1262,7 +1273,7 @@ function startGame(DATA, MODEKEY) {
   // ---------- Stündliche Abbuchung von Löhnen und Fahrzeugkosten ----------
   const bill = { wage: 0, veh: 0, hr: 0 };
   // Geldbuch: Ausgaben nach Art, Stundenverlauf und weitere Zähler
-  const led = { exp: {}, hist: [], ontime: 0, base: 0, brk: 0, ev: {}, places: {} };
+  const led = { exp: {}, hist: [], ontime: 0, base: 0, brk: 0, ev: {}, places: {}, det: 0, detSec: 0 };
   function histAdd(inc, out) {
     const hr = Math.floor((simClock + START) / 3600), h = led.hist;
     let e = h[h.length - 1]; if (!e || e.h !== hr) { e = { h: hr, inc: 0, out: 0 }; h.push(e); if (h.length > 30) h.shift(); }
@@ -1353,7 +1364,9 @@ function startGame(DATA, MODEKEY) {
   const tipMax = () => (owned.boxes ? 0.4 : CFG.tipMax) * MODE.tip;
   const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
   const wageOf = d => CFG.wage[d.veh] * (1 + CFG.wageLevel * (d.lvl - 1));
-  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1) * MODE.demand * dayDemand() * WX[wx].dem;
+  // Anlaufphase: im Rush-Modus startet die Nachfrage niedrig und steigt über die ersten Spielstunden auf das volle Niveau
+  const rampF = () => MODE.ramp ? MODE.ramp + (1 - MODE.ramp) * Math.min(1, Math.max(0, simClock) / (MODE.rampH * 3600)) : 1;
+  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1) * MODE.demand * rampF() * dayDemand() * WX[wx].dem;
   function tune(plan, d) {
     if (!plan) return plan;
     const m = speedMult(d);
@@ -1609,7 +1622,7 @@ function startGame(DATA, MODEKEY) {
         const st = d.st || E.tripState(d.trip, d.trip.t);
         r.pill.className = 'pill ' + PHASE_CLS[Math.min(3, st.phase)];
         setText(r.pill, PHASE_TXT[Math.min(3, st.phase)]);
-        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (st.phase < 3 && d.trip.delay > 30 ? ' · +' + fmtMin(d.trip.delay) + ' Verkehr' : '') + (d.train ? ' · danach Schulung' : ''));
+        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (st.phase < 3 && d.trip.delay > 30 ? ' · +' + fmtMin(d.trip.delay) + ' Verkehr' : '') + (d.trip.det > 30 ? ' · Umweg −' + fmtMin(d.trip.det) : '') + (d.train ? ' · danach Schulung' : ''));
       } else if (d.train && d.train.state === 'active') {
         r.pill.className = 'pill s-wait'; setText(r.pill, 'In Schulung');
         setText(r.line, 'Hub ' + (d.hub + 1) + ' · noch ' + fmtMin(d.train.dur - d.train.t) + ' min');
