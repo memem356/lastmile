@@ -25,3 +25,9 @@ Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (St
 - Offline-Fortschritt: Mit Dispositions-Software und eingeschalteter Auto-Disposition arbeitet der Betrieb bis zu 4 Stunden weiter, wenn die Seite geschlossen ist (vereinfachtes Modell).
 - 18 Erfolge, synthetischer Ton (abschaltbar im Menü), Tutorial beim ersten Start.
 - Handy-Layout mit Tabs (Aufträge, Karte, Fahrer), Pinch-Zoom und größeren Tippflächen.
+
+## Phase 6b (Verkehr und Ereignisse)
+- Das Spiel startet mit der echten Ortszeit und dem Wochentag der Stadt (Zeitzone über Open-Meteo, das Essen-Demo nutzt Europe/Berlin).
+- Verkehr je Straßenabschnitt nach deutscher Rushhour (Spitzen morgens und nachmittags, freitags früher, samstags Einkaufsverkehr, sonntags ruhig), mit Richtungsbias (morgens Richtung Zentrum, abends heraus) und Engstellen an Kreuzungen großer Straßen. Farben (Grün bis Dunkelrot) lassen sich im Menü und mit der Taste T ausschalten.
+- Ereignisse mit Ort und Symbol auf der Karte: Stau, Unfall, Baustelle, Straßenfest; dazu Großbestellung, Panne und Krankmeldung. Ihre Häufigkeit folgt der Tageszeit und dem Wetter.
+- Hauptquartier: drei Ausbaustufen für das Ausweichen (Verkehrsfunk, Live-Navigation, Prognose-Navigation). Fahrer planen mit dem Verkehr, den sie kennen, und weichen unterwegs aus.

@@ -504,6 +504,7 @@ canvas.placing { cursor: crosshair; }
           <dt>Standort</dt><dd id="dwHub"></dd>
           <dt>Stufe</dt><dd id="dwLvl"></dd>
           <dt>Tempo</dt><dd id="dwSpd"></dd>
+          <dt>Verzögerung</dt><dd id="dwDelay"></dd>
           <dt>Lieferungen</dt><dd id="dwDone"></dd>
           <dt>Lohn</dt><dd id="dwWage"></dd>
         </dl>
@@ -1117,7 +1118,10 @@ function startGame(DATA, MODEKEY) {
     { id: 'boxes', name: 'Isolierte Boxen', cost: 200, desc: 'Essen bleibt warm: Trinkgeld bis 40 % statt 25 %.' },
     { id: 'motor', name: 'E-Bike-Motoren', cost: 280, desc: 'Fahrräder sind 15 % schneller.' },
     { id: 'quick', name: 'Schnellabholung', cost: 280, desc: 'Abholung dauert 30 % kürzer.' },
-    { id: 'service', name: 'Wartungsvertrag', cost: 250, desc: 'Fahrzeugkosten pro Kilometer −40 %.' }
+    { id: 'service', name: 'Wartungsvertrag', cost: 250, desc: 'Fahrzeugkosten pro Kilometer −40 %.' },
+    { id: 'nav1', name: 'Verkehrsfunk', cost: 250, desc: 'Fahrer kennen die größten Staus und weichen ihnen teilweise aus.' },
+    { id: 'nav2', name: 'Live-Navigation', cost: 600, needs: 'nav1', desc: 'Fahrer sehen den Verkehr in Echtzeit und weichen auch unterwegs aus.' },
+    { id: 'nav3', name: 'Prognose-Navigation', cost: 1200, needs: 'nav2', desc: 'Fahrer umfahren fast jeden Stau, auch schon auf der Planung.' }
   ];
 
 
@@ -1983,7 +1987,7 @@ function startGame(DATA, MODEKEY) {
         const st = d.st || E.tripState(d.trip, d.trip.t);
         r.pill.className = 'pill ' + PHASE_CLS[Math.min(3, st.phase)];
         setText(r.pill, PHASE_TXT[Math.min(3, st.phase)]);
-        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (d.train ? ' · danach Schulung' : ''));
+        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (st.phase < 3 && d.trip.delay > 30 ? ' · +' + fmtMin(d.trip.delay) + ' Verkehr' : '') + (d.train ? ' · danach Schulung' : ''));
       } else if (d.train && d.train.state === 'active') {
         r.pill.className = 'pill s-wait'; setText(r.pill, 'In Schulung');
         setText(r.line, 'Hub ' + (d.hub + 1) + ' · noch ' + fmtMin(d.train.dur - d.train.t) + ' min');
@@ -2049,7 +2053,7 @@ function startGame(DATA, MODEKEY) {
     setText($('winT'), 'Fahrer ' + d.id + ' · ' + driverLabel(d));
     const r = dRefs.get(d.id); if (r) { $('dwPill').className = r.pill.className; setText($('dwPill'), r.pill.textContent); setText($('dwLine'), r.line.textContent); }
     setText($('dwVeh'), driverLabel(d)); setText($('dwHub'), 'Hub ' + (d.hub + 1)); setText($('dwLvl'), d.lvl + ' von 5');
-    setText($('dwSpd'), '+' + Math.round((levelMult(d) - 1) * 100) + ' % (Stufe, Ausbau), jetzt ' + Math.round((envMult(d) - 1) * 100) + ' % durch das Wetter'); setText($('dwDone'), String(d.done)); setText($('dwWage'), eur(wageOf(d)) + ' pro Stunde');
+    setText($('dwSpd'), '+' + Math.round((levelMult(d) - 1) * 100) + ' % (Stufe, Ausbau), jetzt ' + Math.round((envMult(d) - 1) * 100) + ' % durch das Wetter'); setText($('dwDelay'), d.trip && d.trip.delay > 5 ? '+' + fmtMin(d.trip.delay) + ' min durch Verkehr' : '–'); setText($('dwDone'), String(d.done)); setText($('dwWage'), eur(wageOf(d)) + ' pro Stunde');
     const nextN = d.lvl < 5 ? CFG.xpNeed[d.lvl] : null, prevN = CFG.xpNeed[d.lvl - 1];
     $('dwXpBar').style.width = (nextN ? Math.min(100, (d.done - prevN) / (nextN - prevN) * 100) : 100) + '%';
     setText($('dwXp'), nextN ? 'Erfahrung: nächste Stufe nach ' + nextN + ' Lieferungen, oder durch eine Schulung.' : 'Höchste Stufe erreicht.');
@@ -2100,9 +2104,10 @@ function startGame(DATA, MODEKEY) {
       const c = CFG.hubCost[hubLevel + 1]; if (c === undefined || cash < c) return;
       cash -= c; hubLevel++; log('Hubs ausgebaut: jetzt Platz für ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub, ' + seur(-c), true); driverStructDirty = true; return;
     }
-    const u = UPG.find(x => x.id === id); if (!u || owned[id] || cash < u.cost) return;
+    const u = UPG.find(x => x.id === id); if (!u || owned[id] || cash < u.cost || (u.needs && !owned[u.needs])) return;
     cash -= u.cost; owned[id] = true; log(u.name + ' gekauft, ' + seur(-u.cost), true);
     if (id === 'dispatch') { autoOn = true; $('autoBtn').hidden = false; syncAuto(); }
+    if (id.startsWith('nav')) lastRe.t = -1e9;
     plansDirty = true; orderStructDirty = true; dirty = true;
   }
   function updateUpgrades() {
@@ -2123,8 +2128,9 @@ function startGame(DATA, MODEKEY) {
         setText(r.b, max ? 'Fertig' : eur(c)); r.b.disabled = max || cash < c;
       } else {
         const own = !!owned[r.u.id]; r.row.classList.toggle('own', own);
-        setText(r.n, r.u.name); setText(r.sm, r.u.desc);
-        setText(r.b, own ? 'Gekauft' : eur(r.u.cost)); r.b.disabled = own || cash < r.u.cost;
+        const locked = !!(r.u.needs && !owned[r.u.needs]);
+        setText(r.n, r.u.name); setText(r.sm, locked ? 'Zuerst nötig: ' + UPG.find(x => x.id === r.u.needs).name + '. ' + r.u.desc : r.u.desc);
+        setText(r.b, own ? 'Gekauft' : eur(r.u.cost)); r.b.disabled = own || locked || cash < r.u.cost;
       }
     }
   }
@@ -2552,6 +2558,7 @@ function startGame(DATA, MODEKEY) {
   realign(); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
   resize();
   requestAnimationFrame(frame);
+  if (/[?&]debug/.test(location.search)) window.__lm = { spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade };
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(false); });
   addEventListener('pagehide', () => saveNow(false));
