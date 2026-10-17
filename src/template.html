@@ -263,6 +263,7 @@ canvas.placing { cursor: crosshair; }
 .modeBox button:hover { border-color: var(--muted); }
 @media (max-width: 560px) { .modeBox { grid-template-columns: 1fr; } }
 .s-bad { color: var(--warn); }
+.tbar { display: inline-flex; } .tbar i { width: 12px !important; height: 6px !important; border-radius: 0 !important; }
 .legend button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 99px; padding: 1px 10px; font: 500 12px var(--font-ui, inherit); cursor: pointer; }
 .legend button[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
 .dlgwrap { position: fixed; inset: 0; z-index: 25; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -425,6 +426,7 @@ canvas.placing { cursor: crosshair; }
         <span><i style="width:12px;height:12px;border-radius:3px;background:var(--hub);"></i>Hub</span>
         <span><i style="width:10px;height:10px;border-radius:50%;background:var(--signal);"></i>Bestellung</span>
         <span><i style="width:10px;height:10px;border-radius:50%;background:var(--route);"></i>Fahrer</span>
+        <span id="trLeg"><span class="tbar"><i style="background:#2fa35a"></i><i style="background:#f0a30a"></i><i style="background:#e0402a"></i><i style="background:#8b1a1a"></i></span>Verkehr</span>
         <button type="button" id="heatBtn" aria-pressed="false" title="Nachfrage-Karte (H)">Nachfrage</button>
       </div>
       <div class="mapctl">
@@ -565,7 +567,20 @@ function startGame(DATA, MODEKEY) {
   const seur = v => (v >= 0 ? '+' : '−') + nf(2).format(Math.abs(v)) + ' €';
   const fmtDist = m => m < 1000 ? Math.round(m).toLocaleString('de-DE') + ' m' : nf(2).format(m / 1000) + ' km';
   const fmtMin = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-  const START = 10.5 * 3600;
+  let START = 0;
+  // Sekunden seit Freitag 00:00 (Wochentag-Index 0 = Fr) in der Ortszeit der Stadt
+  function localSecs() {
+    const now = new Date();
+    try {
+      const f = new Intl.DateTimeFormat('en-US', { timeZone: DATA.tz, weekday: 'short', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' }), p = {};
+      for (const x of f.formatToParts(now)) p[x.type] = x.value;
+      const wd = { Fri: 0, Sat: 1, Sun: 2, Mon: 3, Tue: 4, Wed: 5, Thu: 6 }[p.weekday];
+      if (wd !== undefined) return wd * 86400 + (+p.hour) * 3600 + (+p.minute) * 60 + (+p.second);
+    } catch (e) {}
+    const u = now.getTime() / 1000 + Math.round(DATA.ref.lon / 15 * 3600); // ohne Zeitzone: Sonnenzeit
+    return ((6 + Math.floor(u / 86400)) % 7) * 86400 + ((u % 86400) + 86400) % 86400;
+  }
+  const realign = () => { START = localSecs() - simClock; };
   const fmtClock = s => { s = Math.floor(s) + START; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, c = s % 60; return [h, m, c].map(v => String(v).padStart(2, '0')).join(':'); };
   const setText = (el, t) => { if (el._t !== t) { el.textContent = t; el._t = t; } };
 
@@ -803,7 +818,7 @@ function startGame(DATA, MODEKEY) {
     const s = cam.s, ox = cw / 2 - cam.x * s, oy = ch / 2 - cam.y * s;
     for (let i = 0; i < N; i++) { sx[i] = nx[i] * s + ox; sy[i] = ny[i] * s + oy; }
     ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
-    ctx.save(); zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawLabels(); ctx.restore();
+    ctx.save(); zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawTraffic(); drawLabels(); ctx.restore();
     drawZoneOutline(); drawHeat();
     // Vorschau einer möglichen Zuweisung
     const pv = sel.preview !== null ? plans[sel.preview] : null;
@@ -834,10 +849,22 @@ function startGame(DATA, MODEKEY) {
     [.05, .02, .02, .02, .02, .1, .4, .8, 1.2, 1.4, 1.4, 1.4, 1.4, 1.3, 1.3, 1.5, 1.9, 2.2, 2, 1.6, 1, .4, .1, .05]
   ];
   function typeW(type, h) { const a = TYPEW[type] || TYPEW[0], i = Math.floor(h) % 24, f = h - Math.floor(h); return a[i] * (1 - f) + a[(i + 1) % 24] * f; }
-  function trafficBase() {
-    const h = hourNow(); let t = 1;
-    if ((h >= 7 && h < 9.5) || (h >= 16 && h < 19)) t = .65; else if (h >= 9.5 && h < 11.5) t = .9; else if (h >= 11.5 && h < 13.5) t = .85;
-    return weekend() ? 1 - (1 - t) * .5 : t;
+  // Verkehrslast nach deutschem Muster: werktags Spitzen morgens und nachmittags, freitags früher Feierabendverkehr,
+  // samstags Einkaufsverkehr, sonntags wenig. bias: morgens Richtung Zentrum, abends aus dem Zentrum.
+  const RUSH = {
+    wk: [[0, .03], [5, .05], [6, .2], [7, .65], [7.75, 1], [8.5, .95], [9.5, .55], [10.5, .4], [12, .5], [13, .45], [15, .5], [16, .8], [16.75, 1], [17.75, 1], [18.75, .7], [20, .3], [22, .1], [24, .03]],
+    fr: [[0, .03], [5, .05], [6, .2], [7, .6], [7.75, .9], [8.5, .85], [9.5, .5], [10.5, .4], [12, .5], [13, .5], [14, .65], [15, .9], [16, 1], [17.5, 1], [18.5, .65], [20, .3], [22, .12], [24, .04]],
+    sa: [[0, .05], [8, .1], [10, .4], [11.5, .6], [13, .6], [15, .45], [17, .3], [19, .2], [22, .15], [24, .05]],
+    so: [[0, .04], [10, .12], [13, .2], [16, .25], [18, .3], [19, .2], [22, .08], [24, .04]]
+  };
+  const WTRF = { clear: 1, cloud: 1, rain: 1.12, storm: 1.2, snow: 1.3 };
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function rushProfile() {
+    const h = hourNow(), di = dayIdx(), tab = di === 0 ? RUSH.fr : di === 1 ? RUSH.sa : di === 2 ? RUSH.so : RUSH.wk;
+    let load = 0; for (let i = 1; i < tab.length; i++) if (h <= tab[i][0]) { const a = tab[i - 1], b = tab[i]; load = a[1] + (b[1] - a[1]) * (h - a[0]) / (b[0] - a[0]); break; }
+    if (di === 3 && h < 10) load = Math.min(1.1, load * 1.08);
+    const bias = di === 1 || di === 2 ? 0 : 0.6 * (smooth(6, 7, h) - smooth(9, 10, h)) - 0.6 * (smooth(15, 16, h) - smooth(18.5, 19.5, h));
+    return { load: Math.min(1.2, load * WTRF[wx]), bias };
   }
   const WX = {
     clear: { n: 'Klar', bike: 1, car: 1, dem: 1, risk: 1 },
@@ -860,7 +887,6 @@ function startGame(DATA, MODEKEY) {
   let events = [], nextEv = (2.5 + Math.random() * 2.5) * 3600;
   const ev = id => events.some(e => e.id === id);
   const EVDEF = [
-    { id: 'jam', name: 'Stau und Baustellen', dur: 90 * 60, w: 3, text: 'Motorisierte Fahrzeuge fahren 25 % langsamer' },
     { id: 'fest', name: 'Straßenfest', dur: 150 * 60, w: 2, text: '40 % mehr Bestellungen' },
     { id: 'cater', name: 'Großbestellung', dur: 0, w: 2 },
     { id: 'sick', name: 'Krankmeldung', dur: 120 * 60, w: 2 }
@@ -868,7 +894,7 @@ function startGame(DATA, MODEKEY) {
   function triggerEvent() {
     let r = Math.random() * EVDEF.reduce((a, e) => a + e.w, 0), def = EVDEF[0];
     for (const e of EVDEF) { r -= e.w; if (r <= 0) { def = e; break; } }
-    if (def.id === 'jam' || def.id === 'fest') {
+    if (def.id === 'fest') {
       if (ev(def.id)) return;
       events.push({ id: def.id, left: def.dur, name: def.name }); log('Ereignis: ' + def.name + '. ' + def.text, true); plansDirty = true;
     } else if (def.id === 'cater') {
@@ -910,6 +936,109 @@ function startGame(DATA, MODEKEY) {
     ctx.restore();
   }
 
+  // ---------- Verkehr auf der Karte ----------
+  const traffic = { avg: 0, load: 0, t: -1e9, plan: -1e9, extra: null, buckets: [[], [], [], []] };
+  let tevents = [], teSeq = 1, showTraffic = true;
+  try { showTraffic = localStorage.getItem('lm-traf') !== '0'; } catch (e) {}
+  const TCOL = ['#2fa35a', '#f0a30a', '#e0402a', '#8b1a1a'];
+  const TEV = {
+    jam: { name: 'Stau', min: 45, max: 90, peak: 0.8, r: 320, up: 480, down: 720 },
+    crash: { name: 'Unfall', min: 30, max: 60, peak: 1, r: 260, up: 120, down: 600 },
+    works: { name: 'Baustelle', min: 180, max: 480, peak: 0.55, r: 180, up: 60, down: 60 }
+  };
+  function evFactor(e) {
+    const tau = simClock - e.t0; if (tau < 0 || tau >= e.dur) return 0;
+    return tau < e.up ? tau / e.up : tau > e.dur - e.down ? (e.dur - tau) / e.down : 1;
+  }
+  function addEventLoad(e, extra) {
+    const f = evFactor(e) * e.peak; if (f <= 0) return;
+    const r = e.r, EN = E.EN, eA = E.eA, eB = E.eB, eC = E.eC, mx = E.eMidX, my = E.eMidY;
+    for (let id = 0; id < EN; id++) {
+      const dx = mx[id] - e.x, dy = my[id] - e.y; if (dx > r || dx < -r || dy > r || dy < -r) continue;
+      const d = Math.hypot(dx, dy); if (d >= r) continue;
+      const c = eC[id]; if (c > 4) continue;
+      const toward = (nx[eB[id]] - nx[eA[id]]) * (e.x - mx[id]) + (ny[eB[id]] - ny[eA[id]]) * (e.y - my[id]) > 0;
+      extra[id] += f * (1 - d / r) * (toward ? 1 : 0.25) * (c <= 2 ? 1 : c === 3 ? 0.7 : 0.35);
+    }
+  }
+  function refreshTraffic(force) {
+    if (!force && simClock - traffic.t < 60) return;
+    traffic.t = simClock;
+    const rp = rushProfile(); let extra = null;
+    if (tevents.length) { extra = traffic.extra || (traffic.extra = new Float32Array(E.EN)); extra.fill(0); for (const e of tevents) addEventLoad(e, extra); }
+    traffic.avg = E.updateTraffic(rp.load, rp.bias, extra); traffic.load = rp.load;
+    const B = traffic.buckets; for (const b of B) b.length = 0;
+    for (let id = 0; id < E.EN; id++) {
+      const c = E.eC[id]; if (c > 4) continue; const v = E.cong[id], k = v < 0.25 ? 0 : v < 0.5 ? 1 : v < 0.75 ? 2 : 3;
+      if (k === 0 && c > 2) continue; if (c === 4 && v < 0.3) continue; B[k].push(id);
+    }
+    if (force || simClock - traffic.plan > 300) { traffic.plan = simClock; plansDirty = true; }
+    dirty = true;
+  }
+  function drawTraffic() {
+    if (!showTraffic || cam.s < 0.1) return;
+    const s = cam.s; ctx.save(); ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const list = traffic.buckets[k]; if (!list.length) continue;
+      ctx.beginPath(); ctx.strokeStyle = TCOL[k]; ctx.lineWidth = Math.max(1.6, Math.min(4.5, 16 * s * 0.22));
+      for (const id of list) {
+        const a = E.eA[id], b = E.eB[id], ax = sx[a], ay = sy[a], bx = sx[b], by = sy[b];
+        if ((ax < 0 && bx < 0) || (ay < 0 && by < 0) || (ax > cw && bx > cw) || (ay > ch && by > ch)) continue;
+        const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1, off = Math.max(1.8, Math.min(5, W[E.eC[id]] * s * 0.22));
+        const ox = -dy / L * off, oy = dx / L * off; ctx.moveTo(ax + ox, ay + oy); ctx.lineTo(bx + ox, by + oy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function pickHotEdge(minC, maxC) {
+    let tot = 0; const w = new Float32Array(E.EN);
+    for (let id = 0; id < E.EN; id++) {
+      const c = E.eC[id]; if (c < minC || c > maxC) continue;
+      w[id] = E.eBase[id] * (inZone(E.eMidX[id], E.eMidY[id]) ? 1 : 0.15); tot += w[id];
+    }
+    if (tot <= 0) return -1;
+    let r = Math.random() * tot; for (let id = 0; id < E.EN; id++) { r -= w[id]; if (r <= 0 && w[id] > 0) return id; }
+    return -1;
+  }
+  function spawnTrafficEvent(kind) {
+    const def = TEV[kind], id = pickHotEdge(0, kind === 'works' ? 3 : 2); if (id < 0) return null;
+    const e = { id: teSeq++, kind, x: E.eMidX[id], y: E.eMidY[id], r: def.r, peak: def.peak, t0: simClock, dur: (def.min + Math.random() * (def.max - def.min)) * 60, up: def.up, down: def.down,
+      street: E.nodeName[E.eA[id]] || E.nodeName[E.eB[id]] || 'einer Hauptstraße' };
+    tevents.push(e); refreshTraffic(true);
+    log('Ereignis: ' + def.name + ' auf ' + e.street, true); toast(def.name, e.street); if (kind !== 'works') sfx('bad');
+    return e;
+  }
+  function tickTraffic(adv) {
+    if (tevents.some(e => simClock - e.t0 >= e.dur)) { for (const e of tevents) if (simClock - e.t0 >= e.dur) log('Ende: ' + TEV[e.kind].name + ' auf ' + e.street); tevents = tevents.filter(e => simClock - e.t0 < e.dur); refreshTraffic(true); }
+    const rp = rushProfile(), h = hourNow(), wk = dayIdx() >= 3 || dayIdx() === 0, cnt = k => tevents.filter(e => e.kind === k).length;
+    const rate = {
+      jam: 1 / (2.2 * 3600) * (0.15 + 1.6 * rp.load) * Math.sqrt(WX[wx].risk) * MODE.risk,
+      crash: 1 / (5 * 3600) * (0.3 + 1.2 * rp.load) * WX[wx].risk * MODE.risk,
+      works: wk && h >= 6 && h < 10 ? 1 / (6 * 3600) * MODE.risk : 0
+    }, cap = { jam: 2, crash: 1, works: 2 };
+    for (const k in rate) if (cnt(k) < cap[k] && Math.random() < 1 - Math.exp(-rate[k] * adv)) spawnTrafficEvent(k);
+  }
+  const lastRe = { t: 0 };
+  function rerouteAll() {
+    const q = avoidQ(); if (q <= 0 || simClock - lastRe.t < 45) return; lastRe.t = simClock;
+    for (const d of drivers) {
+      if (d.stall) continue;
+      if (d.trip && d.st && (d.st.phase === 0 || d.st.phase === 2)) {
+        const tr = d.trip, li = d.st.leg, tl = li === 0 ? tr.t : tr.t - tr.T1 - tr.D1, r = E.reroute(d.veh, tr.legs[li], tl, q, speedMult(d));
+        if (r && r.gain > Math.max(25, 0.1 * r.cur)) {
+          tr.legs[li] = r.leg; if (li === 0) tr.T1 = r.leg.time; else tr.T2 = r.leg.time;
+          tr.total = tr.T1 + tr.D1 + tr.T2 + tr.D2; tr.len = tr.legs[0].len + tr.legs[1].len; plansDirty = true;
+          if (r.gain > 60) log('Fahrer ' + d.id + ' weicht dem Verkehr aus und spart etwa ' + fmtMin(r.gain) + ' min');
+        }
+      } else if (d.ret) {
+        const r = E.reroute(d.veh, d.ret.leg, d.ret.t, q, speedMult(d));
+        if (r && r.gain > Math.max(25, 0.1 * r.cur)) d.ret.leg = r.leg;
+      }
+    }
+  }
+  const pace = (leg, i, d) => leg.eid ? Math.min(2, Math.max(0.15, E.trafficMul(d.veh, leg.eid[i]) / leg.mp[i])) : 1;
+
   // ---------- Fahrer ----------
   function driverPos(d) {
     if (d.trip && d.st) return { x: d.st.s.x, y: d.st.s.y, hd: d.st.s.hd, moving: d.st.s.sp > 0 && !d.stall };
@@ -942,7 +1071,7 @@ function startGame(DATA, MODEKEY) {
     });
     if (best < 0) best = d.hub; d.hub = best;
     const to = nodeFor(hubs[best], d.veh); if (to === d.node) return;
-    const leg = E.returnLeg(d.veh, d.node, to);
+    const leg = E.returnLeg(d.veh, d.node, to, avoidQ());
     if (leg) d.ret = { leg: tuneLeg(leg, d), t: 0, to };
   }
 
@@ -981,11 +1110,8 @@ function startGame(DATA, MODEKEY) {
   const isFree = d => !d.trip && !d.train && !d.sick;
   const cap = () => CFG.hubCaps[hubLevel] * hubs.length;
   const levelMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && owned.motor ? 1.15 : 1);
-  function envMult(d) {
-    const car = d.veh !== 'bike', tb = trafficBase();
-    let m = car ? WX[wx].car : WX[wx].bike; m *= car ? tb : 1 - (1 - tb) * 0.2;
-    if (car && ev('jam')) m *= 0.75; return m;
-  }
+  const envMult = d => d.veh !== 'bike' ? WX[wx].car : WX[wx].bike; // nur Wetter, der Verkehr wirkt je Straße
+  const avoidQ = () => owned.nav3 ? 0.9 : owned.nav2 ? 0.7 : owned.nav1 ? 0.4 : 0;
   const speedMult = d => levelMult(d) * envMult(d);
   const tipMax = () => (owned.boxes ? 0.4 : CFG.tipMax) * MODE.tip;
   const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
@@ -1001,7 +1127,7 @@ function startGame(DATA, MODEKEY) {
     plan.total = plan.T1 + plan.D1 + plan.T2 + plan.D2;
     return plan;
   }
-  const planFor = (d, o) => tune(E.planTrip(d.veh, curNode(d), o.pick.i, o.home.i), d);
+  const planFor = (d, o) => tune(E.planTrip(d.veh, curNode(d), o.pick.i, o.home.i, avoidQ()), d);
 
   // ---------- Pläne für die Zuweisung ----------
   function ensurePlans() {
@@ -1261,7 +1387,7 @@ function startGame(DATA, MODEKEY) {
     setText($('cash'), eur(cash)); $('cash').classList.toggle('neg', cash < 0);
     setText($('wday'), DAYS[dayIdx()]);
     setText($('sWx'), WX[wx].n + ' · ' + Math.round(temp()) + ' °C');
-    const tb = trafficBase(); setText($('sTr'), tb < 0.75 ? 'Stau' : tb < 0.95 ? 'dicht' : 'frei');
+    setText($('sTr'), (traffic.avg < 0.15 ? 'frei' : traffic.avg < 0.28 ? 'zähfließend' : traffic.avg < 0.42 ? 'dicht' : 'Stau') + (traffic.load > 0.75 ? ' · Rushhour' : ''));
     setText($('sDay'), Math.round(dayDemand() * 100) + ' %');
     setText($('sEl'), E.elevRange ? Math.round(E.elevRange.max - E.elevRange.min) + ' m Höhenunterschied' : 'keine Höhendaten');
     const sickN = drivers.filter(d => d.sick).length;
@@ -1309,7 +1435,7 @@ function startGame(DATA, MODEKEY) {
     setText($('winT'), 'Fahrer ' + d.id + ' · ' + driverLabel(d));
     const r = dRefs.get(d.id); if (r) { $('dwPill').className = r.pill.className; setText($('dwPill'), r.pill.textContent); setText($('dwLine'), r.line.textContent); }
     setText($('dwVeh'), driverLabel(d)); setText($('dwHub'), 'Hub ' + (d.hub + 1)); setText($('dwLvl'), d.lvl + ' von 5');
-    setText($('dwSpd'), '+' + Math.round((levelMult(d) - 1) * 100) + ' % (Stufe, Ausbau), jetzt ' + Math.round((envMult(d) - 1) * 100) + ' % (Wetter, Verkehr)'); setText($('dwDone'), String(d.done)); setText($('dwWage'), eur(wageOf(d)) + ' pro Stunde');
+    setText($('dwSpd'), '+' + Math.round((levelMult(d) - 1) * 100) + ' % (Stufe, Ausbau), jetzt ' + Math.round((envMult(d) - 1) * 100) + ' % durch das Wetter'); setText($('dwDone'), String(d.done)); setText($('dwWage'), eur(wageOf(d)) + ' pro Stunde');
     const nextN = d.lvl < 5 ? CFG.xpNeed[d.lvl] : null, prevN = CFG.xpNeed[d.lvl - 1];
     $('dwXpBar').style.width = (nextN ? Math.min(100, (d.done - prevN) / (nextN - prevN) * 100) : 100) + '%';
     setText($('dwXp'), nextN ? 'Erfahrung: nächste Stufe nach ' + nextN + ' Lieferungen, oder durch eine Schulung.' : 'Höchste Stufe erreicht.');
@@ -1516,6 +1642,7 @@ function startGame(DATA, MODEKEY) {
     else if (k === 'ArrowUp') { e.preventDefault(); cycleOrder(-1); }
     else if (k === 'f' || k === 'F') fit();
     else if (k === 'h' || k === 'H') $('heatBtn').click();
+    else if (k === 't' || k === 'T') setTraffic(!showTraffic);
     else if (k === '+' || k === '=') zoomAt(cw / 2, ch / 2, 1.3);
     else if (k === '-' || k === '_') zoomAt(cw / 2, ch / 2, 1 / 1.3);
     else if (k === ' ' && tag !== 'BUTTON') { e.preventDefault(); togglePause(); }
@@ -1528,8 +1655,12 @@ function startGame(DATA, MODEKEY) {
     if (!paused) {
       const adv = dt * speed;
       simClock += adv;
-      for (const d of drivers) { if (d.trip && !d.stall) d.trip.t += adv; if (d.ret) d.ret.t += adv; if (d.train && d.train.state === 'active') d.train.t += adv; }
-      updateDrivers(); tickWorld(adv);
+      for (const d of drivers) {
+        if (d.trip && !d.stall) { const st = d.st; let k = 1; if (st && (st.phase === 0 || st.phase === 2)) k = pace(d.trip.legs[st.leg], st.s.i, d); d.trip.t += adv * k; d.trip.delay = (d.trip.delay || 0) + adv * (1 - k); }
+        if (d.ret) { const sm = E.sample(d.ret.leg, d.ret.t); d.ret.t += adv * pace(d.ret.leg, sm.i, d); }
+        if (d.train && d.train.state === 'active') d.train.t += adv;
+      }
+      updateDrivers(); tickWorld(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
       let w = 0; for (const d of drivers) w += wageOf(d); w = w * adv / 3600; cash -= w; stats.wage += w;
       expireOrders();
       if (simClock - lastSpawnT >= CFG.spawnMin && openOrders().length < CFG.maxOpen && Math.random() < 1 - Math.exp(-adv * demand() / CFG.spawnMean)) { spawnOrder(); lastSpawnT = simClock; }
@@ -1650,6 +1781,7 @@ function startGame(DATA, MODEKEY) {
     openDlg('Menü', b => {
       const btn = (text, fn) => { const x = mk('button', 'btn', text); x.type = 'button'; x.onclick = fn; b.appendChild(x); return x; };
       const snd = btn('Ton: ' + (sndOn ? 'an' : 'aus'), () => { sndOn = !sndOn; try { localStorage.setItem('lm-snd', sndOn ? '1' : '0'); } catch (e) {} snd.textContent = 'Ton: ' + (sndOn ? 'an' : 'aus'); if (sndOn) sfx('done'); });
+      const trf = btn('Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'), () => { setTraffic(!showTraffic); trf.textContent = 'Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'); });
       btn('Erfolge (' + ACH.filter(a => prog.ach[a.id]).length + ' von ' + ACH.length + ')', () => { closeDlg(); openAch(); });
       btn('Tutorial', () => { closeDlg(); openTutorial(); });
       btn('Jetzt speichern', () => { toast(saveNow(true) ? 'Gespeichert' : 'Speichern nicht möglich', saveNow.ok ? '' : 'Der Browser erlaubt keinen Speicher.'); });
@@ -1662,6 +1794,7 @@ function startGame(DATA, MODEKEY) {
       b.appendChild(mk('p', null, 'Gespeichert wird automatisch alle paar Sekunden und beim Verlassen der Seite.'));
     });
   }
+  function setTraffic(on) { showTraffic = on; try { localStorage.setItem('lm-traf', on ? '1' : '0'); } catch (e) {} $('trLeg').hidden = !on; dirty = true; }
   $('menuBtn').onclick = openMenu;
 
   // ---------- Handy: Ansichten ----------
@@ -1684,7 +1817,7 @@ function startGame(DATA, MODEKEY) {
       simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners],
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
       orderSeq, lastSpawnT, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
-      wx, wxLeft, events: events.map(e => Object.assign({}, e)), nextEv, selDriver: sel.driver,
+      wx, wxLeft, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, nextEv, selDriver: sel.driver,
       orders: orders.filter(o => o.state === 'open' || o.state === 'assigned').map(o => ({ id: o.id, pi: o.pick.i, hi: o.home.i, createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: o.picked, partner: o.partner, big: o.big })),
       drivers: drivers.map(d => ({
         id: d.id, veh: d.veh, hub: d.hub, node: curNode(d), lvl: d.lvl, done: d.done,
@@ -1704,12 +1837,12 @@ function startGame(DATA, MODEKEY) {
   function applySave(sv) {
     try {
       if (!sv || sv.v !== 1 || sv.N !== N || sv.np !== pois.length || sv.nh !== homes.length || !sv.drivers.length) return false;
-      simClock = sv.simClock; cash = sv.cash; rep = sv.rep; hubLevel = sv.hubLevel; autoOn = !!sv.autoOn; zoneLevel = sv.zoneLevel;
+      simClock = sv.simClock; realign(); cash = sv.cash; rep = sv.rep; hubLevel = sv.hubLevel; autoOn = !!sv.autoOn; zoneLevel = sv.zoneLevel;
       for (const k in owned) delete owned[k]; Object.assign(owned, sv.owned);
       partners.clear(); sv.partners.forEach(i => partners.add(i));
       hubs.length = 0; sv.hubs.forEach(h => hubs.push({ x: h.x, y: h.y, n: { bike: h.nb, car: h.nc } }));
       orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
-      wx = sv.wx; wxLeft = sv.wxLeft; events = sv.events; nextEv = sv.nextEv;
+      wx = sv.wx; wxLeft = sv.wxLeft; events = sv.events; nextEv = sv.nextEv; tevents = sv.tevents || []; teSeq = sv.teSeq || 1; refreshTraffic(true);
       rezone();
       orders = sv.orders.map(o => { const q = Object.assign({}, o, { pick: pois[o.pi], home: homes[o.hi] }); delete q.pi; delete q.hi; return q; });
       drivers = [];
@@ -1741,9 +1874,10 @@ function startGame(DATA, MODEKEY) {
     if (!(away >= 180)) return null;
     const eff = Math.min(away, 4 * 3600), hours = eff / 3600, rpt = { away, eff, worked: false, n: 0, net: 0, wages: 0 };
     if (owned.dispatch && autoOn && drivers.length) {
-      const t0 = simClock; let exp = 0;
+      const t0 = simClock, st0 = START; let exp = 0;
+      START = localSecs() - eff - t0;
       for (let t = 0; t < eff; t += 600) { simClock = t0 + t; exp += Math.min(600, eff - t) * demand() / CFG.spawnMean; }
-      simClock = t0;
+      simClock = t0; START = st0;
       const capH = drivers.reduce((a, d) => a + 3600 / ({ bike: 780, scooter: 600, van: 660 }[d.veh] || 780) * levelMult(d), 0);
       const n = Math.floor(Math.min(exp, capH * hours * 0.75));
       const av = stats.n > 0 ? { pay: stats.pay / stats.n, tip: stats.tip / stats.n, cost: stats.cost / stats.n } : { pay: 9 * MODE.pay, tip: 0.6, cost: 0.2 };
@@ -1757,7 +1891,7 @@ function startGame(DATA, MODEKEY) {
     for (const o of orders) if (o.state === 'assigned') o.createdAt += eff;
     orders = orders.filter(o => o.state !== 'open');
     for (const d of drivers) { d.sick = null; d.stall = null; }
-    events = []; nextEv = (1 + Math.random() * 2) * 3600; nextWeather(); plansDirty = orderStructDirty = driverStructDirty = true;
+    events = []; tevents = []; nextEv = (1 + Math.random() * 2) * 3600; nextWeather(); plansDirty = orderStructDirty = driverStructDirty = true;
     return rpt;
   }
   function showWelcome(r) {
@@ -1780,7 +1914,7 @@ function startGame(DATA, MODEKEY) {
   new MutationObserver(() => { dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { textW.clear(); dirty = true; });
 
-  rezone();
+  rezone(); realign(); refreshTraffic(true);
   const saved = readSave();
   let welcome = null;
   if (saved && applySave(saved)) welcome = offlineProgress(saved);
@@ -1789,6 +1923,7 @@ function startGame(DATA, MODEKEY) {
     log('Hub bereit, Fahrer 1 (Fahrrad) wartet auf Aufträge');
     for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
   }
+  realign(); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
   resize();
   requestAnimationFrame(frame);
   setInterval(() => saveNow(false), 15000);

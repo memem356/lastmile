@@ -51,7 +51,8 @@
         data = await LM.loadCity(place, (step, text) => status(place.name + ': ' + text + ' … (beim ersten Mal bis zu einer Minute, danach ist die Stadt gespeichert)', step === 1 ? 25 : step === 2 ? 60 : 82));
         LM.saveCity(place, data);
       }
-      status(place.name + ': Straßennetz und Routen werden berechnet …', 90);
+      if (!data.tz && data.ref) { const tz = await LM.fetchTz(data.ref.lat, data.ref.lon); if (tz) { data.tz = tz; LM.saveCity(place, data); } }
+            status(place.name + ': Straßennetz und Routen werden berechnet …', 90);
       await new Promise(r => setTimeout(r, 40));
       launch(data);
     } catch (e) {

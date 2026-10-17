@@ -150,6 +150,14 @@ const LM = (function () {
     return { n, b: [b.s, b.w, b.n, b.e], z };
   }
 
+  // Zeitzone der Stadt (IANA-Name), damit das Spiel mit der echten Ortszeit startet
+  async function fetchTz(lat, lon) {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(3) + '&longitude=' + lon.toFixed(3) + '&current=temperature_2m&timezone=auto';
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 4000);
+    try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw 0; const j = await r.json(); return typeof j.timezone === 'string' ? j.timezone : null; }
+    catch (e) { return null; } finally { clearTimeout(to); }
+  }
+
   // ---------- Stadt laden ----------
   async function loadCity(place, progress) {
     const say = (step, text) => progress && progress(step, text);
@@ -167,10 +175,11 @@ const LM = (function () {
       if (pois.length >= 6 && homes.length >= 20 && roads.w.length >= 80) {
         say(3, 'Höhenprofil wird geladen');
         let elev = null; try { elev = await fetchElevation(b); } catch (e) { elev = null; }
+        const tz = await fetchTz(place.lat, place.lon);
         return {
           v: FORMAT, name: place.name, sub: place.sub,
           ref: { lat: place.lat, lon: place.lon }, hub: { lat: place.lat, lon: place.lon },
-          bbox: [b.s, b.w, b.n, b.e], roads, pois, homes, radius: R, elev
+          bbox: [b.s, b.w, b.n, b.e], roads, pois, homes, radius: R, elev, tz
         };
       }
     }
@@ -205,5 +214,5 @@ const LM = (function () {
     .sort((a, b) => b.savedAt - a.savedAt).map(r => ({ name: r.data.name, sub: r.data.sub, lat: r.data.ref.lat, lon: r.data.ref.lon, savedAt: r.savedAt }));
   const removeCached = place => tx('readwrite', s => s.delete(idOf(place)));
 
-  return { search, loadCity, saveCity, getCached, listCached, removeCached };
+  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz };
 })();

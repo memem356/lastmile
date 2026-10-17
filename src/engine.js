@@ -40,6 +40,10 @@ function createEngine(D) {
   const inc = new Uint8Array(N);
   for (const w of ways) for (let k = 1; k < w.nodes.length; k++) { inc[w.nodes[k - 1]]++; inc[w.nodes[k]]++; }
 
+  // Hauptstraßen-Knoten: Kreuzungen großer Straßen sind die klassischen Engstellen
+  const majdeg = new Uint8Array(N);
+  for (const w of ways) if (w.c <= 2) for (const i of w.nodes) majdeg[i]++;
+
   const nodeName = new Array(N).fill('');
   for (const w of ways.filter(w => w.name).sort((a, b) => a.c - b.c))
     for (const i of w.nodes) if (!nodeName[i]) nodeName[i] = w.name;
@@ -94,6 +98,13 @@ function createEngine(D) {
     let m = 0; for (let c = 0; c < 8; c++) m = Math.max(m, v.sp(c)); v.vmax = m;
   }
 
+  // gerichtete Kanten mit fester Nummer (für Verkehrsstärke je Straßenabschnitt)
+  const eReg = new Map(), eA = [], eB = [], eC = [];
+  function edgeId(a, b, c) {
+    const k = a * N + b; let id = eReg.get(k);
+    if (id === undefined) { id = eA.length; eReg.set(k, id); eA.push(a); eB.push(b); eC.push(c); }
+    return id;
+  }
   function buildAdj(kind) {
     const adj = Array.from({ length: N }, () => []);
     for (const w of ways) {
@@ -104,8 +115,8 @@ function createEngine(D) {
         const a = w.nodes[k - 1], b = w.nodes[k]; if (a === b) continue;
         const len = Math.hypot(nx[b] - nx[a], ny[b] - ny[a]);
         const g = Math.max(-0.15, Math.min(0.15, (nz[b] - nz[a]) / Math.max(len, 8)));
-        adj[a].push({ to: b, len, c: w.c, g });
-        if (!oneway) adj[b].push({ to: a, len, c: w.c, g: -g });
+        adj[a].push({ to: b, len, c: w.c, g, id: edgeId(a, b, w.c) });
+        if (!oneway) adj[b].push({ to: a, len, c: w.c, g: -g, id: edgeId(b, a, w.c) });
       }
     }
     return adj;
@@ -149,6 +160,34 @@ function createEngine(D) {
     nets[kind] = { adj, ok: scc.ok, size: scc.size, depot: nearest(HUB.x, HUB.y, scc.ok) };
   }
 
+  // ---- Verkehr: Stärke je Kante (0 frei bis 1 Stau), abhängig von Straßenart, Lage und Richtung ----
+  const EN = eA.length;
+  const eDir = new Int8Array(EN), eBase = new Float32Array(EN), eMidX = new Float32Array(EN), eMidY = new Float32Array(EN);
+  const cong = new Float32Array(EN), mulCar = new Float32Array(EN).fill(1), mulBike = new Float32Array(EN).fill(1);
+  const LOAD_C = [1, 0.95, 0.8, 0.45, 0.12, 0.03, 0, 0];
+  for (let id = 0; id < EN; id++) {
+    const a = eA[id], b = eB[id], c = eC[id], len = Math.max(5, Math.hypot(nx[b] - nx[a], ny[b] - ny[a]));
+    const mx = (nx[a] + nx[b]) / 2, my = (ny[a] + ny[b]) / 2; eMidX[id] = mx; eMidY[id] = my;
+    const da = Math.hypot(nx[a] - HUB.x, ny[a] - HUB.y), db = Math.hypot(nx[b] - HUB.x, ny[b] - HUB.y), dd = (da - db) / len;
+    eDir[id] = dd > 0.3 ? 1 : dd < -0.3 ? -1 : 0; // 1: Richtung Zentrum
+    const central = 1.15 - 0.4 * Math.min(1, Math.hypot(mx - HUB.x, my - HUB.y) / 1200);
+    const hot = c <= 3 && ((inc[a] >= 3 && majdeg[a] >= 2) || (inc[b] >= 3 && majdeg[b] >= 2)) ? 1.15 : 1;
+    const f = Math.sin(id * 12.9898) * 43758.5453, noise = 0.85 + 0.3 * (f - Math.floor(f));
+    eBase[id] = LOAD_C[c] * central * hot * noise;
+  }
+  // load: Tageslast 0 bis 1, bias: +1 Richtung Zentrum (Morgen), -1 aus dem Zentrum (Abend), extra: Zuschlag durch Ereignisse
+  function updateTraffic(load, bias, extra) {
+    let sum = 0, cnt = 0;
+    for (let id = 0; id < EN; id++) {
+      let v = load * eBase[id] * (1 + 0.42 * bias * eDir[id]) * 0.45;
+      if (extra) v += extra[id];
+      if (v > 1) v = 1;
+      cong[id] = v; mulCar[id] = 1 - 0.75 * v; mulBike[id] = 1 - 0.2 * v;
+      if (eC[id] <= 2) { sum += v; cnt++; }
+    }
+    return cnt ? sum / cnt : 0;
+  }
+
   // ---- Routenberechnung (A*) ----
   class Heap {
     constructor() { this.k = []; this.v = []; }
@@ -174,7 +213,9 @@ function createEngine(D) {
     }
   }
 
-  function route(net, veh, s, t) {
+  // q: Anteil des Verkehrs, den der Fahrer bei der Routenwahl kennt (0 = ignoriert Stau, 1 = kennt alles)
+  function route(net, veh, s, t, q) {
+    const tm = veh.net === 'bike' ? mulBike : mulCar; q = q || 0;
     const adj = net.adj, g = new Float64Array(N).fill(Infinity), pe = new Array(N).fill(null), done = new Uint8Array(N);
     const hv = veh.vmax * 1.4 / 3.6;
     const h = i => Math.hypot(nx[i] - nx[t], ny[i] - ny[t]) / hv;
@@ -183,7 +224,7 @@ function createEngine(D) {
       const v = hp.pop(); if (done[v]) continue; done[v] = 1; if (v === t) break;
       for (const e of adj[v]) {
         const u = e.to; if (done[u]) continue;
-        const dt = e.len / (veh.sp(e.c) * veh.slope(e.g) / 3.6) + (inc[u] >= 3 ? veh.stop : 0);
+        const dt = e.len / (veh.sp(e.c) * veh.slope(e.g) * (1 - (1 - tm[e.id]) * q) / 3.6) + (inc[u] >= 3 ? veh.stop : 0);
         const ng = g[v] + dt;
         if (ng < g[u]) { g[u] = ng; pe[u] = { from: v, e, dt }; hp.push(ng + h(u), u); }
       }
@@ -195,26 +236,29 @@ function createEngine(D) {
     return { nodes, segs, time: g[t] };
   }
 
-  function buildLeg(r) {
-    const xs = [nx[r.nodes[0]]], ys = [ny[r.nodes[0]]], tt = [0], dd = [0], sp = [];
+  // Zeiten mit dem tatsächlichen Verkehr; eid und mp merken die Kante und die damals gültige Verkehrsbremse
+  function buildLeg(r, veh) {
+    const tm = veh.net === 'bike' ? mulBike : mulCar;
+    const xs = [nx[r.nodes[0]]], ys = [ny[r.nodes[0]]], tt = [0], dd = [0], sp = [], eid = [], mp = [];
     for (let i = 0; i < r.segs.length; i++) {
-      const s = r.segs[i], b = r.nodes[i + 1];
+      const s = r.segs[i], b = r.nodes[i + 1], e = s.e, m = tm[e.id];
+      const dt = e.len / (veh.sp(e.c) * veh.slope(e.g) * m / 3.6) + (inc[b] >= 3 ? veh.stop : 0);
       xs.push(nx[b]); ys.push(ny[b]);
-      tt.push(tt[i] + s.dt); dd.push(dd[i] + s.e.len);
-      sp.push(s.e.len / s.dt * 3.6);
+      tt.push(tt[i] + dt); dd.push(dd[i] + e.len);
+      sp.push(e.len / dt * 3.6); eid.push(e.id); mp.push(m);
     }
-    return { xs, ys, t: tt, d: dd, sp, len: dd[dd.length - 1], time: tt[tt.length - 1], nodes: r.nodes };
+    return { xs, ys, t: tt, d: dd, sp, eid, mp, len: dd[dd.length - 1], time: tt[tt.length - 1], nodes: r.nodes };
   }
 
   // Fahrt ab beliebigem Startknoten: Anfahrt zum Abholort, Abholung, Lieferung, Übergabe
-  function planTrip(vehKey, startNode, pickIdx, homeIdx) {
+  function planTrip(vehKey, startNode, pickIdx, homeIdx, q) {
     const veh = VEHICLES[vehKey], net = nets[veh.net];
     const p = pois[pickIdx], h = homes[homeIdx];
     const s = startNode == null ? net.depot : startNode;
     const a = nearest(p.x, p.y, net.ok), b = nearest(h.x, h.y, net.ok);
-    const r1 = route(net, veh, s, a), r2 = route(net, veh, a, b);
+    const r1 = route(net, veh, s, a, q), r2 = route(net, veh, a, b, q);
     if (!r1 || !r2) return null;
-    const L1 = buildLeg(r1), L2 = buildLeg(r2), D1 = DWELL[p.type], D2 = 45;
+    const L1 = buildLeg(r1, veh), L2 = buildLeg(r2, veh), D1 = DWELL[p.type], D2 = 45;
     return {
       veh, pick: p, home: h, legs: [L1, L2],
       T1: L1.time, D1, T2: L2.time, D2,
@@ -225,13 +269,39 @@ function createEngine(D) {
   }
 
   // Leerfahrt (z. B. zurück zum Hub)
-  function returnLeg(vehKey, from, to) {
+  function returnLeg(vehKey, from, to, q) {
     const veh = VEHICLES[vehKey], net = nets[veh.net];
     if (from === to) return null;
-    const r = route(net, veh, from, to);
-    return r ? buildLeg(r) : null;
+    const r = route(net, veh, from, to, q);
+    return r ? buildLeg(r, veh) : null;
   }
   const hubNode = (vehKey, x, y) => nearest(x, y, nets[VEHICLES[vehKey].net].ok);
+
+  // Verkehrsbremse (0.25 bis 1) auf der Kante, auf der der Fahrer gerade ist
+  const trafficMul = (vehKey, eid) => (VEHICLES[vehKey].net === 'bike' ? mulBike : mulCar)[eid];
+  // Ausweichen unterwegs: neue Route ab dem nächsten Knoten, wenn sie bei aktuellem Verkehr schneller ist.
+  // scale: aktuelles Tempo-Verhältnis des Fahrers (Stufe, Wetter), damit die Zeiten zur gestreckten Fahrt passen.
+  function reroute(vehKey, leg, tNow, q, scale) {
+    if (!leg.eid) return null;
+    const veh = VEHICLES[vehKey], net = nets[veh.net], tm = veh.net === 'bike' ? mulBike : mulCar, sc = scale || 1;
+    const s = sample(leg, tNow), i = s.i, n = leg.nodes.length;
+    if (i + 1 >= n - 1) return null;
+    const from = leg.nodes[i + 1], target = leg.nodes[n - 1];
+    const here = (leg.t[i + 1] - tNow) * leg.mp[i] / tm[leg.eid[i]];
+    let cur = here;
+    for (let k = i + 1; k < leg.eid.length; k++) cur += (leg.t[k + 1] - leg.t[k]) * leg.mp[k] / tm[leg.eid[k]];
+    const r = route(net, veh, from, target, q); if (!r) return null;
+    const nl = buildLeg(r, veh), gain = cur - (here + nl.time / sc);
+    const m = i + 2, t0 = leg.t[i + 1], d0 = leg.d[i + 1];
+    const merged = {
+      xs: leg.xs.slice(0, m).concat(nl.xs.slice(1)), ys: leg.ys.slice(0, m).concat(nl.ys.slice(1)),
+      t: leg.t.slice(0, m).concat(nl.t.slice(1).map(v => t0 + v / sc)), d: leg.d.slice(0, m).concat(nl.d.slice(1).map(v => d0 + v)),
+      sp: leg.sp.slice(0, i + 1).concat(nl.sp.map(v => v * sc)), nodes: leg.nodes.slice(0, m).concat(nl.nodes.slice(1)),
+      eid: leg.eid.slice(0, i + 1).concat(nl.eid), mp: leg.mp.slice(0, i + 1).concat(nl.mp)
+    };
+    merged.len = merged.d[merged.d.length - 1]; merged.time = merged.t[merged.t.length - 1];
+    return { gain, cur, leg: merged };
+  }
 
   // Position auf einer Teilstrecke zum Zeitpunkt t (Sekunden)
   function sample(leg, t) {
@@ -264,6 +334,7 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode, elevRange, nz
+    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode, elevRange, nz,
+    EN, eA, eB, eC, eDir, eMidX, eMidY, eBase, cong, updateTraffic, trafficMul, reroute
   };
 }
