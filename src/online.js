@@ -44,7 +44,10 @@ const LMO = (function () {
     NO_PROFILE: 'Die Registrierung ist noch nicht abgeschlossen.',
     QUOTA: 'Der Server ist gerade überlastet. Bitte später noch einmal versuchen.',
     API_KEY: 'Der Zugangsschlüssel zu Firebase wird abgelehnt. Bitte melde das dem Betreiber.',
-    CLOCK: 'Die Serverzeit konnte nicht gelesen werden.'
+    CLOCK: 'Die Serverzeit konnte nicht gelesen werden.',
+    SUPERSEDED: 'Dein Unternehmen wird jetzt in einem anderen Tab oder auf einem anderen Gerät gespielt. Diese Sitzung wurde beendet, damit nichts doppelt gezählt wird.',
+    CORRUPT: 'Der gespeicherte Online-Stand ist beschädigt und wurde nicht verändert. Bitte melde das dem Betreiber.',
+    RULES_ONLINE: 'Die Datenbank ist noch nicht für den Online-Modus eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.'
   };
   class OErr extends Error {
     constructor(code, detail) { super(TEXT[code] || ('Unbekannter Fehler (' + code + ')')); this.code = code; this.detail = detail || ''; }
@@ -123,24 +126,35 @@ const LMO = (function () {
     const b = await baseUrl(), q = [];
     if (o.auth !== false) q.push('auth=' + encodeURIComponent(await fresh()));
     if (o.shallow) q.push('shallow=true');
-    const r = await http(b + '/' + path.split('/').map(encodeURIComponent).join('/') + '.json' + (q.length ? '?' + q.join('&') : ''), { method, body: body === undefined ? undefined : JSON.stringify(body) });
-    if (r.status === 401 || r.status === 403) throw oerr('PERMISSION_DENIED', (r.json && r.json.error) || '');
+    if (o.query) for (const k of Object.keys(o.query)) q.push(k + '=' + encodeURIComponent(o.query[k]));
+    const r = await http(b + '/' + path.split('/').map(encodeURIComponent).join('/') + '.json' + (q.length ? '?' + q.join('&') : ''), { method, body: body === undefined ? undefined : JSON.stringify(body), keepalive: !!o.keepalive });
+    if (r.status === 401 || r.status === 403) {
+      const msg = String((r.json && r.json.error) || '');
+      // Abgelaufener Zugangsschlüssel (z. B. nach langer Pause oder bei falsch gehender Uhr): einmal erneuern und wiederholen
+      if (/token/i.test(msg) && o.auth !== false && !o.retried && sess) { sess.exp = 0; return db(method, path, body, Object.assign({}, o, { retried: true })); }
+      throw oerr('PERMISSION_DENIED', msg);
+    }
     if (r.status === 429 || r.status === 503) throw oerr('QUOTA', r.text);
     if (!r.ok) throw oerr('DB_' + r.status, (r.json && r.json.error) || r.text);
     return r.json;
   }
   const SV = { '.sv': 'timestamp' };
 
-  // Serverzeit: ein Schreibzugriff mit Zeitstempel des Servers liefert die Zeit zurück (Mitte der Laufzeit als Näherung)
-  async function syncClock() {
+  // Serverzeit: ein Schreibzugriff mit Zeitstempel des Servers liefert die Zeit zurück (Mitte der Laufzeit als Näherung).
+  // Bei mehreren Messungen gilt die mit der kürzesten Laufzeit, sie ist am genauesten.
+  async function syncClock(times) {
     if (!sess) throw oerr('NOT_SIGNED_IN');
-    const t0 = Date.now();
-    let v = await db('PUT', 'clock/' + sess.uid, SV);
-    const t1 = Date.now();
-    if (typeof v !== 'number') v = await db('GET', 'clock/' + sess.uid); // falls die Antwort nur den Platzhalter enthält
-    if (typeof v !== 'number') throw oerr('CLOCK');
-    offset = v - Math.round((t0 + t1) / 2); emit();
-    return { offset, rtt: t1 - t0 };
+    let best = null;
+    for (let i = 0; i < (times || 1); i++) {
+      const t0 = Date.now();
+      let v = await db('PUT', 'clock/' + sess.uid, SV);
+      const t1 = Date.now();
+      if (typeof v !== 'number') v = await db('GET', 'clock/' + sess.uid); // falls die Antwort nur den Platzhalter enthält
+      if (typeof v !== 'number') throw oerr('CLOCK');
+      if (!best || t1 - t0 < best.rtt) best = { offset: v - Math.round((t0 + t1) / 2), rtt: t1 - t0 };
+    }
+    offset = best.offset; emit();
+    return best;
   }
   const serverNow = () => Date.now() + offset;
 
@@ -179,7 +193,13 @@ const LMO = (function () {
 
   // ---------- Konto ----------
   async function lookup() {
-    const j = await authApi('lookup', { idToken: await fresh() }), u = j.users && j.users[0];
+    let j;
+    try { j = await authApi('lookup', { idToken: await fresh() }); }
+    catch (e) { // abgelaufener Zugangsschlüssel (lange Pause, falsch gehende Uhr): einmal erneuern
+      if (!/INVALID_ID_TOKEN|TOKEN_EXPIRED/.test(e.code) || !sess) throw e;
+      sess.exp = 0; j = await authApi('lookup', { idToken: await fresh() });
+    }
+    const u = j.users && j.users[0];
     if (!u) throw oerr('USER_NOT_FOUND');
     sess.verified = !!u.emailVerified; if (u.email) sess.email = u.email; persist();
     return sess.verified;
@@ -275,7 +295,11 @@ const LMO = (function () {
     // Erst alle Daten, dann das Konto: scheitert ein Schritt, bleibt das Konto bestehen und es kann erneut versucht werden.
     // Ohne Profil (unterbrochene Registrierung) darf der Server manche Löschungen ablehnen, weil es nichts zu löschen gibt.
     const lenient = !key, del = async p => { try { await db('DELETE', p); } catch (e) { if (!(lenient && e.code === 'PERMISSION_DENIED')) throw e; } };
-    for (const p of ['saves/' + uid, 'savemeta/' + uid, 'clock/' + uid]) await del(p);
+    // Ranglisteneinträge (Städte der Online-Unternehmen und weltweit), dann Sitzungen, Stände, Uhr
+    let metas = {}; try { metas = await db('GET', 'savemeta/' + uid) || {}; } catch (e) { if (!lenient) throw e; }
+    for (const slot of Object.keys(metas)) if (slot.startsWith('o_')) for (const sc of ['all', 'day', 'week']) await del('board/' + slot.slice(2) + '/' + sc + '/' + uid);
+    for (const sc of ['all', 'day', 'week']) await del('board/_global/' + sc + '/' + uid);
+    for (const p of ['sessions/' + uid, 'saves/' + uid, 'savemeta/' + uid, 'clock/' + uid]) await del(p);
     if (key) await del('names/' + key);
     await del('users/' + uid);
     await del('redeemed/' + uid);
@@ -308,6 +332,110 @@ const LMO = (function () {
     await db('DELETE', 'savemeta/' + sess.uid + '/' + slot);
   }
 
+  // ---------- Online-Welt, Unternehmen und Rangliste ----------
+  // Die Weltzeit ist eine feste Funktion der Serverzeit: alle Spieler erleben zur gleichen Sekunde dieselbe Spielzeit (30-fach schneller).
+  const ONLINE = { speed: 30, epoch: Date.UTC(2026, 9, 1) / 1000, maxAway: 3600, shift: 7200000 };
+  const gameNow = () => (serverNow() / 1000 - ONLINE.epoch) * ONLINE.speed;
+  // Tage und Wochen der Rangliste beginnen um 02:00 UTC (Woche: Montag), damit die Grenze mitten in der Nacht liegt
+  function period(scope, ms) {
+    if (scope === 'all') return 0;
+    const d = ((ms === undefined ? serverNow() : ms) - ONLINE.shift) / 86400000;
+    return scope === 'day' ? Math.floor(d) : Math.floor((d + 3) / 7);
+  }
+  const ckOf = (lat, lon) => (Number(lat).toFixed(3) + ',' + Number(lon).toFixed(3)).replace(/[^A-Za-z0-9_-]/g, '_');
+  const newSess = () => { const a = new Uint8Array(12); try { crypto.getRandomValues(a); } catch (e) { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); } return Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); };
+  const needProfile = () => { if (!sess) throw oerr('NOT_SIGNED_IN'); if (!profile) throw oerr('NO_PROFILE'); };
+
+  // Öffnet das Online-Unternehmen einer Stadt: Serverzeit messen, Stand aus der Cloud lesen und die Sitzung übernehmen.
+  // Wer das Unternehmen gerade woanders spielt, wird beim nächsten Speichern dort beendet (Fehler SUPERSEDED).
+  async function companyOpen(ck) {
+    needProfile();
+    await syncClock(3);
+    const slot = 'o_' + ck, uid = sess.uid;
+    let cur, sv;
+    try { [cur, sv] = await Promise.all([db('GET', 'sessions/' + uid + '/' + slot), db('GET', 'saves/' + uid + '/' + slot)]); }
+    catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('RULES_ONLINE') : e; } // ohne die neuen Regeln darf „sessions“ nicht gelesen werden
+    const mine = newSess();
+    try { await db('PUT', 'sessions/' + uid + '/' + slot, { sess: mine, t: SV }); }
+    catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('RULES_ONLINE') : e; }
+    return { ck, slot, sess: mine, prev: cur && cur.sess || null, raw: sv && typeof sv.data === 'string' ? sv.data : null, t: sv && typeof sv.t === 'number' ? sv.t : null, now: serverNow() };
+  }
+  async function companyPush(slot, mine, raw, info, opt) {
+    needProfile(); const uid = sess.uid;
+    try {
+      await db('PUT', 'saves/' + uid + '/' + slot, { t: SV, v: 2, sess: mine, data: raw }, { keepalive: !!(opt && opt.keepalive) });
+      await db('PUT', 'savemeta/' + uid + '/' + slot, { t: SV, v: 2, info: String(info || '').slice(0, 160) }, { keepalive: !!(opt && opt.keepalive) });
+    } catch (e) {
+      if (e.code === 'PERMISSION_DENIED') {
+        let cur; try { cur = await db('GET', 'sessions/' + uid + '/' + slot); } catch (e2) { cur = undefined; }
+        if (cur !== undefined && !(cur && cur.sess === mine)) throw oerr('SUPERSEDED');
+      }
+      throw e;
+    }
+  }
+  async function companyRemove(ck) {
+    needProfile(); const uid = sess.uid, slot = 'o_' + ck;
+    for (const sc of ['all', 'day', 'week']) await db('DELETE', 'board/' + ck + '/' + sc + '/' + uid);
+    await db('DELETE', 'saves/' + uid + '/' + slot);
+    await db('DELETE', 'savemeta/' + uid + '/' + slot);
+    await db('DELETE', 'sessions/' + uid + '/' + slot);
+    boardCache.delete(ck);
+  }
+
+  // Rangliste. Eintrag je Spieler und Stadt: n Name, c Stadt, g Wachstum, l Lieferungen, r Ruf, p Zeitraum, t Serverzeit.
+  // g und l sind Höchstwerte des Zeitraums (sie sinken nie); die Regeln prüfen Name, Zeitraum und plausible Zuwächse.
+  const boardCache = new Map();
+  const r2 = v => Math.round(v * 100) / 100;
+  async function boardMine(ck) {
+    let c = boardCache.get(ck); if (c) return c;
+    needProfile(); const uid = sess.uid; c = { city: {}, glob: {} };
+    await Promise.all(['all', 'day', 'week'].map(async sc => {
+      c.city[sc] = await db('GET', 'board/' + ck + '/' + sc + '/' + uid);
+      c.glob[sc] = await db('GET', 'board/_global/' + sc + '/' + uid);
+    }));
+    boardCache.set(ck, c); return c;
+  }
+  // st = { city: 'Essen', l: Lieferungen, r: Ruf, g: { all, day, week } }
+  async function boardSubmit(ck, st) {
+    needProfile(); const uid = sess.uid, name = profile.name, c = await boardMine(ck), ms = serverNow(), done = [];
+    let firstErr = null;
+    const put = async (path, e, store, sc) => {
+      try { await db('PUT', path, e); store[sc] = Object.assign({}, e, { t: ms }); done.push(path); }
+      catch (err) { if (err.code === 'PERMISSION_DENIED') boardCache.delete(ck); if (!firstErr) firstErr = err; }
+    };
+    for (const sc of ['all', 'day', 'week']) {
+      const p = period(sc, ms), g = st.g[sc], l = Math.max(0, Math.round(st.l || 0)), all = sc === 'all';
+      // Lieferungen und Ruf stehen nur in der Gesamtliste; Tag und Woche zählen allein das Wachstum
+      if (!(g > 0) && !(all && l > 0)) continue;
+      const cur = c.city[sc], same = cur && cur.p === p;
+      if (!same || g > cur.g || (all && l > (cur.l || 0))) {
+        const e = { n: name, c: String(st.city || '').slice(0, 40), g: r2(Math.max(0, g, same ? cur.g : 0)), p, t: SV };
+        if (all) { e.l = Math.max(l, same ? (cur.l || 0) : 0); e.r = Math.min(5, Math.max(1, r2(st.r || 3))); }
+        await put('board/' + ck + '/' + sc + '/' + uid, e, c.city, sc);
+      }
+      const gc = c.glob[sc];
+      if (g > 0 && (!gc || gc.p !== p || g > gc.g)) {
+        await put('board/_global/' + sc + '/' + uid, { n: name, c: String(st.city || '').slice(0, 40), g: r2(g), p, t: SV }, c.glob, sc);
+      }
+    }
+    if (firstErr) throw firstErr;
+    return done;
+  }
+  // Spitzenliste: Gesamt nach Wachstum, Lieferungen oder Ruf; Tag und Woche nach Wachstum im laufenden Zeitraum
+  async function boardTop(ck, scope, metric, n) {
+    needProfile(); n = n || 25; metric = metric || 'g';
+    const path = 'board/' + ck + '/' + scope;
+    const j = scope === 'all' ? await db('GET', path, undefined, { query: { orderBy: '"' + metric + '"', limitToLast: n } })
+      : await db('GET', path, undefined, { query: { orderBy: '"p"', equalTo: period(scope) } });
+    const rows = Object.keys(j || {}).map(uid => { const e = j[uid] || {}; return { uid, name: String(e.n || '?'), city: e.c || '', g: +e.g || 0, l: +e.l || 0, r: +e.r || 0, t: e.t }; });
+    const key = scope === 'all' ? metric : 'g';
+    return rows.filter(x => typeof x[key] === 'number' && x[key] > 0).sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name)).slice(0, n);
+  }
+  async function boardRank(ck) {
+    const rows = await boardTop(ck, 'all', 'g', 100), i = rows.findIndex(x => x.uid === (sess && sess.uid));
+    return { rank: i < 0 ? null : i + 1, total: rows.length, full: rows.length >= 100 };
+  }
+
   // ---------- Start ----------
   function init() {
     const raw = ls.get(LSK); if (!raw) return;
@@ -316,7 +444,11 @@ const LMO = (function () {
       if (!o || !o.uid || !o.refreshToken) throw 0;
       sess = { uid: o.uid, email: o.email || '', refreshToken: o.refreshToken, idToken: o.idToken || '', exp: +o.exp || 0, verified: !!o.verified, name: o.name || null };
     } catch (e) { ls.del(LSK); return; }
-    (async () => { try { await lookup(); await loadProfile(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Konto:', e.code); } emit(); })();
+    (async () => {
+      try { await lookup(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Konto:', e.code); }
+      if (sess) { try { await loadProfile(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Konto:', e.code); } }
+      emit();
+    })();
   }
 
   return {
@@ -324,6 +456,9 @@ const LMO = (function () {
     checkName, suggestName, mailOk, nameKey, tidyName,
     register, completeRegistration, login, logout, resetPassword, sendVerify, checkVerified, loadProfile, deleteAccount,
     syncClock, serverNow, cloud: { slotOf, list: cloudList, put: cloudPut, get: cloudGet, del: cloudDel },
+    world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, period, ckOf },
+    company: { open: companyOpen, push: companyPush, remove: companyRemove },
+    board: { submit: boardSubmit, top: boardTop, rank: boardRank, mine: boardMine },
     _db: db
   };
 })();

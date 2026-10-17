@@ -74,14 +74,14 @@
     if (note) { const n = mk('p', 'accmsg ok', note); root.appendChild(n); note = null; }
     const mb = msgBox();
     if (tab === 'login') {
-      root.appendChild(mk('p', 'note', 'Mit einem Konto kannst du bald Online spielen, in Ranglisten erscheinen und Spielstände in der Cloud sichern. Solo spielen geht weiterhin ohne Konto.'));
+      root.appendChild(mk('p', 'note', 'Mit einem Konto kannst du online spielen (gemeinsame Weltzeit für alle), in Ranglisten erscheinen und Spielstände in der Cloud sichern. Solo spielen geht weiterhin ohne Konto.'));
       const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'username', value: draft.email }), fp = field('Passwort', { type: 'password', name: 'password', auto: 'current-password' });
       const go = btn('Anmelden', 'primary');
       const submit = () => run(go, mb, async () => { draft.email = fe.i.value; await L.login(fe.i.value, fp.i.value); view = 'main'; render(true); updateBar(); });
       go.onclick = submit; root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); submit(); } });
       root.append(fe.w, fp.w, mb.m, go, link('Passwort vergessen?', () => { draft.email = fe.i.value; view = 'forgot'; render(true); }));
     } else {
-      root.appendChild(mk('p', 'note', 'Dein Name steht später in den Ranglisten und ist für alle sichtbar. Wähle am besten keinen echten Namen. Die E-Mail-Adresse sieht niemand außer dir.'));
+      root.appendChild(mk('p', 'note', 'Dein Name steht in den Ranglisten und ist für alle angemeldeten Spieler sichtbar. Wähle am besten keinen echten Namen. Die E-Mail-Adresse sieht niemand außer dir.'));
       const sug = btn('Vorschlag', '', () => { fn.i.value = L.suggestName(); fn.i.dispatchEvent(new Event('input')); });
       const fn = field('Spielername (3 bis 16 Zeichen)', { name: 'name', max: 16, auto: 'nickname', value: draft.name, extra: sug });
       const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'email', value: draft.email, hint: 'Für die Bestätigung und, falls nötig, zum Zurücksetzen des Passworts.' });
@@ -131,10 +131,10 @@
       'Solo: Spielstände, Städte und Einstellungen bleiben ausschließlich in deinem Browser.',
       'Konto: E-Mail-Adresse und Passwort verwaltet Google Firebase Authentication (Google). Das Spiel selbst sieht dein Passwort nie. Die E-Mail wird für die Bestätigung und das Zurücksetzen des Passworts genutzt.',
       'Datenbank (Google Firebase Realtime Database): Spielername (für andere sichtbar), Kontokennung, Zeitpunkt der Registrierung, der benutzte Einladungscode und die Spielstände, die du selbst in die Cloud lädst. Die E-Mail-Adresse steht nicht in der Datenbank.',
-      'Später kommen für Ranglisten dazu: Name, Stadt und Spielkennzahlen (z. B. Unternehmenswachstum, Lieferungen).',
+      'Online-Modus: dein Online-Unternehmen (Spielstand), eine Sitzungskennung, Zeitstempel des Servers und Ranglisteneinträge mit Name, Stadt, Wachstum, Lieferungen, Ruf und Zeitraum. Die Ranglisten sind für alle angemeldeten Spieler sichtbar.',
       'Keine Werbung, keine Tracking-Cookies, keine Analyse-Dienste. Damit du angemeldet bleibst, speichert dein Browser eine Anmeldemarke im lokalen Speicher; „Abmelden“ löscht sie.',
       'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
-      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände und das Konto selbst.',
+      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge und das Konto selbst.',
       'Kontakt zum Betreiber dieses Hobby-Projekts: über die Projektseite github.com/memem356/lastmile.'
     ];
     for (const t of items) ul.appendChild(mk('li', '', t));
@@ -222,6 +222,12 @@
       const li = mk('li', ''), loc = locals.find(x => x.slot === c.slot), tx = mk('div', '');
       tx.appendChild(mk('span', 'tt', c.info || c.slot)); tx.appendChild(mk('span', 'ss', 'gesichert ' + ago(c.t, ref)));
       const acts = mk('div', 'acts'), dl = btn('Hierher laden', ''), rm = btn('Löschen', 'danger');
+      if (c.slot.startsWith('o_')) { // Online-Unternehmen: lebt in der Cloud, wird nicht auf das Gerät kopiert
+        const ck = c.slot.slice(2);
+        tx.firstChild.textContent = c.info || c.slot; tx.lastChild.textContent = 'Online-Unternehmen · gesichert ' + ago(c.t, ref);
+        confirmBtn(rm, 'Unternehmen und Rangeintrag wirklich löschen?', async () => { rm.disabled = true; try { await L.company.remove(ck); await loadCloud(box, 'Das Online-Unternehmen wurde gelöscht.'); } catch (e) { fail(msg, e); rm.disabled = false; } });
+        acts.append(rm); li.append(tx, acts); u2.appendChild(li); continue;
+      }
       const localNewer = loc && loc.sv.at > c.t + 120000;
       const doDl = async () => {
         dl.disabled = true; msg.set('');

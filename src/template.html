@@ -266,6 +266,7 @@ canvas.placing { cursor: crosshair; }
 .modeBox button:hover { border-color: var(--muted); }
 @media (max-width: 560px) { .modeBox { grid-template-columns: 1fr; } }
 /* Konto-Fenster auf der Startseite */
+.gatebox { }
 .accbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 9px 12px 9px 14px; }
 .accbar .accinfo { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; }
 .accbar .accinfo span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -363,6 +364,13 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
 .chip svg { flex: none; }
 .chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .chip.alert { border-color: #e0402a; color: #e0402a; }
+.rkbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.rk { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rk th { text-align: left; font: 500 11px var(--font-mono); color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.rk td { padding: 5px 6px; border-bottom: 1px solid var(--line); }
+.rk .n { text-align: right; font-family: var(--font-mono); white-space: nowrap; }
+.rk td.c { color: var(--muted); }
+.rk tr.me td { background: color-mix(in srgb, var(--signal) 22%, transparent); font-weight: 600; }
 .chartw svg { width: 100%; height: auto; display: block; }
 .bar-in { fill: var(--signal); } .bar-out { fill: var(--muted); opacity: .65; } .cur-bg { fill: var(--line); opacity: .5; }
 .gridl { stroke: var(--line); stroke-width: 1; } .axl { fill: var(--muted); font: 10px var(--font-mono); }
@@ -383,6 +391,22 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
     <section id="accBar" class="accbar">
       <div class="accinfo"><i class="dot" id="accDot"></i><span class="t" id="accTxt">Nicht angemeldet · Solo spielen geht ohne Konto</span></div>
       <button type="button" class="btn" id="accBtn">Anmelden</button>
+    </section>
+    <section id="playSec">
+      <h2>Spielart</h2>
+      <div class="modeBox" id="playBox">
+        <button type="button" data-p="solo" aria-pressed="true">Solo<small>Allein in deinem Tempo, mit Pause und Geschwindigkeit. Der Spielstand bleibt in diesem Browser. Kein Konto nötig.</small></button>
+        <button type="button" data-p="online" aria-pressed="false">Online<small>Gemeinsame Weltzeit für alle (fest 30-fach, ohne Pause), Unternehmen in der Cloud und Ranglisten. Konto nötig.</small></button>
+      </div>
+    </section>
+    <section id="gateBox" hidden>
+      <p class="note" id="gateTxt"></p>
+      <button type="button" class="btn primary" id="gateBtn">Anmelden</button>
+    </section>
+    <section id="onlineBox" hidden>
+      <h2>Deine Online-Unternehmen</h2>
+      <ul class="rlist" id="onlineList"></ul>
+      <p class="note" id="onlineMsg" style="margin-top:8px"></p>
     </section>
     <section id="saveBox" hidden>
       <h2>Weiter spielen</h2>
@@ -454,6 +478,7 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
         <button type="button" data-s="30" aria-pressed="false">30×</button>
         <button type="button" data-s="60" aria-pressed="false">60×</button>
       </div>
+      <button type="button" class="chip" id="onChip" hidden title="Rangliste öffnen"><i class="dot" id="onDot"></i><span id="onT">Online</span></button>
       <button type="button" class="btn" id="hqBtn">Hauptquartier</button>
       <button type="button" class="btn" id="pauseBtn" aria-pressed="false">Pause</button>
       <button type="button" class="btn" id="menuBtn">Menü</button>
@@ -659,10 +684,14 @@ const ESSEN = /*DATA*/null;
 const $ = id => document.getElementById(id);
 const MODES = {
   relaxed: { name: 'Entspannt', pay: 0.85, target: 1.7, expire: null, tip: 0.6, demand: 0.8, repW: 0.04, repC: 0, risk: 0.6 },
-  rush:    { name: 'Rush',      pay: 1.4,  target: 0.8, expire: 2.0,  tip: 1.4, demand: 1.25, repW: 0.12, repC: 0.12, risk: 1.2, ramp: 0.3, rampH: 5 }
+  rush:    { name: 'Rush',      pay: 1.4,  target: 0.8, expire: 2.0,  tip: 1.4, demand: 1.25, repW: 0.12, repC: 0.12, risk: 1.2, ramp: 0.3, rampH: 5 },
+  // Online: ein Regelwerk für alle, damit die Ranglisten vergleichbar sind. Zeit läuft fest 30-fach, ohne Pause.
+  online:  { name: 'Online',    pay: 1.1,  target: 1.25, expire: 2.5, tip: 1.0, demand: 1.0, repW: 0.08, repC: 0.06, risk: 0.9, ramp: 0.3, rampH: 5 }
 };
-function startGame(DATA, MODEKEY) {
+function startGame(DATA, MODEKEY, PRE) {
   const MODE = MODES[MODEKEY] || MODES.relaxed;
+  const ONLINE = MODEKEY === 'online';           // PRE: bei Online der aus der Cloud geöffnete Stand (siehe LMO.company.open)
+  const CK = ONLINE ? LMO.world.ckOf(DATA.ref.lat, DATA.ref.lon) : '';
   'use strict';
   const E = createEngine(DATA);
   $('scope').textContent = DATA.name + ' · ' + MODE.name;
@@ -716,7 +745,8 @@ function startGame(DATA, MODEKEY) {
     const u = now.getTime() / 1000 + Math.round(DATA.ref.lon / 15 * 3600); // ohne Zeitzone: Sonnenzeit
     return ((6 + Math.floor(u / 86400)) % 7) * 86400 + ((u % 86400) + 86400) % 86400;
   }
-  const realign = () => { START = localSecs() - simClock; };
+  // Solo: die Uhr zeigt die echte Ortszeit. Online: die gemeinsame Weltzeit (START = Weltzeit bei Spielzeit 0).
+  const realign = () => { START = ONLINE ? WORLD.t0 : localSecs() - simClock; };
   const fmtClock = s => { s = Math.floor(s + START); const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, c = s % 60; return [h, m, c].map(v => String(v).padStart(2, '0')).join(':'); };
   const setText = (el, t) => { if (el._t !== t) { el.textContent = t; el._t = t; } };
 
@@ -1066,7 +1096,11 @@ function startGame(DATA, MODEKEY) {
   // Wetter, Verkehrsereignisse und Stadtereignisse folgen allein aus (Startwert, Weltzeit): zwei Spieler mit gleichem Startwert
   // erleben zur gleichen Weltzeit dasselbe. Nur Orte (Straßen im eigenen Liefergebiet) und persönliche Folgen sind spielerbezogen.
   const WORLD = { seed: (Math.random() * 4294967296) >>> 0, t0: 0, month: new Date().getMonth() };
-  { const sp = /[?&]seed=(\d+)/.exec(location.search); if (sp) WORLD.seed = +sp[1] >>> 0; }
+  { const sp = /[?&]seed=(\d+)/.exec(location.search); if (sp && !ONLINE) WORLD.seed = +sp[1] >>> 0; }
+  if (ONLINE) { // Alle Spieler einer Stadt teilen dieselbe Welt: der Startwert folgt allein aus der Stadt, der Monat aus der Serverzeit
+    let h = 2166136261; for (const ch of 'lastmile-online|' + CK) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    WORLD.seed = h >>> 0; WORLD.month = new Date(LMO.serverNow()).getUTCMonth();
+  }
   const worldT = () => simClock + WORLD.t0;
   function hash(a, b, c) {
     let h = (WORLD.seed ^ 0x9e3779b9) | 0;
@@ -2020,7 +2054,7 @@ function startGame(DATA, MODEKEY) {
     const b = e.target.closest('button[data-s]'); if (!b) return; speed = Number(b.dataset.s);
     for (const x of $('speedSeg').children) x.setAttribute('aria-pressed', String(x === b));
   });
-  function togglePause() { paused = !paused; $('pauseBtn').setAttribute('aria-pressed', String(paused)); $('pauseBtn').textContent = paused ? 'Weiter' : 'Pause'; $('winPause').textContent = paused ? 'Weiter' : 'Pause'; dirty = true; }
+  function togglePause() { if (ONLINE) return; paused = !paused; $('pauseBtn').setAttribute('aria-pressed', String(paused)); $('pauseBtn').textContent = paused ? 'Weiter' : 'Pause'; $('winPause').textContent = paused ? 'Weiter' : 'Pause'; dirty = true; }
   $('pauseBtn').onclick = togglePause;
   function cycleOrder(dir) {
     const open = openOrders(); if (!open.length) return;
@@ -2047,24 +2081,37 @@ function startGame(DATA, MODEKEY) {
 
   // ---------- Schleife ----------
   let last = performance.now(), lastUi = 0, lastAuto = 0;
+  // Ein Simulationsschritt von adv Spielsekunden
+  function stepSim(adv, now) {
+    simClock += adv;
+    for (const d of drivers) {
+      if (d.trip && !d.stall) { const st = d.st; let k = 1; if (st && (st.phase === 0 || st.phase === 2)) k = pace(d.trip.legs[st.leg], st.s.i, d); d.trip.t += adv * k; d.trip.delay = (d.trip.delay || 0) + adv * (1 - k); }
+      if (d.ret) { const sm = E.sample(d.ret.leg, d.ret.t); d.ret.t += adv * pace(d.ret.leg, sm.i, d); }
+      if (d.train && d.train.state === 'active') d.train.t += adv;
+    }
+    updateDrivers(); tickWorld(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
+    let w = 0; for (const d of drivers) w += wageOf(d); bill.wage += w * adv / 3600;
+    const hr = Math.floor((simClock + START) / 3600); if (hr > bill.hr) { bill.hr = hr; chargeBill(); }
+    expireOrders();
+    if (simClock - lastSpawnT >= CFG.spawnMin && openOrders().length < CFG.maxOpen && Math.random() < 1 - Math.exp(-adv * demand() / CFG.spawnMean)) { spawnOrder(); lastSpawnT = simClock; }
+    if (owned.dispatch && autoOn && now - lastAuto > 400) { lastAuto = now; autoDispatch(); }
+    dirty = true;
+  }
+  // Online: die Spielzeit folgt der Serverzeit. Kleine Lücken werden in Schritten nachgeholt, große (Tab im Hintergrund, Ruhezustand) über das Abwesenheitsmodell.
+  let lastG = 0, halted = false;
+  const ABS_GAP = 8 * LMO.world.speed;
+  function onlineAdvance(now) {
+    const g = LMO.world.gameNow(); let gap = g - lastG;
+    if (!(gap > 0)) return;
+    if (gap > ABS_GAP) { absenceNow(gap / LMO.world.speed); return; }
+    lastG = g;
+    for (let i = 0; gap > 1e-9 && i < 60; i++) { const a = Math.min(gap, 6); stepSim(a, now); gap -= a; }
+  }
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    if (!paused) {
-      const adv = dt * speed;
-      simClock += adv;
-      for (const d of drivers) {
-        if (d.trip && !d.stall) { const st = d.st; let k = 1; if (st && (st.phase === 0 || st.phase === 2)) k = pace(d.trip.legs[st.leg], st.s.i, d); d.trip.t += adv * k; d.trip.delay = (d.trip.delay || 0) + adv * (1 - k); }
-        if (d.ret) { const sm = E.sample(d.ret.leg, d.ret.t); d.ret.t += adv * pace(d.ret.leg, sm.i, d); }
-        if (d.train && d.train.state === 'active') d.train.t += adv;
-      }
-      updateDrivers(); tickWorld(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
-      let w = 0; for (const d of drivers) w += wageOf(d); bill.wage += w * adv / 3600;
-      const hr = Math.floor((simClock + START) / 3600); if (hr > bill.hr) { bill.hr = hr; chargeBill(); }
-      expireOrders();
-      if (simClock - lastSpawnT >= CFG.spawnMin && openOrders().length < CFG.maxOpen && Math.random() < 1 - Math.exp(-adv * demand() / CFG.spawnMean)) { spawnOrder(); lastSpawnT = simClock; }
-      if (owned.dispatch && autoOn && now - lastAuto > 400) { lastAuto = now; autoDispatch(); }
-      dirty = true;
-    }
+    if (halted) { /* Online-Sitzung beendet */ }
+    else if (ONLINE) onlineAdvance(now);
+    else if (!paused) stepSim(dt * speed, now);
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
@@ -2170,6 +2217,7 @@ function startGame(DATA, MODEKEY) {
     ['Wetter und Verkehr', 'Tageszeit, Wetter, Stau und Ereignisse verändern Tempo und Nachfrage. Fahrzeuge können liegen bleiben. Die Taste H zeigt auf der Karte, wo gerade am meisten bestellt wird.'],
     ['Speichern', 'Dein Spiel wird automatisch in diesem Browser gespeichert. Mit der Dispositions-Software arbeitet dein Betrieb auch weiter, wenn du nicht da bist (bis zu 4 Stunden). Im Menü findest du Erfolge, Ton und dieses Tutorial.']
   ];
+  if (ONLINE) TUT[5] = ['Online', 'Die Zeit läuft fest 30-fach und gemeinsam für alle Spieler, ohne Pause. Dein Unternehmen liegt in der Cloud. Mit der Dispositions-Software arbeitet es bis zu eine Stunde weiter, wenn du nicht da bist. Oben siehst du deinen Rang, ein Klick öffnet die Rangliste.'];
   function openTutorial(i) {
     i = i || 0; try { localStorage.setItem('lm-tut', '1'); } catch (e) {}
     const t = TUT[i];
@@ -2191,16 +2239,27 @@ function startGame(DATA, MODEKEY) {
       const trf = btn('Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'), () => { setTraffic(!showTraffic); trf.textContent = 'Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'); });
       btn('Erfolge (' + ACH.filter(a => prog.ach[a.id]).length + ' von ' + ACH.length + ')', () => { closeDlg(); openAch(); });
       btn('Tutorial', () => { closeDlg(); openTutorial(); });
-      btn('Spielstand exportieren (Datei)', () => { exportSave(); closeDlg(); toast('Spielstand exportiert', 'Die Datei liegt in deinen Downloads.'); });
-      btn('Spielstand importieren (Datei)', () => { closeDlg(); const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = () => { if (f.files[0]) importSave(f.files[0]); }; f.click(); });
-      btn('Jetzt speichern', () => { toast(saveNow(true) ? 'Gespeichert' : 'Speichern nicht möglich', saveNow.ok ? '' : 'Der Browser erlaubt keinen Speicher.'); });
-      btn('Stadt wechseln', () => { saveNow(false); history.replaceState(null, '', location.pathname); location.reload(); });
-      let armed = false;
-      const del = btn('Neues Spiel (Spielstand löschen)', () => {
-        if (!armed) { armed = true; del.textContent = 'Wirklich? Der Spielstand dieser Stadt geht verloren. Nochmal tippen.'; return; }
-        noSave = true; try { localStorage.removeItem(SAVEKEY); } catch (e) {} location.reload();
+      if (ONLINE) btn('Rangliste', () => { closeDlg(); openRank(); });
+      if (!ONLINE) {
+        btn('Spielstand exportieren (Datei)', () => { exportSave(); closeDlg(); toast('Spielstand exportiert', 'Die Datei liegt in deinen Downloads.'); });
+        btn('Spielstand importieren (Datei)', () => { closeDlg(); const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = () => { if (f.files[0]) importSave(f.files[0]); }; f.click(); });
+      }
+      btn('Jetzt speichern', async () => {
+        if (ONLINE) { const k = await cloudPush(false); toast(k ? 'In der Cloud gespeichert' : 'Cloud-Speichern nicht möglich', k ? '' : onNet.err ? onNet.err.message : 'Bitte gleich noch einmal versuchen.'); return; }
+        toast(saveNow(true) ? 'Gespeichert' : 'Speichern nicht möglich', saveNow.ok ? '' : 'Der Browser erlaubt keinen Speicher.');
       });
-      b.appendChild(mk('p', null, 'Gespeichert wird automatisch alle paar Sekunden und beim Verlassen der Seite.'));
+      btn('Stadt wechseln', () => { saveNow(false); if (ONLINE) cloudPush(true); history.replaceState(null, '', location.pathname); location.reload(); });
+      let armed = false;
+      const del = btn(ONLINE ? 'Unternehmen aufgeben (Cloud-Stand löschen)' : 'Neues Spiel (Spielstand löschen)', async () => {
+        if (!armed) { armed = true; del.textContent = ONLINE ? 'Wirklich? Das Online-Unternehmen dieser Stadt und sein Rangeintrag gehen verloren. Nochmal tippen.' : 'Wirklich? Der Spielstand dieser Stadt geht verloren. Nochmal tippen.'; return; }
+        noSave = true;
+        if (ONLINE) {
+          halted = true; del.textContent = 'Wird gelöscht …';
+          try { await LMO.company.remove(CK); } catch (e) { toast('Löschen fehlgeschlagen', e.message || ''); noSave = false; halted = false; lastG = LMO.world.gameNow(); return; }
+        }
+        try { localStorage.removeItem(SAVEKEY); localStorage.removeItem(SAVEKEY + '.bak'); } catch (e) {} history.replaceState(null, '', location.pathname); location.reload();
+      });
+      b.appendChild(mk('p', null, ONLINE ? 'Dein Unternehmen wird alle 60 Sekunden und beim Verlassen der Seite in der Cloud gespeichert. Die Zeit läuft online immer weiter, es gibt keine Pause.' : 'Gespeichert wird automatisch alle paar Sekunden und beim Verlassen der Seite.'));
     });
   }
   function setTraffic(on) { showTraffic = on; try { localStorage.setItem('lm-traf', on ? '1' : '0'); } catch (e) {} $('trLeg').hidden = !on; dirty = true; }
@@ -2219,7 +2278,8 @@ function startGame(DATA, MODEKEY) {
   function tabInfo() { const n = openOrders().length; setText($('tabO'), n ? 'Aufträge (' + n + ')' : 'Aufträge'); }
 
   // ---------- Speichern und Laden ----------
-  const SAVEKEY = 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
+  // Online liegt der maßgebliche Stand in der Cloud; auf dem Gerät bleibt nur eine Kopie (nie in der Liste „Weiter spielen“)
+  const SAVEKEY = ONLINE ? 'lm.osave.' + (LMO.state().uid || 'x') + '.' + CK : 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
   const BAKKEY = SAVEKEY + '.bak', SAVE_V = 2, BUILD = '2026-10-17';
   let noSave = false, saveCount = 0;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -2228,6 +2288,7 @@ function startGame(DATA, MODEKEY) {
     const rd = v => Math.round(v);
     return {
       v: SAVE_V, app: BUILD, at: Date.now(), mode: MODEKEY, N, np: pois.length, nh: homes.length,
+      srv: ONLINE ? Math.round(LMO.serverNow()) : 0, sess: ONLINE ? PRE.sess : null, rank: ONLINE ? Object.assign({}, rk) : null,
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
       simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
@@ -2270,6 +2331,8 @@ function startGame(DATA, MODEKEY) {
     if (!(sv.v >= 1)) throw new Error('Version fehlt');
     if (sv.v > SAVE_V) { const e = new Error('Version ' + sv.v + ' ist neuer als diese Spielversion'); e.future = true; throw e; }
     const n = { v: SAVE_V, from: sv.v, at: num(sv.at, Date.now(), 0), mode: sv.mode, N: sv.N, np: sv.np, nh: sv.nh, place: sv.place };
+    n.srv = num(sv.srv, 0, 0); n.sess = typeof sv.sess === 'string' ? sv.sess.slice(0, 40) : null;
+    n.rank = isObj(sv.rank) ? { dayP: num(sv.rank.dayP, -1), dayBase: num(sv.rank.dayBase, 0), weekP: num(sv.rank.weekP, -1), weekBase: num(sv.rank.weekBase, 0), last: num(sv.rank.last, 0) } : null;
     n.drivers = [];
     const seen = new Set();
     for (const d of arr(sv.drivers)) {
@@ -2388,6 +2451,34 @@ function startGame(DATA, MODEKEY) {
     }
     return res;
   }
+  // Online: Stand aus Cloud oder (falls neuer und von derselben Sitzung) aus der Kopie auf dem Gerät laden
+  function onlineLoad() {
+    const res = { sv: null, notes: [], bad: [], problems: [], from: null, future: null, reloading: false, srvAt: 0, corrupt: false };
+    const norm = raw => { try { return normalizeSave(JSON.parse(raw)); } catch (e) { return e && e.future ? { future: e.message } : null; } };
+    const cloud = PRE.raw ? norm(PRE.raw) : null, mRaw = lsGet(SAVEKEY), mir = mRaw ? norm(mRaw) : null;
+    let pick = null, from = null;
+    if (mir && !mir.future && mir.sess && mir.sess === PRE.prev && (!cloud || cloud.future || mir.srv > (PRE.t || 0))) { pick = mir; from = 'mirror'; }
+    else if (cloud && !cloud.future) { pick = cloud; from = 'cloud'; }
+    else if (cloud && cloud.future) { res.future = cloud.future; noSave = true; halted = true; return res; }
+    else if (PRE.raw) { res.corrupt = true; noSave = true; halted = true; return res; }
+    if (!pick) return res; // neues Unternehmen
+    try { res.notes = applySave(pick); }
+    catch (e) { console.error('Online-Stand konnte nicht angewendet werden', e); res.corrupt = true; noSave = true; halted = true; return res; }
+    if (pick.rank) Object.assign(rk, pick.rank);
+    res.sv = pick; res.from = from; res.srvAt = from === 'cloud' ? PRE.t : pick.srv;
+    return res;
+  }
+  function onlineResume(loaded) {
+    const away = Math.max(0, (LMO.serverNow() - loaded.srvAt) / 1000), rpt = onlineAbsence(away);
+    return away >= 60 ? rpt : null;
+  }
+  function onCorrupt() {
+    openDlg('Online-Stand nicht lesbar', b => {
+      b.appendChild(mk('p', 'big', new LMO.OErr('CORRUPT').message));
+      b.appendChild(mk('p', null, 'Es wurde nichts überschrieben und nichts gelöscht. Die Sitzung ist angehalten.'));
+      const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Zur Startseite'); ok.type = 'button'; ok.onclick = () => { history.replaceState(null, '', location.pathname); location.reload(); }; row.appendChild(ok); b.appendChild(row);
+    });
+  }
   function downloadText(name, text) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
@@ -2439,16 +2530,15 @@ function startGame(DATA, MODEKEY) {
     }, { onClose: then || null });
     return true;
   }
-  // Offline-Fortschritt: einfaches Modell, nur mit Auto-Disposition, höchstens 4 Stunden
-  function offlineProgress(sv) {
-    const away = (Date.now() - sv.at) / 1000;
-    if (!(away >= 180)) return null;
-    const eff = Math.min(away, 4 * 3600), hours = eff / 3600, rpt = { away, eff, worked: false, n: 0, net: 0, wages: 0 };
+  // Abwesenheit: einfaches Modell, nur mit Auto-Disposition. eff = angerechnete Spielsekunden, away = echte Sekunden der Abwesenheit.
+  // anchor(t0) stellt die Uhr für die Schätzung auf den Beginn der Abwesenheit. keepOpen: offene Bestellungen bleiben (kurze Pausen).
+  function runAbsence(eff, away, anchor, keepOpen) {
+    const hours = eff / 3600, rpt = { away, eff, capped: false, worked: false, n: 0, net: 0, wages: 0 };
     if (owned.dispatch && autoOn && drivers.length) {
-      const t0 = simClock, st0 = START; let exp = 0;
-      START = localSecs() - eff - t0;
+      const t0 = simClock, st0 = START, w0 = WORLD.t0; let exp = 0;
+      anchor(t0);
       for (let t = 0; t < eff; t += 600) { simClock = t0 + t; exp += Math.min(600, eff - t) * demand() / CFG.spawnMean; }
-      simClock = t0; START = st0;
+      simClock = t0; START = st0; WORLD.t0 = w0;
       const capH = drivers.reduce((a, d) => a + 3600 / ({ bike: 780, scooter: 600, van: 660 }[d.veh] || 780) * levelMult(d), 0);
       const n = Math.floor(Math.min(exp, capH * hours * 0.75));
       const av = stats.n > 0 ? { pay: stats.pay / stats.n, tip: stats.tip / stats.n, cost: stats.cost / stats.n } : { pay: 9 * MODE.pay, tip: 0.6, cost: 0.2 };
@@ -2459,16 +2549,36 @@ function startGame(DATA, MODEKEY) {
       Object.assign(rpt, { worked: true, n, net: gain - wages, wages });
     }
     simClock += eff; lastSpawnT = simClock - CFG.spawnMin;
-    for (const o of orders) if (o.state === 'assigned') o.createdAt += eff;
-    orders = orders.filter(o => o.state !== 'open');
+    for (const o of orders) if (o.state === 'assigned' || (keepOpen && o.state === 'open')) o.createdAt += eff;
+    orders = orders.filter(o => o.state !== 'open' || keepOpen);
     for (const d of drivers) { d.sick = null; d.stall = null; }
+    // Online läuft die Welt ohne das Unternehmen weiter: die Weltzeit wird neu an die Serverzeit gehängt
+    if (ONLINE) { WORLD.t0 = LMO.world.gameNow() - simClock; realign(); bill.hr = Math.floor((simClock + START) / 3600); }
     events = []; tevents = []; syncWeather(true); teScan = worldT() - LOOKBACK; scanWorldEvents(worldT(), true); plansDirty = orderStructDirty = driverStructDirty = true;
     return rpt;
+  }
+  // Solo: bis zu 4 Stunden, gerechnet in echter Zeit
+  function offlineProgress(sv) {
+    const away = (Date.now() - sv.at) / 1000;
+    if (!(away >= 180)) return null;
+    const eff = Math.min(away, 4 * 3600), rpt = runAbsence(eff, away, t0 => { START = localSecs() - eff - t0; }, false);
+    rpt.capped = eff < away; return rpt;
+  }
+  // Online: höchstens 1 echte Stunde (= 30 Spielstunden) zählt; die Weltzeit läuft über die Serverzeit ohnehin weiter
+  function onlineAbsence(away) {
+    const sp = LMO.world.speed, eff = Math.min(away, LMO.world.maxAway) * sp, wStart = LMO.world.gameNow() - away * sp;
+    const rpt = runAbsence(eff, away, t0 => { WORLD.t0 = wStart - t0; realign(); }, away < 120);
+    rpt.capped = away > LMO.world.maxAway; rpt.gameH = eff / 3600; return rpt;
+  }
+  function absenceNow(away) {
+    const rpt = onlineAbsence(away); lastG = LMO.world.gameNow(); dirty = true;
+    if (away >= 60) showWelcome(rpt); else if (rpt.worked && rpt.n) toast('Zwischenzeit', 'Auto-Disposition: ca. ' + rpt.n + ' Bestellungen, ' + seur(rpt.net));
   }
   function showWelcome(r) {
     const mins = Math.round(r.away / 60), t = mins >= 90 ? Math.round(mins / 6) / 10 + ' Stunden' : mins + ' Minuten';
     openDlg('Willkommen zurück', b => {
-      b.appendChild(mk('p', 'big', 'Du warst ' + t + ' weg' + (r.eff < r.away ? ' (angerechnet werden höchstens 4 Stunden)' : '') + '.'));
+      b.appendChild(mk('p', 'big', 'Du warst ' + t + ' weg' + (r.capped ? ' (angerechnet wird höchstens ' + (ONLINE ? '1 Stunde' : '4 Stunden') + ')' : '') + '.'));
+      if (ONLINE) b.appendChild(mk('p', null, 'In der Spielwelt sind in dieser Zeit ' + (r.gameH < 10 ? String(Math.round(r.gameH * 10) / 10).replace('.', ',') : Math.round(r.gameH)) + ' Stunden vergangen.'));
       if (r.worked) {
         b.appendChild(mk('p', 'big', 'Deine Auto-Disposition hat in der Zeit ca. ' + r.n + ' Bestellungen ausgeliefert. Nach Abzug der Löhne (' + eur(r.wages) + ') bleiben ' + seur(r.net) + '.'));
       } else {
@@ -2479,37 +2589,152 @@ function startGame(DATA, MODEKEY) {
     }, { pause: true });
   }
 
+  // ---------- Online: Unternehmenswert, Cloud-Speicher, Rangliste ----------
+  const START_VALUE = CFG.startCash + CFG.vehPrice.bike;
+  // Ausgangswerte für Tag und Woche; beim ersten Wert eines neuen Zeitraums gilt der zuletzt bekannte Wert (Gewinne aus einer Abwesenheit zählen also für den Zeitraum der Rückkehr)
+  const rk = { dayP: -1, dayBase: START_VALUE, weekP: -1, weekBase: START_VALUE, last: START_VALUE };
+  function companyValue() {
+    let v = cash;
+    for (const d of drivers) v += CFG.vehPrice[d.veh] || 0;
+    for (const u of UPG) if (owned[u.id]) v += u.cost;
+    for (let i = 1; i <= zoneLevel; i++) v += CFG.zoneCost[i] || 0;
+    for (let i = 1; i <= hubLevel; i++) v += CFG.hubCost[i] || 0;
+    for (let i = 1; i < hubs.length; i++) v += CFG.hubBuild[i] || 0;
+    return v + partners.size * CFG.partnerCost;
+  }
+  function rankStats() {
+    const v = companyValue(), ms = LMO.serverNow(), dp = LMO.world.period('day', ms), wp = LMO.world.period('week', ms);
+    if (rk.dayP !== dp) { rk.dayP = dp; rk.dayBase = rk.last; }
+    if (rk.weekP !== wp) { rk.weekP = wp; rk.weekBase = rk.last; }
+    rk.last = v;
+    return { city: DATA.name, l: stats.n, r: rep, g: { all: v - START_VALUE, day: v - rk.dayBase, week: v - rk.weekBase } };
+  }
+  const onNet = { push: 0, err: null, rank: null, rankAt: 0, boardErr: null }; let pushing = null, queued = null, queuedFinal = false;
+  const infoLine = () => ('Online · ' + DATA.name + ' · ' + Math.round(companyValue()).toLocaleString('de-DE') + ' € Wert · ' + stats.n + (stats.n === 1 ? ' Lieferung' : ' Lieferungen')).slice(0, 160);
+  function onSuperseded() {
+    if (halted) return; halted = true; noSave = true; syncOnChip();
+    openDlg('Sitzung beendet', b => {
+      b.appendChild(mk('p', 'big', new LMO.OErr('SUPERSEDED').message));
+      b.appendChild(mk('p', null, 'Deine Fortschritte bis zur Übernahme sind gespeichert. Wenn du hier weiterspielen willst, lade die Seite neu. Dann endet die andere Sitzung.'));
+      const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Hier weiterspielen'); ok.type = 'button'; ok.onclick = () => location.reload(); row.appendChild(ok); b.appendChild(row);
+    });
+  }
+  // Speichern in die Cloud, höchstens eines gleichzeitig; ein weiterer Aufruf wartet und läuft danach
+  function cloudPush(final) {
+    if (!ONLINE || halted || noSave || !drivers.length) return Promise.resolve(false);
+    if (!pushing) { pushing = doPush(final).finally(() => { pushing = null; }); return pushing; }
+    queuedFinal = queuedFinal || !!final;
+    if (!queued) queued = pushing.then(() => { const f = queuedFinal; queued = null; queuedFinal = false; return cloudPush(f); });
+    return queued;
+  }
+  async function doPush(final) {
+    let okk = false;
+    try {
+      const rs = rankStats(), raw = JSON.stringify(snapshot());
+      await LMO.company.push(PRE.slot, PRE.sess, raw, infoLine(), { keepalive: !!final && raw.length < 60000 });
+      onNet.push = Date.now(); onNet.err = null; okk = true;
+      try { await LMO.board.submit(CK, rs); onNet.boardErr = null; } catch (e) { onNet.boardErr = e; if (e.code !== 'NETWORK') console.warn('Rangliste:', e.code, e.detail); }
+    } catch (e) {
+      if (e.code === 'SUPERSEDED') onSuperseded(); else { onNet.err = e; console.warn('Cloud-Speichern:', e.code, e.detail); }
+    } finally { syncOnChip(); }
+    return okk;
+  }
+  async function refreshRank() {
+    if (!ONLINE || halted) return;
+    try { onNet.rank = await LMO.board.rank(CK); onNet.rankAt = Date.now(); } catch (e) { /* bleibt beim alten Wert */ }
+    syncOnChip();
+  }
+  function syncOnChip() {
+    if (!ONLINE) return;
+    const rkn = onNet.rank, dot = $('onDot');
+    const txt = halted ? 'Beendet' : onNet.err ? 'Offline' : rkn && rkn.rank ? 'Rang ' + rkn.rank + (rkn.full ? '' : ' von ' + rkn.total) : 'Online';
+    setText($('onT'), txt);
+    dot.style.background = halted || (onNet.err && onNet.err.code === 'PERMISSION_DENIED') ? '#e0402a' : onNet.err ? '#e0a020' : 'var(--ok)';
+    $('onChip').title = halted ? 'Sitzung beendet' : onNet.err ? 'Cloud-Speichern fehlgeschlagen: ' + onNet.err.message + ' (es wird weiter versucht)' : 'Rangliste öffnen';
+  }
+  const RK_METRICS = { g: ['Wachstum', r => eur(r.g)], l: ['Lieferungen', r => String(r.l)], r: ['Ruf', r => nf(1).format(r.r) + ' ★'] };
+  const rkView = { scope: 'all', area: 'city', metric: 'g' };
+  async function openRank() {
+    if (halted) { location.reload(); return; }
+    openDlg('Rangliste', b => {
+      const bar = mk('div', 'rkbar'), bar2 = mk('div', 'rkbar'), out = mk('div'), msg = mk('p', 'note');
+      const seg = (parent, items, cur, set) => {
+        const sg = mk('div', 'seg'); sg.setAttribute('role', 'group');
+        for (const [k, label] of items) { const x = mk('button', null, label); x.type = 'button'; x.setAttribute('aria-pressed', String(k === cur())); x.onclick = () => { set(k); for (const y of sg.children) y.setAttribute('aria-pressed', String(y === x)); load(); }; sg.appendChild(x); }
+        parent.appendChild(sg); return sg;
+      };
+      seg(bar, [['day', 'Heute'], ['week', 'Woche'], ['all', 'Gesamt']], () => rkView.scope, k => { rkView.scope = k; metricBar.hidden = k !== 'all' || rkView.area !== 'city'; });
+      seg(bar, [['city', DATA.name], ['world', 'Weltweit']], () => rkView.area, k => { rkView.area = k; metricBar.hidden = rkView.scope !== 'all' || k !== 'city'; });
+      const metricBar = bar2; metricBar.hidden = rkView.scope !== 'all' || rkView.area !== 'city';
+      seg(bar2, [['g', 'Wachstum'], ['l', 'Lieferungen'], ['r', 'Ruf']], () => rkView.metric, k => { rkView.metric = k; });
+      let seq = 0;
+      async function load() {
+        const my = ++seq; out.textContent = ''; msg.textContent = 'Lade …';
+        const scope = rkView.scope, metric = scope === 'all' && rkView.area === 'city' ? rkView.metric : 'g', world = rkView.area === 'world';
+        try {
+          if (!onNet.push && !onNet.err) await cloudPush(false);
+          else if (!halted && Date.now() - onNet.push > 20000) await cloudPush(false);
+          const rows = await LMO.board.top(world ? '_global' : CK, scope, metric, 25);
+          if (my !== seq) return;
+          msg.textContent = rows.length ? '' : 'Noch keine Einträge. Sobald dein Unternehmen wächst, erscheinst du hier.';
+          const me = LMO.state().uid, tb = mk('table', 'rk'), hd = mk('tr');
+          hd.append(mk('th', 'n', '#'), mk('th', null, 'Spieler'), mk('th', null, world ? 'Stadt' : ''), mk('th', 'n', RK_METRICS[metric][0])); tb.appendChild(hd);
+          rows.forEach((r, i) => { const tr = mk('tr', r.uid === me ? 'me' : ''); tr.append(mk('td', 'n', String(i + 1)), mk('td', null, r.name), mk('td', 'c', world ? r.city : ''), mk('td', 'n', RK_METRICS[metric][1](r))); tb.appendChild(tr); });
+          if (rows.length) out.appendChild(tb);
+          const mine = rows.findIndex(r => r.uid === me);
+          if (rows.length && mine < 0) out.appendChild(mk('p', 'note', 'Du bist in dieser Liste (noch) nicht unter den ersten 25.'));
+          if (scope === 'day') out.appendChild(mk('p', 'note', 'Heute zählt ab 04:00 Uhr (Winterzeit 03:00 Uhr). Gewertet wird das beste Wachstum des Zeitraums.'));
+          if (!world && scope === 'all' && metric === 'g') refreshRank();
+        } catch (e) { if (my === seq) { out.textContent = ''; msg.textContent = e.code === 'PERMISSION_DENIED' ? 'Die Rangliste ist noch nicht freigeschaltet (Sicherheitsregeln fehlen).' : e.message || 'Fehler'; } }
+      }
+      b.append(bar, bar2, out, msg);
+      load();
+    });
+  }
+  $('onChip').onclick = openRank;
+
   // ---------- Start ----------
   new ResizeObserver(resize).observe(wrap);
   mq.addEventListener && mq.addEventListener('change', () => { dirty = true; });
   new MutationObserver(() => { dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { textW.clear(); dirty = true; });
 
-  rezone(); realign(); refreshTraffic(true);
-  const loaded = loadSavedGame();
+  rezone();
+  if (ONLINE) { WORLD.t0 = LMO.world.gameNow(); teScan = worldT() - LOOKBACK; } // neues Unternehmen: Spielzeit 0 = jetzt
+  realign(); refreshTraffic(true);
+  const loaded = ONLINE ? onlineLoad() : loadSavedGame();
   if (loaded.reloading) return;
   const saved = loaded.sv;
   let welcome = null;
-  if (saved) welcome = offlineProgress(saved);
-  if (!saved) {
+  if (saved) welcome = ONLINE ? onlineResume(loaded) : offlineProgress(saved);
+  if (!saved) { // (bei beschädigtem/zu neuem Online-Stand nur zur Anzeige: die Sitzung ist angehalten und speichert nichts)
     addDriver('bike', 0);
     log('Hub bereit, Fahrer 1 (Fahrrad) wartet auf Aufträge');
     for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
+    if (ONLINE) scanWorldEvents(worldT(), true);
   }
   realign(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
+  if (ONLINE) { $('speedSeg').hidden = $('pauseBtn').hidden = $('winPause').hidden = true; $('onChip').hidden = false; lastG = worldT(); syncOnChip(); if (!loaded.corrupt && !loaded.future) saveNow(false); }
   resize();
   requestAnimationFrame(frame);
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade }; }
+  window.__lm = { world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
   setInterval(() => saveNow(false), 15000);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(false); });
-  addEventListener('pagehide', () => saveNow(false));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
+  addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });
+  if (ONLINE) {
+    setInterval(() => cloudPush(false), 60000);
+    setInterval(refreshRank, 300000);
+    setInterval(() => { LMO.syncClock(3).catch(() => {}); }, 600000);
+    setTimeout(() => { cloudPush(false).then(refreshRank); }, 4000);
+    if (loaded.corrupt) onCorrupt();
+  }
   const noticed = showLoadNotice(loaded, welcome ? () => showWelcome(welcome) : null);
   if (noticed) { /* Hinweis zuerst, danach ggf. Willkommen */ }
   else if (welcome) showWelcome(welcome);
-  else if (!saved) { let seen = false; try { seen = localStorage.getItem('lm-tut') === '1'; } catch (e) {} if (!seen) openTutorial(); }
+  else if (!saved && !loaded.corrupt) { let seen = false; try { seen = localStorage.getItem('lm-tut') === '1'; } catch (e) {} if (!seen) openTutorial(); }
 }
 /*BOOT*/
 /*ACCOUNT*/

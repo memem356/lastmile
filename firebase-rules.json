@@ -45,7 +45,7 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists()",
         "$slot": {
-          ".validate": "$slot.matches(/^[so]_[A-Za-z0-9_-]+$/) && $slot.length <= 62 && newData.hasChildren(['t', 'v', 'data'])",
+          ".validate": "$slot.matches(/^[so]_[A-Za-z0-9_-]+$/) && $slot.length <= 62 && newData.hasChildren(['t', 'v', 'data']) && ($slot.beginsWith('o_') ? (newData.child('sess').exists() && newData.child('sess').val() === root.child('sessions').child($uid).child($slot).child('sess').val()) : !newData.child('sess').exists())",
           "t": {
             ".validate": "newData.val() === now"
           },
@@ -54,6 +54,9 @@
           },
           "data": {
             ".validate": "newData.isString() && newData.val().length >= 20 && newData.val().length <= 400000"
+          },
+          "sess": {
+            ".validate": "newData.isString() && newData.val().length >= 8 && newData.val().length <= 40"
           },
           "$other": {
             ".validate": false
@@ -78,6 +81,65 @@
           },
           "$other": {
             ".validate": false
+          }
+        }
+      }
+    },
+    "sessions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists()",
+        "$slot": {
+          ".validate": "$slot.matches(/^o_[A-Za-z0-9_-]+$/) && $slot.length <= 62 && newData.hasChildren(['sess', 't'])",
+          "sess": {
+            ".validate": "newData.isString() && newData.val().length >= 8 && newData.val().length <= 40"
+          },
+          "t": {
+            ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "board": {
+      "$ck": {
+        "$scope": {
+          ".read": "auth != null",
+          ".indexOn": [
+            "p",
+            "g",
+            "l",
+            "r"
+          ],
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists()",
+            ".validate": "($ck === '_global' || $ck.matches(/^[A-Za-z0-9_-]{3,40}$/)) && ($scope === 'all' || $scope === 'day' || $scope === 'week') && newData.hasChildren(['n', 'g', 'p', 't'])",
+            "n": {
+              ".validate": "newData.isString() && newData.val() === root.child('users').child($uid).child('name').val()"
+            },
+            "c": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "p": {
+              ".validate": "newData.isNumber() && ($scope === 'all' ? newData.val() === 0 : ($scope === 'day' ? (newData.val() <= (now - 7200000) / 86400000 && newData.val() > (now - 7200000) / 86400000 - 1) : (newData.val() <= ((now - 7200000) / 86400000 + 3) / 7 && newData.val() > ((now - 7200000) / 86400000 + 3) / 7 - 1))) && (!data.exists() || newData.val() >= data.val())"
+            },
+            "g": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && ((data.exists() && data.parent().child('p').val() === newData.parent().child('p').val()) ? (newData.val() >= data.val() && newData.val() <= data.val() + 10 * (now - data.parent().child('t').val()) / 1000 + 5000) : newData.val() <= 10 * (((now - root.child('users').child($uid).child('created').val()) / 1000) < ($scope === 'day' ? 86400 : ($scope === 'week' ? 604800 : 1000000000)) ? ((now - root.child('users').child($uid).child('created').val()) / 1000) : ($scope === 'day' ? 86400 : ($scope === 'week' ? 604800 : 1000000000))) + 5000)"
+            },
+            "l": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0 && newData.val() <= 1.5 * (((now - root.child('users').child($uid).child('created').val()) / 1000) < ($scope === 'day' ? 86400 : ($scope === 'week' ? 604800 : 1000000000)) ? ((now - root.child('users').child($uid).child('created').val()) / 1000) : ($scope === 'day' ? 86400 : ($scope === 'week' ? 604800 : 1000000000))) + 200 && (!(data.exists() && data.parent().child('p').val() === newData.parent().child('p').val()) || newData.val() >= data.val())"
+            },
+            "r": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5"
+            },
+            "t": {
+              ".validate": "newData.val() === now"
+            },
+            "$other": {
+              ".validate": false
+            }
           }
         }
       }

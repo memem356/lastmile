@@ -173,14 +173,38 @@ http.createServer(async (req, res) => {
       const rest = p.slice(4), host = rest.split('/')[0], path = rest.slice(host.length + 1);
       if (host !== PRIMARY) return send(res, 404, { error: 'Firebase error. Please ensure that you have the URL of your Firebase Realtime Database instance configured correctly.' });
       COUNT.db++; frozen = Date.now() + skew;
-      if (FAIL && path.includes(FAIL.match) && (FAIL.times === undefined || FAIL.times-- > 0)) return send(res, FAIL.status || 500, { error: 'simulierter Fehler' });
+      if (FAIL && path.includes(FAIL.match) && (!FAIL.method || FAIL.method === req.method) && (FAIL.times === undefined || FAIL.times-- > 0)) return send(res, FAIL.status || 500, { error: 'simulierter Fehler' });
       const segs = path.replace(/\.json$/, '').split('/').filter(Boolean);
       const tok = u.searchParams.get('auth'), auth = tok ? parseTok(tok) : null;
       if (tok && !auth) return send(res, 401, { error: 'Auth token is expired' });
       if (req.method === 'GET') {
         if (!canRead(segs, auth, DB)) return send(res, 401, { error: 'Permission denied' });
-        const v = getAt(DB, segs);
+        let v = getAt(DB, segs);
         if (u.searchParams.get('shallow') === 'true' && isObj(v)) { const o = {}; for (const k of Object.keys(v)) o[k] = true; return send(res, 200, o); }
+        const ob = u.searchParams.get('orderBy');
+        if (ob) { // Abfragen wie bei Firebase: nach Kindfeld sortieren, filtern, begrenzen; ohne .indexOn ein Fehler
+          let key; try { key = JSON.parse(ob); } catch (e) { return send(res, 400, { error: 'orderBy muss in Anführungszeichen stehen' }); }
+          if (typeof key !== 'string') return send(res, 400, { error: 'orderBy ungültig' });
+          if (!['$key', '$value', '$priority'].includes(key)) {
+            const ws = walk(segs), last = ws[ws.length - 1], idx = last.path.length === segs.length ? last.node['.indexOn'] : null;
+            const ok = idx && [].concat(idx).includes(key);
+            if (!ok) return send(res, 400, { error: 'Index not defined, add ".indexOn": "' + key + '", for path "/' + segs.join('/') + '", to the rules' });
+          }
+          if (isObj(v)) {
+            const pj = n => { const x = u.searchParams.get(n); return x === null ? undefined : JSON.parse(x); };
+            const val = (k, x) => key === '$key' ? k : key === '$value' ? x : (isObj(x) && key in x ? x[key] : null);
+            const rank = x => x === null ? 0 : typeof x === 'boolean' ? 1 : typeof x === 'number' ? 2 : 3;
+            const cmp = (a, b) => rank(a) !== rank(b) ? rank(a) - rank(b) : (a < b ? -1 : a > b ? 1 : 0);
+            let ents = Object.keys(v).map(k => [k, val(k, v[k])]).sort((a, b) => cmp(a[1], b[1]) || (a[0] < b[0] ? -1 : 1));
+            const eq = pj('equalTo'), st = pj('startAt'), en = pj('endAt'), lf = pj('limitToFirst'), ll = pj('limitToLast');
+            if (eq !== undefined) ents = ents.filter(e => cmp(e[1], eq) === 0);
+            if (st !== undefined) ents = ents.filter(e => cmp(e[1], st) >= 0);
+            if (en !== undefined) ents = ents.filter(e => cmp(e[1], en) <= 0);
+            if (lf !== undefined) ents = ents.slice(0, lf);
+            if (ll !== undefined) ents = ents.slice(Math.max(0, ents.length - ll));
+            const o = {}; for (const e of ents) o[e[0]] = v[e[0]]; v = o;
+          }
+        }
         return send(res, 200, v);
       }
       if (req.method === 'PUT' || req.method === 'DELETE') {
