@@ -16,3 +16,6 @@ Spiel: https://memem356.github.io/lastmile/
 - `data/essen.json` – Straßen und Orte der Essener Innenstadt (Offline-Demo)
 
 Kartendaten: © OpenStreetMap-Mitwirkende (ODbL), https://www.openstreetmap.org/copyright
+
+## Phase 6 (Realismus)
+Tageszeit-Kurve und Wochentage, Rushhour-Verkehr, Wetter, Pannen, Ereignisse (Stau, Straßenfest, Großbestellung, Krankmeldung), Nachfrage-Karte (Taste H) und Höhenprofil: Steigungen bremsen vor allem Fahrräder. Höhendaten kommen von Open-Meteo (für neu geladene Städte live, für das Essen-Demo eingebettet). Bereits gespeicherte Städte sind flach, bis sie neu geladen werden.
