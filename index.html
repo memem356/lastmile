@@ -401,6 +401,7 @@ canvas.placing { cursor: crosshair; }
           <dt>Gelände</dt><dd id="sEl">–</dd>
           <dt>Ereignisse</dt><dd id="sEv">–</dd>
         </dl>
+        <button type="button" class="btn" id="evFocus" hidden>Ereignis auf der Karte zeigen</button>
       </div>
       <div class="block">
         <h2>Betrieb</h2>
@@ -1309,6 +1310,7 @@ function startGame(DATA, MODEKEY) {
         const r = selected ? 7 : 5.5;
         ctx.beginPath(); ctx.arc(px, py, r + 5, 0, 6.283); ctx.fillStyle = T.signal; ctx.globalAlpha = selected ? 0.28 : 0.16; ctx.fill(); ctx.globalAlpha = 1;
         ctx.beginPath(); ctx.arc(px, py, r, 0, 6.283); ctx.fillStyle = T.signal; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+        if (o.big) { const k = (performance.now() / 900) % 1; ctx.beginPath(); ctx.arc(px, py, r + 6 + k * 14, 0, 6.283); ctx.strokeStyle = T.signal; ctx.globalAlpha = 0.7 * (1 - k); ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1; dirty = true; }
       }
       const showCust = selected || (o.state === 'assigned' && sel.driver === o.driver);
       if (showCust) {
@@ -1350,6 +1352,8 @@ function startGame(DATA, MODEKEY) {
   function drawDrivers() {
     for (const d of drivers) {
       const p = driverPos(d), x = toX(p.x), y = toY(p.y), selected = sel.driver === d.id;
+      if (d.sick) ctx.globalAlpha = 0.45;
+      if (d.stall) { const k = (performance.now() / 700) % 1; ctx.beginPath(); ctx.arc(x, y, 14 + k * 8, 0, 6.283); ctx.strokeStyle = '#e0402a'; ctx.globalAlpha = 0.8 * (1 - k); ctx.lineWidth = 2.5; ctx.stroke(); ctx.globalAlpha = 1; dirty = true; }
       ctx.beginPath(); ctx.arc(x, y, selected ? 16 : 13, 0, 6.283); ctx.fillStyle = T.route; ctx.globalAlpha = selected ? 0.24 : 0.16; ctx.fill(); ctx.globalAlpha = 1;
       if ((d.trip || d.ret) && p.moving) {
         ctx.save(); ctx.translate(x, y); ctx.rotate(p.hd);
@@ -1360,6 +1364,7 @@ function startGame(DATA, MODEKEY) {
         ctx.beginPath(); ctx.arc(x, y, 8.5, 0, 6.283); ctx.fillStyle = T.route; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
         ctx.fillStyle = T.mapbg; ctx.font = '600 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d.id), x, y + 0.5);
       }
+      ctx.globalAlpha = 1;
     }
   }
   function drawScale() {
@@ -1367,6 +1372,49 @@ function startGame(DATA, MODEKEY) {
     const px = len / mpp, x = 14, y = ch - 18;
     ctx.strokeStyle = T.ink; ctx.lineWidth = 2; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 5); ctx.stroke();
     ctx.font = '500 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; halo(len >= 1000 ? (len / 1000) + ' km' : len + ' m', x + 3, y - 4, T.ink);
+  }
+  function drawBadge(x, y, kind, f) {
+    const r = 11; ctx.save(); ctx.translate(x, y); ctx.globalAlpha = Math.max(0.4, Math.min(1, f * 2)); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg;
+    if (kind === 'crash') {
+      ctx.beginPath(); ctx.moveTo(0, -r - 1); ctx.lineTo(r + 1, r - 2); ctx.lineTo(-r - 1, r - 2); ctx.closePath(); ctx.fillStyle = '#e0402a'; ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.fillRect(-1.2, -5, 2.4, 6.5); ctx.fillRect(-1.2, 3.5, 2.4, 2.4);
+    } else if (kind === 'works') {
+      ctx.beginPath(); ctx.moveTo(0, -r - 1); ctx.lineTo(r + 1, 0); ctx.lineTo(0, r + 1); ctx.lineTo(-r - 1, 0); ctx.closePath(); ctx.fillStyle = '#f0a30a'; ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#17202a'; ctx.fillRect(-6, -1.6, 12, 3.2);
+    } else if (kind === 'jam') {
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.fillStyle = '#8b1a1a'; ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; for (const dy of [-5, -1.5, 2]) ctx.fillRect(-6, dy, 12, 2.4);
+    } else {
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.fillStyle = '#8a4fff'; ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.fillRect(-4, -6, 1.8, 12); ctx.beginPath(); ctx.moveTo(-2.2, -6); ctx.lineTo(5, -3); ctx.lineTo(-2.2, 0); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawEvents() {
+    if (cam.s < 0.08) return;
+    for (const e of tevents) {
+      const x = toX(e.x), y = toY(e.y); if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) continue;
+      if (e.kind === 'fest') {
+        ctx.save(); ctx.beginPath(); ctx.arc(x, y, e.r * cam.s, 0, 6.283); ctx.fillStyle = 'rgba(138,79,255,0.10)'; ctx.fill();
+        ctx.setLineDash([6, 5]); ctx.strokeStyle = '#8a4fff'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+      }
+      drawBadge(x, y, e.kind, evFactor(e));
+    }
+  }
+  function drawWeather() {
+    if (wx !== 'rain' && wx !== 'storm' && wx !== 'snow') return;
+    const t = performance.now() / 1000; ctx.save();
+    ctx.fillStyle = wx === 'snow' ? 'rgba(230,236,245,0.10)' : 'rgba(40,60,100,' + (wx === 'storm' ? 0.15 : 0.08) + ')'; ctx.fillRect(0, 0, cw, ch);
+    if (wx === 'snow') {
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      for (let i = 0; i < 70; i++) { const x = (i * 137.5 + Math.sin(t + i) * 12) % cw, y = (i * 61.7 + t * 45) % (ch + 10); ctx.beginPath(); ctx.arc(x < 0 ? x + cw : x, y, 1.6, 0, 6.283); ctx.fill(); }
+    } else {
+      ctx.strokeStyle = 'rgba(160,185,220,0.45)'; ctx.lineWidth = 1; ctx.beginPath();
+      const n = wx === 'storm' ? 110 : 60, v = wx === 'storm' ? 700 : 420;
+      for (let i = 0; i < n; i++) { const x = (i * 137.5) % cw, y = (i * 61.7 + t * v) % (ch + 30) - 15; ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 11); }
+      ctx.stroke();
+    }
+    ctx.restore(); dirty = true;
   }
   function draw() {
     const sig = document.documentElement.getAttribute('data-theme') + '|' + mq.matches;
@@ -1383,7 +1431,7 @@ function startGame(DATA, MODEKEY) {
     if (pv) { drawRouteLeg(pv.legs[0], 0, null, true, 0.8); drawRouteLeg(pv.legs[1], 0, null, false, 0.8); }
     // Routen aller aktiven Fahrten, gewählter Fahrer hervorgehoben
     for (const d of drivers) if (d.trip) drawTripRoute(d.trip, d.st, sel.driver === d.id ? 1 : 0.2);
-    drawHub(); drawPartners(); drawOrders(); drawDrivers(); drawScale();
+    drawHub(); drawPartners(); drawOrders(); drawEvents(); drawDrivers(); drawScale(); drawWeather();
   }
 
   // ---------- Welt: Tageszeit, Verkehr, Wetter, Ereignisse, Pannen ----------
@@ -1445,17 +1493,15 @@ function startGame(DATA, MODEKEY) {
   let events = [], nextEv = (2.5 + Math.random() * 2.5) * 3600;
   const ev = id => events.some(e => e.id === id);
   const EVDEF = [
-    { id: 'fest', name: 'Straßenfest', dur: 150 * 60, w: 2, text: '40 % mehr Bestellungen' },
     { id: 'cater', name: 'Großbestellung', dur: 0, w: 2 },
     { id: 'sick', name: 'Krankmeldung', dur: 120 * 60, w: 2 }
   ];
   function triggerEvent() {
-    let r = Math.random() * EVDEF.reduce((a, e) => a + e.w, 0), def = EVDEF[0];
-    for (const e of EVDEF) { r -= e.w; if (r <= 0) { def = e; break; } }
-    if (def.id === 'fest') {
-      if (ev(def.id)) return;
-      events.push({ id: def.id, left: def.dur, name: def.name }); log('Ereignis: ' + def.name + '. ' + def.text, true); plansDirty = true;
-    } else if (def.id === 'cater') {
+    const h = hourNow(), meal = (h >= 11 && h < 13.5) || (h >= 17.5 && h < 20), morning = h >= 5 && h < 9;
+    const wts = { cater: meal ? 3 : 0.4, sick: morning ? 3 : 0.5 };
+    let r = Math.random() * EVDEF.reduce((a, e) => a + wts[e.id], 0), def = EVDEF[0];
+    for (const e of EVDEF) { r -= wts[e.id]; if (r <= 0) { def = e; break; } }
+    if (def.id === 'cater') {
       const o = spawnOrder(true); if (o) log('Ereignis: Großbestellung, ' + eur(o.pay) + '. Der Kunde plant mehr Zeit ein.', true);
     } else {
       const c = drivers.filter(d => !d.trip && !d.train && !d.sick);
@@ -1500,9 +1546,10 @@ function startGame(DATA, MODEKEY) {
   try { showTraffic = localStorage.getItem('lm-traf') !== '0'; } catch (e) {}
   const TCOL = ['#2fa35a', '#f0a30a', '#e0402a', '#8b1a1a'];
   const TEV = {
-    jam: { name: 'Stau', min: 45, max: 90, peak: 0.8, r: 320, up: 480, down: 720 },
-    crash: { name: 'Unfall', min: 30, max: 60, peak: 1, r: 260, up: 120, down: 600 },
-    works: { name: 'Baustelle', min: 180, max: 480, peak: 0.55, r: 180, up: 60, down: 60 }
+    jam: { name: 'Stau', min: 45, max: 90, peak: 0.8, r: 320, up: 480, down: 720, text: 'Wer hier durchfährt, steht im Stau. Fahrer mit Navigation weichen aus.' },
+    crash: { name: 'Unfall', min: 30, max: 60, peak: 1, r: 260, up: 120, down: 600, text: 'Starker Stau vor der Unfallstelle, bis sie geräumt ist.' },
+    works: { name: 'Baustelle', min: 180, max: 480, peak: 0.55, r: 180, up: 60, down: 60, text: 'Der Verkehr läuft hier mehrere Stunden langsamer.' },
+    fest: { name: 'Straßenfest', min: 150, max: 300, peak: 0.5, r: 200, up: 600, down: 600, text: 'Viele Gäste: im Umkreis kommen deutlich mehr Bestellungen, die Straßen sind voll.' }
   };
   function evFactor(e) {
     const tau = simClock - e.t0; if (tau < 0 || tau >= e.dur) return 0;
@@ -1560,11 +1607,18 @@ function startGame(DATA, MODEKEY) {
     return -1;
   }
   function spawnTrafficEvent(kind) {
-    const def = TEV[kind], id = pickHotEdge(0, kind === 'works' ? 3 : 2); if (id < 0) return null;
-    const e = { id: teSeq++, kind, x: E.eMidX[id], y: E.eMidY[id], r: def.r, peak: def.peak, t0: simClock, dur: (def.min + Math.random() * (def.max - def.min)) * 60, up: def.up, down: def.down,
-      street: E.nodeName[E.eA[id]] || E.nodeName[E.eB[id]] || 'einer Hauptstraße' };
+    const def = TEV[kind]; let x, y, street;
+    if (kind === 'fest') {
+      if (!zPois.length) return null;
+      const p = zPois[Math.floor(Math.random() * zPois.length)]; x = p.x; y = p.y; street = p.street || 'der Innenstadt';
+    } else {
+      const id = pickHotEdge(0, kind === 'works' ? 3 : 2); if (id < 0) return null;
+      x = E.eMidX[id]; y = E.eMidY[id]; street = E.nodeName[E.eA[id]] || E.nodeName[E.eB[id]] || 'einer Hauptstraße';
+    }
+    const e = { id: teSeq++, kind, x, y, r: def.r, peak: def.peak, t0: simClock, dur: (def.min + Math.random() * (def.max - def.min)) * 60, up: def.up, down: def.down,
+      street };
     tevents.push(e); refreshTraffic(true);
-    log('Ereignis: ' + def.name + ' auf ' + e.street, true); toast(def.name, e.street); if (kind !== 'works') sfx('bad');
+    log('Ereignis: ' + def.name + ' auf ' + e.street, true); toast(def.name, e.street); if (kind === 'jam' || kind === 'crash') sfx('bad');
     return e;
   }
   function tickTraffic(adv) {
@@ -1573,8 +1627,9 @@ function startGame(DATA, MODEKEY) {
     const rate = {
       jam: 1 / (2.2 * 3600) * (0.15 + 1.6 * rp.load) * Math.sqrt(WX[wx].risk) * MODE.risk,
       crash: 1 / (5 * 3600) * (0.3 + 1.2 * rp.load) * WX[wx].risk * MODE.risk,
-      works: wk && h >= 6 && h < 10 ? 1 / (6 * 3600) * MODE.risk : 0
-    }, cap = { jam: 2, crash: 1, works: 2 };
+      works: wk && h >= 6 && h < 10 ? 1 / (6 * 3600) * MODE.risk : 0,
+      fest: dayIdx() === 1 || dayIdx() === 2 ? (h >= 10 && h < 18 ? 1 / (5 * 3600) : 0) * MODE.risk : dayIdx() === 0 && h >= 15 && h < 19 ? 1 / (12 * 3600) * MODE.risk : 0
+    }, cap = { jam: 2, crash: 1, works: 2, fest: 1 };
     for (const k in rate) if (cnt(k) < cap[k] && Math.random() < 1 - Math.exp(-rate[k] * adv)) spawnTrafficEvent(k);
   }
   const lastRe = { t: 0 };
@@ -1636,7 +1691,7 @@ function startGame(DATA, MODEKEY) {
   // ---------- Bestellungen ----------
   const rand = (a, b) => a + Math.random() * (b - a);
   function pickPoi() {
-    const h = hourNow(), wgt = p => (partners.has(p.i) ? CFG.partnerWeight : 1) * typeW(p.type, h) + 0.001;
+    const h = hourNow(), fests = tevents.filter(e => e.kind === 'fest' && evFactor(e) > 0.3), wgt = p => (partners.has(p.i) ? CFG.partnerWeight : 1) * typeW(p.type, h) * (fests.some(e => Math.hypot(e.x - p.x, e.y - p.y) < e.r) ? 2.5 : 1) + 0.001;
     let tot = 0; for (const p of zPois) tot += wgt(p);
     let r = Math.random() * tot;
     for (const p of zPois) { r -= wgt(p); if (r <= 0) return p; }
@@ -1674,7 +1729,7 @@ function startGame(DATA, MODEKEY) {
   const tipMax = () => (owned.boxes ? 0.4 : CFG.tipMax) * MODE.tip;
   const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
   const wageOf = d => CFG.wage[d.veh] * (1 + CFG.wageLevel * (d.lvl - 1));
-  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1) * MODE.demand * dayDemand() * WX[wx].dem * (ev('fest') ? 1.4 : 1);
+  const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1) * MODE.demand * dayDemand() * WX[wx].dem;
   function tune(plan, d) {
     if (!plan) return plan;
     const m = speedMult(d);
@@ -1949,7 +2004,8 @@ function startGame(DATA, MODEKEY) {
     setText($('sDay'), Math.round(dayDemand() * 100) + ' %');
     setText($('sEl'), E.elevRange ? Math.round(E.elevRange.max - E.elevRange.min) + ' m Höhenunterschied' : 'keine Höhendaten');
     const sickN = drivers.filter(d => d.sick).length;
-    setText($('sEv'), events.map(e => e.name + ' (' + fmtMin(e.left) + ')').concat(sickN ? [sickN + ' Fahrer krank'] : []).join(', ') || '–');
+    setText($('sEv'), tevents.map(e => TEV[e.kind].name + ' (' + Math.max(1, Math.round((e.dur - (simClock - e.t0)) / 60)) + ' min)').concat(events.map(e => e.name + ' (' + fmtMin(e.left) + ')'), sickN ? [sickN + ' Fahrer krank'] : []).join(', ') || '–');
+    $('evFocus').hidden = !tevents.length;
     setText($('sRep'), '★ ' + nf(1).format(rep));
     setText($('sDem'), '≈ ' + Math.round(3600 / (CFG.spawnMean / demand())) + ' pro Stunde');
     setText($('sN'), String(stats.n)); setText($('sCancel'), String(stats.cancel));
@@ -2120,6 +2176,7 @@ function startGame(DATA, MODEKEY) {
     for (const o of orders) if (o.state === 'open' || (o.state === 'assigned' && !o.picked)) test(o.pick.x, o.pick.y, { kind: 'order', o });
     for (const d of drivers) { const p = driverPos(d); test(p.x, p.y, { kind: 'driver', d }); }
     hubs.forEach((h, i) => test(h.x, h.y, { kind: 'hub', i }));
+    for (const e of tevents) test(e.x, e.y, { kind: 'event', e });
     return best;
   }
   const rel = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
@@ -2137,7 +2194,7 @@ function startGame(DATA, MODEKEY) {
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
     tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
-    tip.textContent = h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zoneR() + ' m · ' + slotsUsed(h.i) + ' / ' + CFG.hubCaps[hubLevel] + ' Fahrer'
+    tip.textContent = h.kind === 'event' ? TEV[h.e.kind].name + ' · ' + h.e.street + ' · noch ' + fmtMin(h.e.dur - (simClock - h.e.t0)) + ' min' : h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zoneR() + ' m · ' + slotsUsed(h.i) + ' / ' + CFG.hubCaps[hubLevel] + ' Fahrer'
       : h.kind === 'order' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.pick.name || TYPE_LABEL[h.o.pick.type]) + ' · ' + eur(h.o.pay)
       : 'Fahrer ' + h.d.id + ' · ' + driverLabel(h.d);
   });
@@ -2151,6 +2208,7 @@ function startGame(DATA, MODEKEY) {
     if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
     else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; openDriverWin(h.d.id); }
     else if (h.kind === 'hub') openHQ();
+    else if (h.kind === 'event') openEventInfo(h.e);
   });
   function endPlacing() { placing = false; ghost = null; $('placeBan').hidden = true; cv.classList.remove('placing'); dirty = true; }
   function placeHub(x, y) {
@@ -2305,6 +2363,14 @@ function startGame(DATA, MODEKEY) {
   $('dlgX').onclick = closeDlg;
   dlg.addEventListener('pointerdown', e => { if (e.target === dlg) closeDlg(); });
 
+  function openEventInfo(e) {
+    const def = TEV[e.kind];
+    openDlg(def.name, b => {
+      b.appendChild(mk('p', 'big', e.street));
+      b.appendChild(mk('p', null, 'Noch etwa ' + Math.max(1, Math.round((e.dur - (simClock - e.t0)) / 60)) + ' Minuten. ' + def.text));
+      const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Schließen'); ok.type = 'button'; ok.onclick = closeDlg; row.appendChild(ok); b.appendChild(row);
+    });
+  }
   function openAch() {
     const n = ACH.filter(a => prog.ach[a.id]).length;
     openDlg('Erfolge (' + n + ' von ' + ACH.length + ')', b => {
@@ -2353,6 +2419,8 @@ function startGame(DATA, MODEKEY) {
     });
   }
   function setTraffic(on) { showTraffic = on; try { localStorage.setItem('lm-traf', on ? '1' : '0'); } catch (e) {} $('trLeg').hidden = !on; dirty = true; }
+  let evIdx = 0;
+  $('evFocus').onclick = () => { if (!tevents.length) return; const e = tevents[evIdx++ % tevents.length]; cam.x = e.x; cam.y = e.y; cam.s = Math.max(cam.s, 0.5); dirty = true; grid.dataset.tab !== undefined && $('tabbar').querySelector('[data-t="map"]').click(); };
   $('menuBtn').onclick = openMenu;
 
   // ---------- Handy: Ansichten ----------
