@@ -285,6 +285,21 @@ function createEngine(D) {
   }
   const hubNode = (vehKey, x, y) => nearest(x, y, nets[VEHICLES[vehKey].net].ok);
 
+  // Firmenkunden (nachgeladen): Liste aus [Art, Breite·1e5, Länge·1e5, Name]. Nur Firmen nahe am befahrbaren Straßennetz kommen in Frage.
+  const FIRM_LABEL = ['Büro', 'Betrieb', 'Geschäft', 'Praxis', 'Bank oder Dienst'];
+  function addFirms(list) {
+    const out = [], ok = nets.car.ok;
+    for (const f of list || []) {
+      if (!Array.isArray(f) || f.length < 4 || !isFinite(f[1]) || !isFinite(f[2])) continue;
+      const q = proj(f[1] / 1e5, f[2] / 1e5);
+      if (q.x < bounds.minX - 60 || q.x > bounds.maxX + 60 || q.y < bounds.minY - 60 || q.y > bounds.maxY + 60) continue;
+      const node = nearest(q.x, q.y, ok);
+      if (node < 0 || Math.hypot(nx[node] - q.x, ny[node] - q.y) > 150) continue;
+      out.push({ i: out.length, kind: Math.min(4, Math.max(0, f[0] | 0)), x: q.x, y: q.y, name: String(f[3]), node, street: streetAt(q.x, q.y) });
+    }
+    return out;
+  }
+
   // Verkehrsbremse (0.25 bis 1) auf der Kante, auf der der Fahrer gerade ist
   const trafficMul = (vehKey, eid) => (VEHICLES[vehKey].net === 'bike' ? mulBike : mulCar)[eid];
   // Ausweichen unterwegs: neue Route ab dem nächsten Knoten, wenn sie bei aktuellem Verkehr schneller ist.
@@ -342,7 +357,7 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj, unproj, MLAT, MLON, returnLeg, hubNode, elevRange, nz,
+    nearest, planTrip, sample, tripState, proj, unproj, MLAT, MLON, returnLeg, hubNode, addFirms, FIRM_LABEL, elevRange, nz,
     EN, eA, eB, eC, eDir, eMidX, eMidY, eBase, cong, updateTraffic, trafficMul, reroute
   };
 }

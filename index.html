@@ -174,6 +174,49 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .hubbody .note { margin: 0; }
 .hubbody .hadd { align-self: stretch; }
 
+.seg[hidden] { display: none; }
+/* Fulfillment Center */
+.dayhdr { font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 6px 2px 0; }
+.dayhdr:first-child { padding-top: 0; }
+.order.firm { border-left: 3px solid var(--signal); }
+.o-st { font: 500 11px var(--font-mono); color: var(--muted); }
+.o-st.run { color: var(--ok); } .o-st.over { color: var(--warn); }
+.cbox .cinfo { margin: 0; }
+.cbox h3 { margin: 4px 0 0; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.vlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.van { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); padding: 7px 10px; }
+.van strong { font-weight: 600; }
+.van small { grid-column: 1; color: var(--muted); font-size: 12px; }
+.van button, .cdr button { padding: 4px 9px; font-size: 12px; white-space: nowrap; }
+.van button { grid-row: 1 / span 2; grid-column: 2; }
+.cdr { border: 1px solid var(--line); border-radius: 5px; background: var(--bg); padding: 8px 10px; display: grid; gap: 4px; }
+.cdr .d-top strong { font-weight: 600; }
+.cdr .crow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+/* Touren */
+.tlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tlist:empty { display: none; }
+.tour { border: 1px solid var(--line); border-radius: 5px; background: var(--bg); padding: 8px 10px; display: grid; gap: 3px; cursor: pointer; }
+.tour.sel { border-color: var(--route); box-shadow: inset 0 0 0 1px var(--route); }
+.tour .t-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.tour .t-top strong { font-weight: 600; }
+.tour small { color: var(--muted); font-size: 12px; }
+.tour .crow, .planner .crow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.tour .crow button, .planner .crow button, .oadd button { padding: 5px 10px; font-size: 12px; }
+.planner { border: 1px solid var(--signal); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
+.planner h3 { margin: 0; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.plrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.plrow > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pstops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pstop { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; background: var(--panel); }
+.pn { width: 22px; height: 22px; border-radius: 50%; background: var(--route); color: var(--panel); display: grid; place-items: center; font: 600 12px var(--font-mono); }
+.pmain { display: flex; flex-direction: column; min-width: 0; }
+.pmain strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmain small { color: var(--muted); font-size: 12px; }
+.pmain .peta.ok { color: var(--ok); } .pmain .peta.wait { color: var(--signal); } .pmain .peta.late { color: var(--warn); }
+.pbtn { display: flex; gap: 3px; } .pbtn button { padding: 3px 7px; font-size: 12px; min-width: 28px; }
+.plsum { white-space: pre-line; } .plerr { color: var(--warn); }
+.oadd { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 0 10px 9px; }
+.order.intour { border-color: var(--route); }
 .logwrap { display: flex; flex-direction: column; gap: 10px; min-height: 150px; flex: 1; }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; min-height: 0; }
 .log li { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; font-size: 13px; }
@@ -239,14 +282,14 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .start .foot { font-size: 12px; color: var(--muted); margin: 0; }
 .start .foot a { color: inherit; }
 
-.upg { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
-.upg:first-child { border-top: 0; }
-.upg .u-top { grid-column: 1; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.upg strong { font-weight: 600; font-size: 13px; }
-.upg .u-lv { font: 500 11px var(--font-mono); color: var(--muted); white-space: nowrap; }
-.upg small { grid-column: 1; color: var(--muted); font-size: 12px; }
-.upg small[hidden] { display: none; }
-.upg button { grid-row: 1 / span 4; grid-column: 2; align-self: center; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.upg, .cupg { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.upg:first-child, .cupg:first-child { border-top: 0; }
+.upg .u-top, .cupg .u-top { grid-column: 1; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.upg strong, .cupg strong { font-weight: 600; font-size: 13px; }
+.upg .u-lv, .cupg .u-lv { font: 500 11px var(--font-mono); color: var(--muted); white-space: nowrap; }
+.upg small, .cupg small { grid-column: 1; color: var(--muted); font-size: 12px; }
+.upg small[hidden], .cupg small[hidden] { display: none; }
+.upg button, .cupg button { grid-row: 1 / span 4; grid-column: 2; align-self: center; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
 .upg.own strong::after { content: " ✓"; color: var(--ok); }
 .lvbar { grid-column: 1; display: flex; gap: 3px; height: 8px; }
 .lvbar i { flex: 1 1 0; min-width: 0; border-radius: 2px; background: var(--line); box-sizing: border-box; }
@@ -486,6 +529,10 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <button type="button" data-s="30" aria-pressed="false">30×</button>
         <button type="button" data-s="60" aria-pressed="false">60×</button>
       </div>
+      <div class="seg" role="group" aria-label="Ansicht" id="viewSeg" hidden>
+        <button type="button" data-v="hq" aria-pressed="true">Lieferdienst</button>
+        <button type="button" data-v="cen" aria-pressed="false">Fulfillment</button>
+      </div>
       <button type="button" class="chip" id="onChip" hidden title="Rangliste öffnen"><i class="dot" id="onDot"></i><span id="onT">Online</span></button>
       <button type="button" class="btn" id="pauseBtn" aria-pressed="false">Pause</button>
       <button type="button" class="btn" id="menuBtn">Menü</button>
@@ -494,11 +541,48 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
   <main class="grid" data-tab="map">
     <aside class="panel" aria-label="Bestellungen">
-      <div class="block">
+      <div class="block" id="hqOrders">
         <h2>Offene Bestellungen <span class="count" id="ocount">0</span></h2>
         <ul class="olist" id="olist"></ul>
         <p class="note" id="ohint">Bestellung wählen, dann einen freien Fahrer zuweisen.</p>
         <button type="button" class="btn" id="autoBtn" aria-pressed="false" hidden>Auto-Disposition: aus</button>
+      </div>
+      <div class="block" id="tourBlock" hidden>
+        <h2>Touren <span class="count" id="tcount">0</span></h2>
+        <ul class="tlist" id="tlist"></ul>
+        <p class="note" id="thint"></p>
+        <button type="button" class="btn primary" id="tourNew">Tour planen</button>
+        <div class="planner" id="planner" hidden>
+          <h3 id="plTitle">Neue Tour</h3>
+          <label class="field-label" for="plCen" id="plCenL" hidden>Center</label>
+          <select id="plCen" hidden></select>
+          <label class="field-label" for="plSlot">Abfahrt</label>
+          <select id="plSlot"></select>
+          <div class="plrow">
+            <div><label class="field-label" for="plVan">Transporter</label><select id="plVan"></select></div>
+            <div><label class="field-label" for="plDrv">Fahrer</label><select id="plDrv"></select></div>
+          </div>
+          <ol class="pstops" id="plStops"></ol>
+          <p class="note plsum" id="plSum"></p>
+          <p class="note plinfo" id="plInfo" hidden></p>
+          <p class="note plerr" id="plErr" hidden></p>
+          <div class="crow">
+            <button type="button" class="btn" id="plSug" title="Füllt die Tour mit passenden Bestellungen">Vorschlag</button>
+            <button type="button" class="btn" id="plOpt" title="Kürzeste Reihenfolge, die die Zeitfenster einhält">Reihenfolge optimieren</button>
+            <button type="button" class="btn" id="plClr">Leeren</button>
+          </div>
+          <div class="crow">
+            <button type="button" class="btn primary" id="plSave">Tour speichern</button>
+            <button type="button" class="btn" id="plX">Abbrechen</button>
+          </div>
+        </div>
+      </div>
+      <div class="block" id="cenOrders" hidden>
+        <h2>Center-Bestellungen <span class="count" id="cocount">0</span></h2>
+        <label class="field-label" for="cenSel" id="cenSelL" hidden>Center</label>
+        <select id="cenSel" hidden></select>
+        <ul class="olist" id="colist"></ul>
+        <p class="note" id="cohint"></p>
       </div>
     </aside>
 
@@ -507,8 +591,10 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <canvas id="map" role="img" aria-label="Straßenkarte mit Hub, Bestellungen und Fahrern"></canvas>
       <div class="legend">
         <span><i style="width:12px;height:12px;border-radius:3px;background:var(--hub);"></i>Hub</span>
-        <span><i style="width:10px;height:10px;border-radius:50%;background:var(--signal);"></i>Bestellung</span>
-        <span><i style="width:10px;height:10px;border-radius:50%;background:var(--route);"></i>Fahrer</span>
+        <span id="legB"><i style="width:10px;height:10px;border-radius:50%;background:var(--signal);"></i>Bestellung</span>
+        <span id="legF"><i style="width:10px;height:10px;border-radius:50%;background:var(--route);"></i>Fahrer</span>
+        <span id="legC" hidden><i style="width:12px;height:12px;border-radius:3px;background:var(--ok);"></i>Center</span>
+        <span id="legK" hidden><i style="width:10px;height:10px;border-radius:50%;background:var(--signal);"></i>Privat<i style="width:9px;height:9px;background:var(--signal);margin-left:6px;"></i>Firma</span>
         <span id="trLeg"><span class="tbar"><i style="background:#2fa35a"></i><i style="background:#f0a30a"></i><i style="background:#e0402a"></i><i style="background:#8b1a1a"></i></span>Verkehr</span>
         <button type="button" id="heatBtn" aria-pressed="false" title="Nachfrage-Karte (H)">Nachfrage</button>
       </div>
@@ -526,13 +612,13 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
     </section>
 
     <aside class="panel" aria-label="Betrieb und Fahrer">
-      <div class="block">
+      <div class="block" id="hubsBlock">
         <h2>Hauptquartiere <span class="count" id="dcount" title="Fahrer / Plätze">1 / 4</span></h2>
         <div class="hubs" id="dlist"></div>
         <p class="note">Klappe ein Hauptquartier auf, um seine Fahrer zu sehen. „Ausbau“ öffnet die Verbesserungen dieses Hubs. Klicke einen Fahrer an, um Details, Schulung, Pause und Kündigung zu öffnen.</p>
       </div>
 
-      <div class="block hire">
+      <div class="block hire" id="hireBlock">
         <h2>Fahrer einstellen</h2>
         <label class="field-label" for="hireVeh">Fahrzeug</label>
         <select id="hireVeh"></select>
@@ -540,6 +626,12 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <select id="hireHub" hidden></select>
         <button type="button" class="btn primary" id="hireBtn">Einstellen</button>
         <p class="note" id="hireNote"></p>
+      </div>
+
+      <div class="block" id="cenSide" hidden>
+        <h2>Fulfillment Center <span class="count" id="ccount" title="Transporter / Stellplätze">0</span></h2>
+        <div class="hubs" id="clist"></div>
+        <p class="note" id="cnote"></p>
       </div>
 
       <div class="logwrap">
@@ -573,9 +665,19 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <div class="hqhub"><strong id="huName"></strong><small id="huInfo"></small></div>
         <div id="ulist"></div>
       </div>
+      <div class="wbody" id="tab-ce" hidden>
+        <div class="hqhub"><strong id="ceName"></strong><small id="ceInfo"></small></div>
+        <div id="celist"></div>
+      </div>
       <div class="wbody" id="tab-gm" hidden>
         <p class="note">Gilt für das ganze Spiel. Plätze, Liefergebiet und Ausstattung kaufst du je Hub im Reiter des Hubs; ein neuer Hub startet ohne Ausbauten.</p>
         <div id="glist"></div>
+        <div class="cupg" id="cenBuild">
+          <div class="u-top"><strong>Fulfillment Center</strong><span class="u-lv" id="cbLv"></span></div>
+          <small>Ein Center liefert nur mit Transportern, an Privatpersonen und Firmen, in festen Touren zu Wunschzeitfenstern. Es hat eigene Fahrer, eigene Bestellungen und einen eigenen Ruf. Du kannst beliebig viele bauen, sie zählen nicht zu den Hubs.</small>
+          <small id="cbInfo"></small>
+          <button type="button" class="btn" id="cbBtn"></button>
+        </div>
       </div>
       <div class="wbody" id="tab-pa" hidden>
         <div class="head2"><p id="pnote"></p><span class="count" id="pcount">0</span></div>
@@ -612,6 +714,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
           <dt>Ausbauten</dt><dd id="fiUpg">–</dd>
           <dt>Schulungen</dt><dd id="fiTrain">–</dd>
           <dt>Hubs</dt><dd id="fiHub">–</dd>
+          <dt>Fulfillment Center</dt><dd id="fiCen">–</dd>
           <dt>Liefergebiet</dt><dd id="fiZone">–</dd>
           <dt>Partner</dt><dd id="fiPart">–</dd>
           <div class="sep"></div><dt class="total">Summe</dt><dd class="total" id="fiInv">–</dd>
@@ -637,6 +740,12 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
           <dt>Nachfrage</dt><dd id="sDem">–</dd>
         </dl>
         <h3>Lage</h3>
+        <dl class="rows" id="stCen" hidden>
+          <dt>Center-Stopps geliefert</dt><dd id="cN">0</dd>
+          <dt>Davon im Zeitfenster</dt><dd id="cOn">–</dd>
+          <dt>Zu spät geliefert</dt><dd id="cLate">0</dd>
+          <dt>Verfallen</dt><dd id="cExp">0</dd>
+        </dl>
         <dl class="rows">
           <dt>Wetter</dt><dd id="sWx">–</dd>
           <dt>Verkehr</dt><dd id="sTr">–</dd>
@@ -982,6 +1091,21 @@ function createEngine(D) {
   }
   const hubNode = (vehKey, x, y) => nearest(x, y, nets[VEHICLES[vehKey].net].ok);
 
+  // Firmenkunden (nachgeladen): Liste aus [Art, Breite·1e5, Länge·1e5, Name]. Nur Firmen nahe am befahrbaren Straßennetz kommen in Frage.
+  const FIRM_LABEL = ['Büro', 'Betrieb', 'Geschäft', 'Praxis', 'Bank oder Dienst'];
+  function addFirms(list) {
+    const out = [], ok = nets.car.ok;
+    for (const f of list || []) {
+      if (!Array.isArray(f) || f.length < 4 || !isFinite(f[1]) || !isFinite(f[2])) continue;
+      const q = proj(f[1] / 1e5, f[2] / 1e5);
+      if (q.x < bounds.minX - 60 || q.x > bounds.maxX + 60 || q.y < bounds.minY - 60 || q.y > bounds.maxY + 60) continue;
+      const node = nearest(q.x, q.y, ok);
+      if (node < 0 || Math.hypot(nx[node] - q.x, ny[node] - q.y) > 150) continue;
+      out.push({ i: out.length, kind: Math.min(4, Math.max(0, f[0] | 0)), x: q.x, y: q.y, name: String(f[3]), node, street: streetAt(q.x, q.y) });
+    }
+    return out;
+  }
+
   // Verkehrsbremse (0.25 bis 1) auf der Kante, auf der der Fahrer gerade ist
   const trafficMul = (vehKey, eid) => (VEHICLES[vehKey].net === 'bike' ? mulBike : mulCar)[eid];
   // Ausweichen unterwegs: neue Route ab dem nächsten Knoten, wenn sie bei aktuellem Verkehr schneller ist.
@@ -1039,7 +1163,7 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj, unproj, MLAT, MLON, returnLeg, hubNode, elevRange, nz,
+    nearest, planTrip, sample, tripState, proj, unproj, MLAT, MLON, returnLeg, hubNode, addFirms, FIRM_LABEL, elevRange, nz,
     EN, eA, eB, eC, eDir, eMidX, eMidY, eBase, cong, updateTraffic, trafficMul, reroute
   };
 }
@@ -1075,9 +1199,9 @@ const LM = (function () {
   }
 
   // ---------- Overpass ----------
-  async function overpass(query, onTry) {
+  async function overpass(query, onTry, rounds) {
     let lastErr = null;
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < (rounds || 2); round++) {
       for (let m = 0; m < OVERPASS.length; m++) {
         const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 70000);
         try {
@@ -1103,6 +1227,9 @@ const LM = (function () {
 
   const qRoads = b => `[out:json][timeout:60];way["highway"~"^(${HW_RE})$"](${bbStr(b)});out body;>;out skel qt;`;
   const qPlaces = b => `[out:json][timeout:90];(nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${bbStr(b)});nwr["shop"~"^(bakery|supermarket)$"]["name"](${bbStr(b)}););out center tags;way["building"~"^(apartments|residential|house|detached|terraced|semidetached_house|dormitory|yes)$"](${bbStr(b)});out skel center qt;`;
+
+  // Firmen für das Fulfillment Center: Büros, Betriebe, Geschäfte, Praxen, Banken (mit Namen). Restaurants, Cafés, Bäckereien und Supermärkte sind schon Abholorte.
+  const qFirms = b => { const bb = bbStr(b); return `[out:json][timeout:90];(nwr["office"]["name"](${bb});nwr["craft"]["name"](${bb});nwr["shop"]["name"](${bb});nwr["amenity"~"^(pharmacy|doctors|dentist|clinic|veterinary|bank|post_office|coworking_space)$"]["name"](${bb});nwr["building"~"^(industrial|warehouse|commercial|office|retail)$"]["name"](${bb}););out center tags;`; };
 
   // ---------- Umwandlung ins Kompaktformat ----------
   function convertRoads(osm, b) {
@@ -1177,6 +1304,25 @@ const LM = (function () {
     const cap = 900, step = Math.max(1, all.length / cap), out = [];
     for (let i = 0; i < all.length; i += step) out.push(all[Math.floor(i)]);
     return out;
+  }
+
+  // Firmenkunden als [Art, Breite·1e5, Länge·1e5, Name]; Art: 0 Büro, 1 Betrieb, 2 Geschäft, 3 Praxis, 4 Bank oder Dienst. Die nächsten 400 zum Ortsmittelpunkt.
+  function convertFirms(osm, ref, b) {
+    const out = [], seen = new Set();
+    for (const el of osm.elements || []) {
+      const t = el.tags; if (!t || !t.name) continue;
+      const lat = el.lat !== undefined ? el.lat : el.center && el.center.lat, lon = el.lon !== undefined ? el.lon : el.center && el.center.lon;
+      if (lat === undefined || lat < b.s || lat > b.n || lon < b.w || lon > b.e) continue;
+      if (t.shop === 'bakery' || t.shop === 'supermarket' || /^(restaurant|fast_food|cafe)$/.test(t.amenity || '')) continue;
+      const a = t.amenity || '';
+      const kind = t.office || a === 'coworking_space' ? 0 : t.craft || /^(industrial|warehouse)$/.test(t.building || '') ? 1 : t.shop || t.building === 'retail' ? 2
+        : /^(pharmacy|doctors|dentist|clinic|veterinary)$/.test(a) ? 3 : 4;
+      const key = t.name + Math.round(lat * 4000) + Math.round(lon * 4000);
+      if (seen.has(key)) continue; seen.add(key);
+      out.push({ d: (lat - ref.lat) ** 2 + ((lon - ref.lon) * 0.62) ** 2, v: [kind, Math.round(lat * 1e5), Math.round(lon * 1e5), String(t.name).slice(0, 60)] });
+    }
+    out.sort((p, q) => p.d - q.d);
+    return out.slice(0, 400).map(p => p.v);
   }
 
   // ---------- Höhenraster (Open-Meteo, 16 x 16 Punkte) ----------
@@ -1258,9 +1404,133 @@ const LM = (function () {
   const getCached = async place => { const r = await tx('readonly', s => s.get(idOf(place))); return r && r.data && r.data.v === FORMAT ? r.data : null; };
   const listCached = async () => ((await tx('readonly', s => s.getAll())) || []).filter(r => r.data && r.data.v === FORMAT)
     .sort((a, b) => b.savedAt - a.savedAt).map(r => ({ name: r.data.name, sub: r.data.sub, lat: r.data.ref.lat, lon: r.data.ref.lon, savedAt: r.savedAt }));
-  const removeCached = place => tx('readwrite', s => s.delete(idOf(place)));
+  const removeCached = place => tx('readwrite', s => { s.delete(idOf(place)); s.delete(idOf(place) + '#f'); });
 
-  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz };
+  // Firmen einer Stadt: aus dem Zwischenspeicher oder von Overpass (Hintergrund, ohne Fehlermeldung). null: nicht erreichbar, dann gibt es nur Privatkunden.
+  const FIRMS_V = 'f1';
+  async function loadFirms(place, bbox) {
+    const c = await tx('readonly', s => s.get(idOf(place) + '#f'));
+    if (c && c.data && c.data.v === FIRMS_V && Array.isArray(c.data.firms)) return c.data.firms;
+    try {
+      const b = { s: bbox[0], w: bbox[1], n: bbox[2], e: bbox[3] };
+      const firms = convertFirms(await overpass(qFirms(b), null, 1), place, b);
+      await tx('readwrite', s => s.put({ id: idOf(place) + '#f', savedAt: Date.now(), data: { v: FIRMS_V, firms } }));
+      return firms;
+    } catch (e) { return null; }
+  }
+
+  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms };
+})();
+
+// Fulfillment Center: reine Regeln ohne Spielzustand (Abfahrten, Zeitfenster, Mengen, Preise, Bewertung).
+// Zeiten sind Stunden als Dezimalzahl (6,5833 = 6:35). Im Spiel heißt das Modul LMC, getestet wird es in tests/center_rules.js.
+const LMC = (function () {
+  const DEP = [6 + 35 / 60, 9 + 35 / 60, 12, 14 + 35 / 60, 17];   // Abfahrt aus dem Center
+  const LOAD = 0.5;                  // der Fahrer beginnt eine halbe Stunde vor der Abfahrt mit dem Beladen
+  const LEAD = 1;                    // Bestellungen müssen eine Stunde vor Fahrerbeginn vorliegen
+  const HMIN = 7, HMAX = 22;         // Zeitfenster liegen zwischen 7 und 22 Uhr (Beginn und Ende)
+  const MAXTOUR = 8 * 3600;          // eine Tour dauert höchstens 8 Stunden ab Abfahrt
+  const EXPIRE = 2 * 3600;           // nach dem Fensterende verfällt eine Bestellung, wenn sie bis dahin nicht geliefert wurde
+  const UNLOAD = 5 * 60;             // Übergabe im Center nach der Rückkehr
+  const DAYSUM = 17.7;               // Summe von inflow() über 24 Stunden
+
+  const drvStart = k => DEP[k] - LOAD;
+  const cutoff = k => DEP[k] - LOAD - LEAD;                          // 5:05, 8:05, 10:30, 13:05, 15:30
+  const wdOf = d => ((d % 7) + 7) % 7;                               // Tag-Nummer -> Wochentag (0 = Fr, 1 = Sa, 2 = So, 3 = Mo …)
+  const opDay = wd => wd !== 2;                                      // Betrieb Montag bis Samstag
+  const firmDay = wd => wd !== 1 && wd !== 2;                        // Firmen werden nur Montag bis Freitag beliefert
+  // Erste Abfahrt, für die eine Bestellung zur Stunde h noch rechtzeitig vorliegt (-1: heute keine mehr)
+  const nextSlot = h => { for (let k = 0; k < DEP.length; k++) if (cutoff(k) >= h - 1e-9) return k; return -1; };
+
+  // Lieferwunsch einer neuen Bestellung. abs: Sekunden seit Freitag 00:00. Ergebnis: Tag (Nummer ab Freitag 0), Fensterbeginn und -ende in Stunden.
+  function planWindow(rnd, abs, firm) {
+    const d0 = Math.floor(abs / 86400), h = (abs - d0 * 86400) / 3600;
+    const ok = d => opDay(wdOf(d)) && (!firm || firmDay(wdOf(d)));
+    const slot = nextSlot(h), days = [];
+    let d = slot >= 0 && ok(d0) ? d0 : d0 + 1;
+    while (days.length < 3) { if (ok(d)) days.push(d); d++; }
+    const W = days[0] === d0 ? [0.5, 0.3, 0.2] : [0.6, 0.3, 0.1];
+    let r = rnd(), i = 0; while (i < 2 && r > W[i]) { r -= W[i]; i++; }
+    const day = days[i], L = rnd() < 0.5 ? 2 : 4;
+    const earliest = day === d0 ? DEP[slot] + 0.5 - L : HMIN;       // heute muss das Fenster nach der nächsten Abfahrt noch erreichbar sein
+    const lo = Math.max(HMIN, Math.ceil(earliest - 1e-9)), hi = HMAX - L;
+    const s = lo + Math.floor(rnd() * (hi - lo + 1));
+    return { day, ws: s, we: s + L };
+  }
+
+  // Mengen (Pakete je Stopp), Lohn und Zeiten. Mehr Pakete: mehr Lohn und längere Übergabe.
+  function parcels(rnd, firm) {
+    if (!firm) { const r = rnd(); return r < 0.5 ? 1 : r < 0.8 ? 2 : r < 0.95 ? 3 : 4; }
+    return 2 + Math.floor(rnd() * 6) + Math.floor(rnd() * 6);        // 2 bis 12, meist um 7
+  }
+  const pay = (n, firm) => Math.round((firm ? 7 + 1.9 * n : 4 + 1.6 * n) * 10) / 10;
+  const dwell = (n, firm) => (firm ? 120 : 60) + 28 * n;              // Sekunden an der Tür
+  const loadSec = n => 15 + 12 * n;                                  // Sekunden zum Beladen im Center
+  // Note der Lieferung (1 bis 5). late: Sekunden nach dem Fensterende, negativ oder 0 = im Fenster.
+  const grade = late => late <= 0 ? 5 : late <= 600 ? 4 : late <= 1800 ? 3 : late <= 3600 ? 2 : 1.5;
+
+  // Zulauf neuer Bestellungen über den Tag (Faktor 0,3 bis 1); perDay Bestellungen pro Tag insgesamt
+  const inflow = h => { h = ((h % 24) + 24) % 24; return h < 6 ? 0.3 : h < 9 ? 0.3 + 0.7 * (h - 6) / 3 : h < 21 ? 1 : 1 - 0.7 * (h - 21) / 3; };
+  const ratePerSec = (perDay, h) => perDay * inflow(h) / DAYSUM / 3600;
+
+  // ---- Touren: Abfahrten, Fahrplan, Reihenfolge ----
+  const dayA = d => d * 86400;                                       // Beginn eines Tages in absoluten Sekunden (Sekunden seit Freitag 00:00)
+  const loadA = (d, k) => dayA(d) + drvStart(k) * 3600;              // Fahrer beginnt mit dem Beladen
+  const depA = (d, k) => dayA(d) + DEP[k] * 3600;                    // frühester Abfahrtszeitpunkt
+  const cutA = (d, k) => dayA(d) + cutoff(k) * 3600;                 // Annahmeschluss für diese Abfahrt
+  // Kann eine Bestellung (erstellt zur absoluten Zeit ca) noch auf die Tour d/k?
+  const canJoin = (ca, day, d, k) => day === d && ca <= cutA(d, k) + 1e-6;
+  // Die nächsten Abfahrten, bei denen das Beladen noch nicht begonnen hat (nur Betriebstage). n: Anzahl.
+  function upcoming(absNow, n) {
+    const out = [], d0 = Math.floor(absNow / 86400);
+    for (let d = d0; d <= d0 + 7 && out.length < n; d++) if (opDay(wdOf(d))) for (let k = 0; k < DEP.length && out.length < n; k++) if (loadA(d, k) > absNow + 1e-6) out.push({ day: d, k, load: loadA(d, k), dep: depA(d, k) });
+    return out;
+  }
+  // Zeit zum Beladen aller Stopps (Schnellbeladung: 30 % weniger)
+  const loadTime = (stops, quick) => stops.reduce((a, s) => a + loadSec(s.n), 0) * (quick ? 0.7 : 1);
+  // Fahrplan: stops in Fahrtreihenfolge ({ws, we, n, firm}, absolute Sekunden); legT(a, b, t) = Fahrzeit von a nach b (null = Center) bei Abfahrt zur Zeit t.
+  // Kommt der Transporter zu früh, wird bis Fensterbeginn gewartet (vorsichtige Annahme; der Kunde kann auch früher da sein).
+  function schedule(dep, stops, legT, doorMul) {
+    const rows = []; let t = dep, prev = null, late = 0, wait = 0, drive = 0, door = 0; doorMul = doorMul || 1;
+    for (const s of stops) {
+      const tt = legT(prev, s, t), arr = t + tt, start = Math.max(arr, s.ws), dw = dwell(s.n, s.firm) * doorMul;
+      rows.push({ arr, start, done: start + dw, wait: start - arr, late: start - s.we, drive: tt });
+      drive += tt; wait += start - arr; door += dw; if (start > s.we) late += start - s.we;
+      t = start + dw; prev = s;
+    }
+    const back = stops.length ? legT(prev, null, t) : 0, end = t + back + UNLOAD;
+    return { rows, back, end, dur: end - dep, late, wait, drive: drive + back, door };
+  }
+  // Reihenfolge: Nächster-Nachbar und Sortierung nach Fensterbeginn als Startlösungen, dann 2-opt und Umhängen. cost(order) -> Zahl (kleiner ist besser).
+  function optimize(n, cost, dist, startFrom) {
+    if (n < 2) return n ? [0] : [];
+    const nn = []; { const left = new Set(); for (let i = 0; i < n; i++) left.add(i); let cur = -1; while (left.size) { let b = -1, bd = Infinity; for (const i of left) { const d = dist(cur, i); if (d < bd) { bd = d; b = i; } } nn.push(b); left.delete(b); cur = b; } }
+    const cands = [nn]; if (startFrom) cands.push(startFrom.slice());
+    let best = null, bc = Infinity;
+    for (const o0 of cands) {
+      let o = o0.slice(), c = cost(o), improved = true, rounds = 0;
+      while (improved && rounds++ < 40) {
+        improved = false;
+        for (let i = 0; i < n - 1; i++) for (let j = i + 1; j < n; j++) {            // 2-opt: Teilstück umdrehen
+          const q = o.slice(0, i).concat(o.slice(i, j + 1).reverse(), o.slice(j + 1)), qc = cost(q);
+          if (qc < c - 1e-9) { o = q; c = qc; improved = true; }
+        }
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) {        // Stopp i an Stelle j setzen
+          const q = o.slice(); const x = q.splice(i, 1)[0]; q.splice(j, 0, x); const qc = cost(q);
+          if (qc < c - 1e-9) { o = q; c = qc; improved = true; }
+        }
+      }
+      if (c < bc) { bc = c; best = o; }
+    }
+    return best;
+  }
+
+  const hm = h => { const m = Math.round(h * 60); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
+  const winLabel = (ws, we) => ws + '–' + we + ' Uhr';
+
+  const api = { DEP, LOAD, LEAD, HMIN, HMAX, MAXTOUR, EXPIRE, UNLOAD, drvStart, cutoff, wdOf, opDay, firmDay, nextSlot, planWindow, parcels, pay, dwell, loadSec, grade, inflow, ratePerSec, hm, winLabel, dayA, loadA, depA, cutA, canJoin, upcoming, loadTime, schedule, optimize };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  return api;
 })();
 
 // Lastmile Online: Konto und Cloud über die offenen Schnittstellen von Firebase (ohne Bibliothek, nur fetch)
@@ -2452,7 +2722,11 @@ function startGame(DATA, MODEKEY, PRE) {
     payBase: 6.5, payPerKm: 3.5, detour: 1.25,
     tipMax: 0.25, targetBaseMin: 18, targetPerKm: 6, expireFactor: 2.5,
     spawnMean: 420, spawnMin: 40, maxOpen: 8, firstOrders: 2,
-    xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l
+    xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l,
+    // Fulfillment Center: Bau, Transporter, Fahrerpool (Stellplätze + pool), Bestellungen je Transporter und Tag, Anteil Firmenkunden, Mindestabstand zum Kunden (m)
+    cen: { build: 5000, gap: 250, van: 600, vanSell: 0.5, hire: 40, pool: 2, perVan: 14, firmShare: 0.3, minDist: 120, presP: 0.5, presF: 0.7, capVan: 40, capAll: 700,
+      slots: [4, 6, 8, 10, 12, 14, 16, 18, 20], slotCost: [800, 1100, 1500, 2000, 2600, 3300, 4100, 5000],
+      stops: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], stopCost: [300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200], xp: [0, 10, 25, 50, 85] }
   };
   // Verbesserungen. UPG gilt für das ganze Spiel (Stand in owned), UPG_HUB je Hub (Stand in hubs[i].up).
   // cost[l] kostet den Schritt von Stufe l auf l + 1. Bei base-Einträgen zählt Stufe 0 schon als erste Stufe des Balkens (Plätze, Liefergebiet).
@@ -2468,6 +2742,15 @@ function startGame(DATA, MODEKEY, PRE) {
     { id: 'quick', name: 'Schnellabholung', cost: [280], desc: 'Die Abholung dauert 30 % kürzer.' },
     { id: 'boxes', name: 'Isolierte Boxen', cost: [200], desc: 'Essen bleibt warm: Trinkgeld bis 40 % statt 25 %.' },
     { id: 'service', name: 'Wartungsvertrag', cost: [250], desc: 'Fahrzeugkosten pro Kilometer −40 % und halb so viele Pannen.' }
+  ];
+  // Verbesserungen je Fulfillment Center (Stand in centers[i].up)
+  const UPG_CEN = [
+    { id: 'slots', name: 'Stellplätze', base: true, cost: CFG.cen.slotCost, eff: l => CFG.cen.slots[l] + ' Stellplätze für Transporter, bis zu ' + (CFG.cen.slots[l] + CFG.cen.pool) + ' Fahrer' },
+    { id: 'stops', name: 'Stopps je Transporter', base: true, cost: CFG.cen.stopCost, eff: l => 'Jeder Transporter dieses Centers fährt bis zu ' + CFG.cen.stops[l] + ' Stopps pro Tour' },
+    { id: 'zone', name: 'Liefergebiet', base: true, cost: CFG.zoneCost.slice(1), eff: l => 'Radius ' + Math.min(CFG.zones[l], MAXR) + ' m um dieses Center' },
+    { id: 'nav', name: 'Navigation', cost: [250, 600, 1200], eff: l => ['Die Fahrer dieses Centers kennen die Staus nicht.', 'Verkehrsfunk: Fahrer kennen die größten Staus und weichen ihnen teilweise aus.', 'Live-Navigation: Fahrer sehen den Verkehr in Echtzeit und weichen auch unterwegs aus.', 'Prognose-Navigation: Fahrer umfahren fast jeden Stau, auch schon auf der Planung.'][l] },
+    { id: 'service', name: 'Wartungsvertrag', cost: [250], desc: 'Fahrzeugkosten pro Kilometer −40 % und halb so viele Pannen.' },
+    { id: 'quick', name: 'Schnellbeladung', cost: [280], desc: 'Das Beladen vor der Abfahrt dauert 30 % kürzer.' }
   ];
 
 
@@ -2512,6 +2795,12 @@ function startGame(DATA, MODEKEY, PRE) {
   const MAXR = DATA.radius || 750;
   let placing = false, ghost = null, zPois = [], zHomes = [];
   const partners = new Set();
+  // Fulfillment Center: eigene Bestellungen, Transporter und Fahrer. Fahrer sind nicht an Transporter gebunden (Zuordnung je Tour).
+  const centers = [];                                // { x, y, node, up, rep, vans: [{ id }], drv: [{ id, lvl, done, earn, sick, train }], zk, zh, zf }
+  let corders = [], firms = [], firmState = 'idle', firmTries = 0, firmRetryAt = 0, uiView = 'hq', vanSeq = 1;
+  const csel = { order: null }, cstats = { n: 0, ontime: 0, late: 0, expired: 0, pay: 0 };
+  const tp = { open: false, ci: 0, day: 0, k: 0, van: 0, drv: 0, stops: [], edit: 0, err: '', info: '', calc: null, path: null, pathSig: '' };   // Tourenplaner
+  let tsel = 0;                                      // gewählte Tour (Hervorhebung in Liste und Karte)
   const hubs = [{ x: HUB.x, y: HUB.y, n: { bike: nets.bike.depot, car: nets.car.depot }, up: {} }];   // up: Stufen der Ausbauten dieses Hubs
   const nodeFor = (h, vehKey) => VEHICLES[vehKey].net === 'bike' ? h.n.bike : h.n.car;
   const hl = (h, id) => (h && h.up && h.up[id]) || 0;                          // Stufe eines Hub-Ausbaus (0 = nicht gekauft)
@@ -2521,6 +2810,8 @@ function startGame(DATA, MODEKEY, PRE) {
   const zr = h => Math.min(CFG.zones[hl(h, 'zone')], MAXR);                       // Liefergebiet eines Hubs (auch für den Platzhalter beim Bauen)
   const ZMAX = (i => i < 0 ? CFG.zones.length - 1 : i)(CFG.zones.findIndex(z => z >= MAXR));   // höchste sinnvolle Gebietsstufe (die geladene Karte ist begrenzt)
   const inZone = (x, y) => hubs.some(h => Math.hypot(h.x - x, h.y - y) <= zr(h));
+  // Kreise des Liefergebiets, die gerade auf der Karte gelten: Hubs, in der Fulfillment-Ansicht (und beim Platzieren eines Centers) die Center; dazu die Vorschau beim Platzieren
+  const zoneList = () => { const b = placing === 'cen' ? centers : placing === 'hub' ? hubs : uiView === 'cen' ? centers : hubs; return ghost && placing ? b.concat([ghost]) : b; };
   function rezone() { zPois = pois.filter(p => inZone(p.x, p.y)); zHomes = homes.filter(h => inZone(h.x, h.y)); }
   const slotsUsed = i => drivers.filter(d => d.hub === i).length;
   let simClock = 0, paused = false, speed = 10, lastSpawnT = -30, dirty = true;
@@ -2724,19 +3015,50 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   function zonePath(list, s) { ctx.beginPath(); for (const h of list) { const x = toX(h.x), y = toY(h.y), r = zr(h) * s; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); } }
   function drawZoneOutline() {
-    const all = ghost && placing ? hubs.concat([ghost]) : hubs;
-    ctx.save(); ctx.setLineDash([7, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = T.signal; ctx.globalAlpha = 0.7;
+    const all = zoneList();
+    ctx.save(); ctx.setLineDash([7, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = uiView === 'cen' || placing === 'cen' ? T.ok : T.signal; ctx.globalAlpha = 0.7;
     for (const h of all) { ctx.beginPath(); ctx.arc(toX(h.x), toY(h.y), zr(h) * cam.s, 0, 6.283); ctx.stroke(); }
     ctx.restore();
   }
   function drawHub() {
-    const all = ghost && placing ? hubs.concat([ghost]) : hubs;
+    const all = ghost && placing === 'hub' ? hubs.concat([ghost]) : hubs, dim = uiView === 'cen' && placing !== 'hub' ? 0.35 : 1;
     all.forEach((h, i) => {
-      const hx = toX(h.x), hy = toY(h.y); if (h === ghost) ctx.globalAlpha = 0.6;
+      const hx = toX(h.x), hy = toY(h.y); ctx.globalAlpha = h === ghost ? 0.6 : dim;
       ctx.fillStyle = T.hub; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(hx - 9, hy - 9, 18, 18, 4); else ctx.rect(hx - 9, hy - 9, 18, 18); ctx.fill();
       ctx.fillStyle = T.hubInk; ctx.font = '600 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(h === ghost ? '+' : String(i + 1), hx, hy + 0.5);
       ctx.globalAlpha = 1;
     });
+  }
+  // Fulfillment Center: grünes Quadrat mit C und Nummer; in der Lieferdienst-Ansicht blasser
+  function drawCenters() {
+    const all = ghost && placing === 'cen' ? centers.concat([ghost]) : centers;
+    all.forEach((c, i) => {
+      const x = toX(c.x), y = toY(c.y);
+      ctx.globalAlpha = c === ghost ? 0.6 : uiView === 'cen' ? 1 : 0.6;
+      ctx.fillStyle = T.ok; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - 12, y - 12, 24, 24, 5); else ctx.rect(x - 12, y - 12, 24, 24); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(c === ghost ? '+' : 'C' + (i + 1), x, y + 0.5);
+      ctx.globalAlpha = 1;
+    });
+  }
+  // Kunden des Centers: Kreis = Privatperson, Quadrat = Firma. Blau/orange = Fenster noch nicht offen, grün = Fenster läuft, rot = Fenster vorbei.
+  function cenOrderColor(o) { return simClock > o.we ? '#e0402a' : simClock >= o.ws ? T.ok : T.signal; }
+  function drawCenterOrders() {
+    ctx.font = '600 12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const today = Math.floor(absT() / 86400);
+    for (const o of corders) {
+      if (o.state !== 'open' && o.state !== 'tour') continue;
+      const x = toX(o.x), y = toY(o.y), isSel = csel.order === o.id, col = cenOrderColor(o), r = isSel ? 7 : 5;
+      ctx.globalAlpha = o.day === today || isSel ? 1 : 0.5;
+      ctx.fillStyle = col;
+      if (isSel) { ctx.beginPath(); ctx.arc(x, y, r + 7, 0, 6.283); ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1; }
+      ctx.beginPath();
+      if (o.firm) ctx.rect(x - r, y - r, 2 * r, 2 * r); else ctx.arc(x, y, r, 0, 6.283);
+      ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+      if (o.state === 'tour') { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.283); ctx.fillStyle = T.mapbg; ctx.fill(); }
+      if (isSel) halo((o.firm ? o.name : o.street || 'Kunde') + ' · ' + LMC.winLabel(o.wh[0], o.wh[1]), x + 14, y - 2, T.ink);
+      ctx.globalAlpha = 1;
+    }
   }
   function drawPartners() {
     ctx.lineWidth = 2; ctx.strokeStyle = T.signal;
@@ -2831,7 +3153,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function drawVeil() {
     const a = Math.min(1, Math.max(0, (cam.s - LOD) / 0.1)) * 0.45; if (a < 0.01) return;
     ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
-    ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, cam.s); ctx.fill(); ctx.restore();
+    ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; zonePath(zoneList(), cam.s); ctx.fill(); ctx.restore();
   }
   function draw() {
     const sig = document.documentElement.getAttribute('data-theme') + '|' + mq.matches;
@@ -2843,7 +3165,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (cam.s < LOD) { drawWorldMark(); drawScale(); return; }
     const K = cam.K, ox = cw / 2, oy = ch / 2, cu = cam.u - cam.w, cvv = cam.v;
     for (let i = 0; i < N; i++) { sx[i] = (nu[i] - cu) * K + ox; sy[i] = (nv[i] - cvv) * K + oy; }
-    const zone = () => zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, cam.s);
+    const zone = () => zonePath(zoneList(), cam.s);
     if (own) {
       ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
       ctx.save(); zone(); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawTraffic(); drawLabels(); ctx.restore();
@@ -2853,11 +3175,14 @@ function startGame(DATA, MODEKEY, PRE) {
     }
     drawZoneOutline(); drawHeat();
     // Vorschau einer möglichen Zuweisung
-    const pv = sel.preview !== null ? plans[sel.preview] : null;
+    const pv = uiView === 'hq' && sel.preview !== null ? plans[sel.preview] : null;
     if (pv) { drawRouteLeg(pv.legs[0], 0, null, true, 0.8); drawRouteLeg(pv.legs[1], 0, null, false, 0.8); }
     // Routen aller aktiven Fahrten, gewählter Fahrer hervorgehoben
-    for (const d of drivers) if (d.trip) drawTripRoute(d.trip, d.st, sel.driver === d.id ? 1 : 0.2);
-    drawHub(); drawPartners(); drawOrders(); drawEvents(); drawDrivers(); drawScale(); drawWeather();
+    if (uiView === 'hq') for (const d of drivers) if (d.trip) drawTripRoute(d.trip, d.st, sel.driver === d.id ? 1 : 0.2);
+    drawHub(); drawCenters();
+    if (uiView === 'cen') { drawCenterOrders(); drawTours(); drawEvents(); }
+    else { drawPartners(); drawOrders(); drawEvents(); drawDrivers(); }
+    drawScale(); drawWeather();
   }
 
   // ---------- Welt: Tageszeit, Verkehr, Wetter, Ereignisse, Pannen ----------
@@ -2956,9 +3281,15 @@ function startGame(DATA, MODEKEY, PRE) {
       const o = spawnOrder(true); if (o) log('Ereignis: Großbestellung, ' + eur(o.pay) + '. Der Kunde plant mehr Zeit ein.', true);
     } else {
       const c = drivers.filter(d => !d.trip && !d.train && !d.sick && !d.rest);
-      if (c.length < 2) return; // der letzte freie Fahrer wird nie krank
-      const d = c[Math.floor(Math.random() * c.length)]; d.sick = { left: def.dur };
-      log('Ereignis: Fahrer ' + d.id + ' meldet sich krank (' + fmtMin(def.dur) + ' min)', true); driverStructDirty = true; plansDirty = true; orderStructDirty = true;
+      // Auch im Center kann ein freier Fahrer ausfallen (der letzte gesunde Fahrer eines Centers nie)
+      const cs = []; centers.forEach((k, ci) => { const ok = k.drv.filter(d => !d.sick); if (ok.length > 1) for (const d of ok) if (!d.tour && !d.train) cs.push({ d, ci }); });
+      const all = c.map(d => ({ d, ci: -1 })).concat(cs);
+      if (!all.length || (c.length < 2 && !cs.length)) return; // der letzte freie Fahrer wird nie krank
+      const pick = all[Math.floor(Math.random() * all.length)], d = pick.d;
+      if (pick.ci < 0 && c.length < 2) return;
+      d.sick = { left: def.dur };
+      if (pick.ci >= 0) { log('Ereignis: ' + cenName(pick.ci) + ', Fahrer ' + d.id + ' meldet sich krank (' + fmtMin(def.dur) + ' min)', true); cenStruct = true; }
+      else { log('Ereignis: Fahrer ' + d.id + ' meldet sich krank (' + fmtMin(def.dur) + ' min)', true); driverStructDirty = true; plansDirty = true; orderStructDirty = true; }
     }
   }
   const BRK = { bike: [.2, 'Reifenpanne', 8, 14], scooter: [.14, 'Akku leer', 10, 20], van: [.12, 'Motorschaden', 15, 30] };
@@ -3222,7 +3553,7 @@ function startGame(DATA, MODEKEY, PRE) {
       setText($('fiCash'), eur(cash)); setText($('fiBW'), eur(bill.wage)); setText($('fiBV'), eur(bill.veh));
       setText($('fiInc'), eur(inc));
       setText($('fiHire'), e.hire ? seur(-e.hire) : eur(0)); setText($('fiUpg'), e.upg ? seur(-e.upg) : eur(0)); setText($('fiTrain'), e.train ? seur(-e.train) : eur(0));
-      setText($('fiHub'), e.hub ? seur(-e.hub) : eur(0)); setText($('fiZone'), e.zone ? seur(-e.zone) : eur(0)); setText($('fiPart'), e.partner ? seur(-e.partner) : eur(0));
+      setText($('fiCen'), e.cen ? seur(-e.cen) : eur(0)); setText($('fiHub'), e.hub ? seur(-e.hub) : eur(0)); setText($('fiZone'), e.zone ? seur(-e.zone) : eur(0)); setText($('fiPart'), e.partner ? seur(-e.partner) : eur(0));
       setText($('fiInv'), inv ? seur(-inv) : eur(0)); setText($('fiNet'), seur(cash - CFG.startCash));
       const hrs = simClock / 3600; setText($('fiPH'), hrs >= 0.5 ? seur((inc - run) / hrs) + ' / h' : '–');
       setText($('fiAvg'), stats.n ? eur(inc / stats.n) : '–');
@@ -3232,6 +3563,7 @@ function startGame(DATA, MODEKEY, PRE) {
     } else {
       const n = stats.n - led.base;
       setText($('stOn'), n > 0 ? Math.round(led.ontime / n * 100) + ' %' : '–');
+      $('stCen').hidden = !centers.length; setText($('cN'), String(cstats.n)); setText($('cOn'), cstats.n ? Math.round(cstats.ontime / cstats.n * 100) + ' %' : '–'); setText($('cLate'), String(cstats.late)); setText($('cExp'), String(cstats.expired));
       const dsig = drivers.map(d => d.id + ':' + d.done + ':' + d.lvl).join('|');
       if (dsig !== drvSig + 'x') { drvSig = dsig + 'x'; listRows($('stDrv'), drivers.slice().sort((a, b) => b.done - a.done).map(d => ['Fahrer ' + d.id + ' · ' + driverLabel(d) + ' · Stufe ' + d.lvl, d.done + ' Lieferungen'])); }
       const top = Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 5), psig = top.join('|');
@@ -3791,7 +4123,785 @@ function startGame(DATA, MODEKEY, PRE) {
     setText($('dwFInfo'), ok ? 'Der Fahrer verlässt dein Unternehmen. Das Fahrzeug wird für ' + eur(sellPrice(d)) + ' verkauft (' + Math.round(CFG.sellRate * 100) + ' % vom Kaufpreis), der Platz im Hub wird frei. Seine Nummer wird nicht neu vergeben.' : d.trip ? 'Während einer Lieferung geht das nicht. Warte, bis sie abgeschlossen ist.' : d.train ? 'Während einer Schulung geht das nicht. Sage eine geplante Schulung ab oder warte, bis sie fertig ist.' : 'Dein letzter Fahrer kann nicht gekündigt werden.');
     setText(fb, armed ? 'Wirklich kündigen? Nochmal tippen.' : 'Fahrer kündigen (+' + eur(sellPrice(d)) + ')'); fb.disabled = !ok;
   }
-  // ---------- Verbesserungen: Reiter Hub 1…3, Spiel, Partner ----------
+  // ---------- Fulfillment Center ----------
+  // Ein Center liefert nur mit Transportern, an Privatpersonen und Firmen in Touren zu festen Abfahrtszeiten. Eigene Bestellungen, eigene Fahrer, eigener Ruf.
+  const cSlots = c => CFG.cen.slots[hl(c, 'slots')];                 // Stellplätze für Transporter
+  const cPool = c => cSlots(c) + CFG.cen.pool;                       // Fahrerpool: etwas größer als die Stellplätze, damit Krankheit aufgefangen wird
+  const cStops = c => CFG.cen.stops[hl(c, 'stops')];                 // Stopps je Transporter und Tour
+  const cenReady = c => c.vans.length > 0 && c.drv.length > 0;       // ohne Transporter oder Fahrer kommen keine Bestellungen
+  // Obergrenze offener Bestellungen je Center: capVan je Transporter, alle Center teilen sich capAll gleichmäßig. Hält Karte und Cloud-Spielstand (max. 400.000 Zeichen) klein.
+  const cenCap = ci => Math.min(CFG.cen.capVan * centers[ci].vans.length, Math.floor(CFG.cen.capAll / centers.length));
+  const cenFull = ci => { let m = 0; for (const o of corders) if (o.c === ci && (o.state === 'open' || o.state === 'tour')) m++; return m >= cenCap(ci); };
+  const cenName = i => 'Center ' + (i + 1);
+  const cRate = (c, score, w) => { c.rep += (score - c.rep) * w; };
+  const dayL = ['Freitag', 'Samstag', 'Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag'];
+  let cenStruct = true, cenOrdersDirty = true, cFire = null, cenAuto = true;          // cenAuto: nur für Tests abschaltbar
+  const simOf = (day, hour) => day * 86400 + hour * 3600 - START;     // Tag-Nummer und Uhrzeit -> Spielsekunden
+  // Fenster hängen an Tag und Uhrzeit: nach jeder Verschiebung der Uhr (Laden, Abwesenheit) neu in Spielsekunden umrechnen
+  function refitCenterOrders() { for (const o of corders) { o.ws = simOf(o.day, o.wh[0]); o.we = simOf(o.day, o.wh[1]); } cenOrdersDirty = true; dirty = true; }
+  const homeNode = h => h.node === undefined ? (h.node = E.nearest(h.x, h.y, nets.car.ok)) : h.node;
+
+  const placeText = () => placing === 'cen' ? 'Klicke auf die Karte, um das neue Fulfillment Center zu platzieren. <kbd>Esc</kbd> bricht ab.' : 'Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.';
+  function startPlacing(kind) {
+    placing = kind; ghost = null; $('placeBan').innerHTML = placeText(); $('placeBan').hidden = false; cv.classList.add('placing');
+    setView(kind === 'cen' ? 'cen' : 'hq'); closeWin(); dirty = true;
+  }
+  function placeCenter(x, y) {
+    if (cash < CFG.cen.build) return endPlacing();
+    const n = E.hubNode('van', x, y);
+    if (Math.hypot(nx[n] - x, ny[n] - y) > 150) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
+    if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return flash('Das liegt außerhalb der geladenen Karte.');
+    if (centers.some(c => Math.hypot(c.x - nx[n], c.y - ny[n]) < CFG.cen.gap)) return flash('Zu nah an einem anderen Center (mindestens ' + CFG.cen.gap + ' m Abstand).');
+    spend('cen', CFG.cen.build);
+    centers.push({ x: nx[n], y: ny[n], node: n, up: {}, rep: 3, vans: [], drv: [], tours: [], zk: '', zh: [], zf: [] });
+    endPlacing(); syncCenUi(); setView('cen'); startFirms();
+    log('Neues Fulfillment Center ' + centers.length + ' an ' + (E.nodeName[n] || 'einer Straße') + ', ' + seur(-CFG.cen.build), true);
+    cenStruct = cenOrdersDirty = true; dirty = true;
+  }
+
+  // Firmenkunden aus OpenStreetMap (nachgeladen, im Browser zwischengespeichert). Ohne Verbindung gibt es nur Privatkunden.
+  function startFirms() {
+    if (firmState === 'loading' || firmState === 'ok') return;
+    firmState = 'loading'; cenStruct = true;
+    const bb = DATA.bbox || [DATA.ref.lat - 0.02, DATA.ref.lon - 0.03, DATA.ref.lat + 0.02, DATA.ref.lon + 0.03];
+    LM.loadFirms({ lat: DATA.ref.lat, lon: DATA.ref.lon }, bb).then(list => {
+      firmTries++;
+      if (list) { firms = E.addFirms(list); firmState = firms.length ? 'ok' : 'none'; for (const c of centers) c.zk = ''; }
+      else { firmState = 'none'; firmRetryAt = firmTries < 3 ? Date.now() + 5 * 60000 : 0; }
+      cenStruct = true; dirty = true;
+    }, () => { firmState = 'none'; cenStruct = true; });
+  }
+  // Kunden im Liefergebiet des Centers (zwischengespeichert, bis sich das Gebiet oder die Datenlage ändert)
+  function cenZone(c) {
+    const r = zr(c), key = r + '|' + firms.length + '|' + homes.length;
+    if (c.zk !== key) {
+      c.zk = key;
+      const ok = (x, y) => { const d = Math.hypot(x - c.x, y - c.y); return d <= r && d >= CFG.cen.minDist; };
+      c.zh = homes.filter(h => ok(h.x, h.y)); c.zf = firms.filter(f => ok(f.x, f.y));
+    }
+    return c;
+  }
+  // Neue Bestellung: Privatperson oder Firma, Menge, Lohn, Wunschfenster (2 oder 4 Stunden zwischen 7 und 22 Uhr, an einem Liefertag)
+  function spawnCenterOrder(ci, want) {                              // want: 'firm' oder 'private' (für Tests)
+    const c = centers[ci]; if (!c) return null; cenZone(c);
+    let firm = c.zf.length > 0 && (want ? want === 'firm' : Math.random() < CFG.cen.firmShare);
+    if (!firm && !c.zh.length) { if (!c.zf.length || want === 'private') return null; firm = true; }
+    let cu;
+    if (firm) { const f = c.zf[Math.floor(Math.random() * c.zf.length)]; cu = { x: f.x, y: f.y, node: f.node, name: f.name, street: f.street || '', kind: f.kind }; }
+    else { const hm = c.zh[Math.floor(Math.random() * c.zh.length)]; cu = { x: hm.x, y: hm.y, node: homeNode(hm), name: '', street: hm.street || '', kind: -1 }; }
+    const w = LMC.planWindow(Math.random, absT(), firm), n = LMC.parcels(Math.random, firm);
+    const o = { id: orderSeq++, c: ci, firm, kind: cu.kind, name: cu.name, street: cu.street, x: cu.x, y: cu.y, node: cu.node, n,
+      pay: Math.round(LMC.pay(n, firm) * MODE.pay * 10) / 10, created: absT(), pres: Math.random() < (firm ? CFG.cen.presF : CFG.cen.presP), day: w.day, wh: [w.ws, w.we], ws: simOf(w.day, w.ws), we: simOf(w.day, w.we), state: 'open' };
+    corders.push(o); cenOrdersDirty = true; dirty = true;
+    return o;
+  }
+  // Verfall: Wurde eine Bestellung bis 2 Stunden nach Fensterende nicht geliefert, gibt es keinen Lohn und die größte Abwertung
+  function expireCenter() {
+    let any = false;
+    for (const o of corders) {
+      if ((o.state !== 'open' && o.state !== 'tour') || simClock <= o.we + LMC.EXPIRE) continue;
+      if (o.state === 'tour') { const T = tourOf(o); if (T && (T.st === 'door' || T.st === 'wait') && T.stops[T.i] === o.id) continue; dropFromTour(o); }
+      o.state = 'expired'; any = true; cstats.expired++;
+      const c = centers[o.c]; if (c) cRate(c, 1, Math.max(MODE.repC, MODE.repW) * 1.5);
+      if (csel.order === o.id) csel.order = null;
+      log(cenName(o.c) + ': Bestellung #' + o.id + ' verfallen (Fenster ' + LMC.winLabel(o.wh[0], o.wh[1]) + ' vorbei), kein Lohn', true);
+    }
+    if (any) { corders = corders.filter(o => o.state !== 'expired'); cenOrdersDirty = cenStruct = true; dirty = true; }
+  }
+  // Zeit im Center: Krankheit und Schulung der Fahrer, neue Bestellungen, Verfall
+  function tickCenters(adv) {
+    if (!centers.length) return;
+    const h = hourNow();
+    centers.forEach((c, i) => {
+      for (const d of c.drv) {
+        if (d.sick) { d.sick.left -= adv; if (d.sick.left <= 0) { d.sick = null; log(cenName(i) + ': Fahrer ' + d.id + ' ist wieder gesund'); cenStruct = true; } }
+        if (d.train && !d.sick) {
+          d.train.t += adv;
+          if (d.train.t >= d.train.dur) { d.lvl = d.train.to; d.done = Math.max(d.done, CFG.cen.xp[d.lvl - 1]); d.train = null; log(cenName(i) + ': Fahrer ' + d.id + ' hat die Schulung abgeschlossen: Stufe ' + d.lvl, true); cenStruct = true; }
+        }
+      }
+      tickTours(c, i, adv);
+      if (cenAuto && cenReady(c) && Math.random() < 1 - Math.exp(-adv * LMC.ratePerSec(CFG.cen.perVan * c.vans.length * (0.5 + 0.17 * c.rep) * MODE.demand, h)) && !cenFull(i)) spawnCenterOrder(i);
+    });
+    expireCenter();
+  }
+
+  // Transporter und Fahrer
+  function buyVan(ci) {
+    const c = centers[ci]; if (!c || c.vans.length >= cSlots(c) || cash < CFG.cen.van) return false;
+    spend('hire', CFG.cen.van); const v = { id: vanSeq++ }; c.vans.push(v);
+    log(cenName(ci) + ': Transporter ' + v.id + ' gekauft, ' + seur(-CFG.cen.van), true); cenStruct = true; dirty = true; return true;
+  }
+  function sellVan(ci, id) {
+    const c = centers[ci], k = c ? c.vans.findIndex(v => v.id === id) : -1; if (k < 0 || c.vans[k].tour || vanReserved(c, id)) return false;
+    const back = Math.round(CFG.cen.van * CFG.cen.vanSell * 100) / 100;
+    spend('hire', -back); c.vans.splice(k, 1);
+    log(cenName(ci) + ': Transporter ' + id + ' verkauft, ' + seur(back), true); cenStruct = true; dirty = true; return true;
+  }
+  function hireCenDriver(ci) {
+    const c = centers[ci]; if (!c || c.drv.length >= cPool(c) || cash < CFG.cen.hire) return null;
+    spend('hire', CFG.cen.hire);
+    const d = { id: driverSeq++, lvl: 1, done: 0, earn: 0, sick: null, train: null, tour: null }; c.drv.push(d);
+    log(cenName(ci) + ': Fahrer ' + d.id + ' eingestellt, ' + seur(-CFG.cen.hire), true); cenStruct = true; dirty = true; return d;
+  }
+  const canFireC = (c, d) => !d.tour && !d.train && !drvReserved(c, d.id);
+  function fireCenDriver(ci, id) {
+    const c = centers[ci], k = c ? c.drv.findIndex(d => d.id === id) : -1; if (k < 0 || !canFireC(c, c.drv[k])) return false;
+    const d = c.drv.splice(k, 1)[0]; cFire = null;
+    log(cenName(ci) + ': Fahrer ' + d.id + ' gekündigt'); cenStruct = true; dirty = true; return true;
+  }
+  function trainCenDriver(ci, id) {
+    const c = centers[ci], d = c && c.drv.find(x => x.id === id); if (!d || d.lvl >= 5 || d.train || d.tour || d.sick || drvReserved(c, d.id)) return false;
+    const k = CFG.trainCost(d.lvl); if (cash < k) return false;
+    spend('train', k); d.train = { t: 0, dur: trainDur(d.lvl), to: d.lvl + 1, cost: k };
+    log(cenName(ci) + ': Schulung für Fahrer ' + d.id + ' beginnt (Stufe ' + d.train.to + ', ' + fmtMin(d.train.dur) + ' min), ' + seur(-k)); cenStruct = true; dirty = true; return true;
+  }
+
+  // ---------- Touren des Centers ----------
+  // Eine Tour: ein Transporter, ein Fahrer, mehrere Stopps in fester Reihenfolge, Abfahrt nur zu den fünf Zeiten (LMC.DEP).
+  // Phasen: plan (geplant) → load (Beladen) → drive (Fahrt zum Stopp) → wait (wartet bis Fensterbeginn) → door (Übergabe)
+  //         → back (Rückfahrt) → unload (Übergabe im Center) → fertig. Zeiten der Touren sind absolute Sekunden (seit Freitag 00:00).
+  let tourSeq = 1;
+  const TOUR_PH = { plan: 'Geplant', load: 'Beladen', drive: 'Unterwegs', wait: 'Wartet auf Fensterbeginn', door: 'Übergabe', back: 'Rückfahrt', unload: 'Übergabe im Center' };
+  const cenPs = d => ({ veh: 'van', lvl: d ? d.lvl : 1, hub: -1 });                 // Fahrer als „Fahrzeug“ für Tempo und Verkehr
+  const cenAvoid = c => { const l = hl(c, 'nav'); return l >= 3 ? 0.9 : l === 2 ? 0.7 : l === 1 ? 0.4 : 0; };
+  const cenKm = c => CFG.kmCost.van * (hl(c, 'service') ? 0.6 : 1);
+  const slowF = l => 1 + 0.35 * Math.pow(Math.max(0, l), 2.2);                        // Verkehrsfaktor der Fahrzeit in der Vorhersage
+  const wsA = o => o.day * 86400 + o.wh[0] * 3600, weA = o => o.day * 86400 + o.wh[1] * 3600;
+  const orderById2 = id => corders.find(o => o.id === id) || null;
+  const tDrv = (c, T) => c.drv.find(d => d.id === T.drv) || null;
+  const tVan = (c, T) => c.vans.find(v => v.id === T.van) || null;
+  const tourOf = o => { const c = centers[o.c]; return c ? c.tours.find(T => T.id === o.tour) || null : null; };
+  const vanReserved = (c, id) => c.tours.some(T => T.van === id);
+  const drvReserved = (c, id) => c.tours.some(T => T.drv === id);
+  const tourRun = T => T.st !== 'plan';
+
+  // Fahrzeit zwischen zwei Knoten ohne Verkehr (zwischengespeichert je Center; die Navigation des Centers fließt ein)
+  function neutralLeg(c, a, b) {
+    const lc = c.lc || (c.lc = new Map()), key = a * N + b, hit = lc.get(key); if (hit) return hit;
+    const leg = a === b ? null : E.returnLeg('van', a, b, cenAvoid(c));
+    const r = leg ? { t: leg.time / slowF(traffic.load), len: leg.len } : { t: 0, len: 0 };
+    if (lc.size > 4000) lc.clear(); lc.set(key, r); return r;
+  }
+  // Vorhersage einer Tour: Abfahrt (nach dem Beladen), Ankunft je Stopp, Rückkehr
+  function planCalc(c, drv, day, k, ids) {
+    const stops = ids.map(orderById2).filter(Boolean).map(o => ({ id: o.id, ws: wsA(o), we: weA(o), n: o.n, firm: o.firm, node: o.node }));
+    const pm = speedMult(cenPs(drv)), quick = !!hl(c, 'quick');
+    const legT = (a, b, t) => neutralLeg(c, a ? a.node : c.node, b ? b.node : c.node).t * slowF(rushProfile(t - START).load) / pm;
+    const load = LMC.loadTime(stops, quick), dep = Math.max(LMC.depA(day, k), LMC.loadA(day, k) + load);
+    const sc = LMC.schedule(dep, stops, legT);
+    return { stops, dep, load, sc, ok: stops.length > 0 && sc.dur <= LMC.MAXTOUR + 1e-6, tooLong: sc.dur > LMC.MAXTOUR + 1e-6 };
+  }
+  // Belegte Zeit einer Tour (für die Prüfung, ob Transporter und Fahrer frei sind)
+  const tourSpan = T => [T.t0 || LMC.loadA(T.day, T.k), tourRun(T) ? Math.max(T.est || 0, absT() + 300) : (T.est || LMC.depA(T.day, T.k) + 4 * 3600)];
+  const spanBusy = (c, who, id, span, skip) => c.tours.some(T => T.id !== skip && T[who] === id && tourSpan(T)[0] < span[1] + 600 && span[0] < tourSpan(T)[1] + 600);
+  // Fahrer, die zum Beladen gesund und nicht in Schulung sind (at: absolute Zeit)
+  const drvFitAt = (d, at) => d && !(d.sick && absT() + d.sick.left > at) && !(d.train && absT() + (d.train.dur - d.train.t) > at);
+
+  const dropTour = (c, T) => { const i = c.tours.indexOf(T); if (i >= 0) c.tours.splice(i, 1); return i >= 0; };
+  function releaseOrders(T, ids) { for (const id of ids || T.stops) { const o = orderById2(id); if (o && o.state === 'tour' && o.tour === T.id) { o.state = 'open'; delete o.tour; } } cenOrdersDirty = true; }
+  // Tour anlegen oder (edit = Nummer einer geplanten Tour) ändern. a: { k, day, van, drv, stops:[Bestellnummern], edit }
+  function planTour(ci, a) {
+    const c = centers[ci], err = text => ({ ok: false, err: text }); if (!c) return err('Kein Center.');
+    const now = absT(), day = a.day, k = a.k;
+    if (!Number.isInteger(day) || !Number.isInteger(k) || k < 0 || k >= LMC.DEP.length || !LMC.opDay(LMC.wdOf(day))) return err('Diese Abfahrt gibt es nicht.');
+    if (LMC.loadA(day, k) <= now) return err('Das Beladen dieser Tour hat schon begonnen.');
+    const old = a.edit ? c.tours.find(T => T.id === a.edit && T.st === 'plan') : null; if (a.edit && !old) return err('Diese Tour lässt sich nicht mehr ändern.');
+    const van = c.vans.find(v => v.id === a.van), drv = c.drv.find(d => d.id === a.drv);
+    if (!van) return err('Bitte einen Transporter wählen.'); if (!drv) return err('Bitte einen Fahrer wählen.');
+    const ids = Array.isArray(a.stops) ? a.stops.filter((v, i, ar) => ar.indexOf(v) === i) : [];
+    if (!ids.length) return err('Wähle mindestens eine Bestellung.');
+    if (ids.length > cStops(c)) return err('Ein Transporter fährt höchstens ' + cStops(c) + ' Stopps.');
+    for (const id of ids) {
+      const o = orderById2(id);
+      if (!o || o.c !== ci || !(o.state === 'open' || (old && o.state === 'tour' && o.tour === old.id))) return err('Bestellung #' + id + ' ist nicht mehr frei.');
+      if (!LMC.canJoin(o.created, o.day, day, k)) return err('Bestellung #' + id + ' liegt für diese Abfahrt nicht rechtzeitig vor oder gehört zu einem anderen Tag.');
+    }
+    if (!drvFitAt(drv, LMC.loadA(day, k))) return err('Fahrer ' + drv.id + ' ist dann krank oder in Schulung.');
+    const calc = planCalc(c, drv, day, k, ids);
+    if (calc.tooLong) return err('Die Tour dauert voraussichtlich ' + fmtHM(calc.sc.dur) + ' und damit länger als 8 Stunden.');
+    const span = [LMC.loadA(day, k), calc.sc.end], skip = old ? old.id : -1;
+    if (spanBusy(c, 'van', van.id, span, skip)) return err('Transporter ' + van.id + ' ist zu dieser Zeit schon eingeplant.');
+    if (spanBusy(c, 'drv', drv.id, span, skip)) return err('Fahrer ' + drv.id + ' ist zu dieser Zeit schon eingeplant.');
+    if (old) { releaseOrders(old); dropTour(c, old); }
+    const T = { id: tourSeq++, k, day, van: van.id, drv: drv.id, stops: ids.slice(), st: 'plan', i: 0, t0: 0, dep: 0, ld: calc.load, dw: 0, hs: 0, est: calc.sc.end, km: 0, hold: false, stall: null, res: [], node: c.node, leg: null, lt: 0, to: c.node };
+    for (const id of ids) { const o = orderById2(id); o.state = 'tour'; o.tour = T.id; }
+    c.tours.push(T); c.tours.sort((x, y) => LMC.loadA(x.day, x.k) - LMC.loadA(y.day, y.k) || x.id - y.id);
+    cenStruct = cenOrdersDirty = true; dirty = true;
+    return { ok: true, tour: T, calc };
+  }
+  function cancelTour(ci, id) {
+    const c = centers[ci], T = c && c.tours.find(t => t.id === id); if (!T || T.st !== 'plan') return false;
+    releaseOrders(T); dropTour(c, T); cenStruct = cenOrdersDirty = true; dirty = true; return true;
+  }
+
+  // ---- Ablauf ----
+  const stopOrder = T => orderById2(T.stops[T.i]);
+  function tourNode(T) {                                    // Knoten, an dem der Transporter gerade ist (für Umleiten und Speichern)
+    if (!T.leg) return T.node;
+    const s = E.sample(T.leg, T.lt), nodes = T.leg.nodes; return nodes[Math.min(nodes.length - 1, s.i + (s.f > 0.5 ? 1 : 0))];
+  }
+  function tourPos(T) {
+    if (T.leg) { const s = E.sample(T.leg, T.lt); return { x: s.x, y: s.y, moving: !T.stall }; }
+    return { x: nx[T.node], y: ny[T.node], moving: false };
+  }
+  function startLeg(c, T, node) {
+    const leg = T.node === node ? null : E.returnLeg('van', T.node, node, cenAvoid(c));
+    T.leg = leg ? tuneLeg(leg, cenPs(tDrv(c, T))) : null; T.lt = 0; T.to = node;
+  }
+  function nextStop(c, ci, T) {                             // nächster offener Stopp oder zurück zum Center
+    while (T.i < T.stops.length && !stopOrder(T)) T.i++;
+    const o = T.i < T.stops.length ? stopOrder(T) : null;
+    if (o) { T.st = 'drive'; startLeg(c, T, o.node); } else { T.st = 'back'; startLeg(c, T, c.node); }
+    cenStruct = true; dirty = true;
+  }
+  function endTour(c, ci, T, why) {
+    const v = tVan(c, T), d = tDrv(c, T); if (v) v.tour = null; if (d) d.tour = null;
+    if (!dropTour(c, T)) return;
+    cenStruct = cenOrdersDirty = true; dirty = true;
+    if (why) log(cenName(ci) + ': ' + why, true);
+  }
+  function cancelAuto(c, ci, T, why) {                      // geplante Tour fällt aus: Bestellungen sind wieder frei
+    releaseOrders(T); dropTour(c, T); cenStruct = cenOrdersDirty = true; dirty = true;
+    log(cenName(ci) + ': Tour ' + LMC.hm(LMC.DEP[T.k]) + ' fällt aus (' + why + '), ' + T.stops.length + ' Bestellungen sind wieder frei', true);
+  }
+  function beginTour(c, ci, T) {
+    const now = absT(), v = tVan(c, T); let d = tDrv(c, T);
+    const lateBy = now - LMC.depA(T.day, T.k);
+    if (!v || !d) return cancelAuto(c, ci, T, !v ? 'Transporter nicht mehr da' : 'Fahrer nicht mehr da');
+    const fit = x => x && !x.sick && !x.train && !x.tour;
+    if (v.tour || (d.tour)) { T.hold = true; if (lateBy > 3600) cancelAuto(c, ci, T, 'Transporter oder Fahrer kam nicht rechtzeitig zurück'); return; }
+    if (!fit(d)) {
+      const alt = c.drv.find(x => fit(x) && !spanBusy(c, 'drv', x.id, [LMC.loadA(T.day, T.k), T.est], T.id));
+      if (!alt) { T.hold = true; if (lateBy > 1800) cancelAuto(c, ci, T, 'kein gesunder Fahrer'); return; }
+      log(cenName(ci) + ': Für die Tour ' + LMC.hm(LMC.DEP[T.k]) + ' springt Fahrer ' + alt.id + ' für Fahrer ' + d.id + ' ein'); T.drv = alt.id; d = alt;
+    }
+    for (const id of T.stops.slice()) { const o = orderById2(id); if (!o || o.state !== 'tour' || o.tour !== T.id) T.stops.splice(T.stops.indexOf(id), 1); }
+    if (!T.stops.length) return cancelAuto(c, ci, T, 'alle Bestellungen entfallen');
+    T.hold = false; T.st = 'load'; T.t0 = now; T.node = c.node; T.i = 0; v.tour = T.id; d.tour = T.id;
+    T.ld = LMC.loadTime(T.stops.map(orderById2).filter(Boolean), !!hl(c, 'quick'));
+    log(cenName(ci) + ': Tour ' + LMC.hm(LMC.DEP[T.k]) + ' beginnt, Fahrer ' + d.id + ' belädt Transporter ' + v.id + ' (' + T.stops.length + ' Stopps)');
+    cenStruct = true; dirty = true;
+  }
+  function abortTour(c, ci, T) {                            // 8 Stunden erreicht: restliche Stopps bleiben liegen, Rückfahrt
+    const rest = T.stops.slice(T.i).filter(id => { const o = orderById2(id); return o && o.state === 'tour'; });
+    T.node = tourNode(T); T.leg = null; releaseOrders(T, rest); T.stops = T.stops.slice(0, T.i);
+    log(cenName(ci) + ': Tour ' + LMC.hm(LMC.DEP[T.k]) + ' nach 8 Stunden abgebrochen, ' + rest.length + ' Bestellungen bleiben liegen', true);
+    T.st = 'back'; startLeg(c, T, c.node); cenStruct = true;
+  }
+  function arriveAt(c, ci, T) {
+    const o = stopOrder(T), now = absT();
+    if (T.leg) { bill.veh += T.leg.len / 1000 * cenKm(c); T.km += T.leg.len / 1000; }
+    T.node = T.to; T.leg = null; T.lt = 0;
+    if (!o) return nextStop(c, ci, T);
+    if (now < wsA(o) && !o.pres) T.st = 'wait'; else { T.st = 'door'; T.dw = LMC.dwell(o.n, o.firm); T.hs = now; }
+    cenStruct = true;
+  }
+  function deliverStop(c, ci, T) {
+    const o = stopOrder(T), d = tDrv(c, T), late = T.hs - weA(o), g = LMC.grade(late);
+    cash += o.pay; histAdd(o.pay, 0); cstats.n++; cstats.pay += o.pay; if (late <= 0) cstats.ontime++; else cstats.late++;
+    cRate(c, g, MODE.repW);
+    if (d) { d.done++; d.earn = (d.earn || 0) + o.pay; while (d.lvl < 5 && d.done >= CFG.cen.xp[d.lvl]) { d.lvl++; log(cenName(ci) + ': Fahrer ' + d.id + ' ist jetzt Stufe ' + d.lvl + ' und fährt schneller', true); } }
+    T.res.push([o.id, Math.round(late), o.pay]); o.state = 'delivered'; corders = corders.filter(x => x !== o); if (csel.order === o.id) csel.order = null;
+    sfx('done'); cenOrdersDirty = true;
+    log(cenName(ci) + ': #' + o.id + ' ' + (o.firm ? o.name : (o.street || 'Privatkunde')) + ' zugestellt (' + (late <= 0 ? 'im Fenster' : fmtMin(late) + ' min zu spät') + '), ' + seur(o.pay));
+    T.i++; nextStop(c, ci, T);
+  }
+  function tourStep(c, ci, T, now) {
+    switch (T.st) {
+      case 'load': if (now >= Math.max(LMC.depA(T.day, T.k), T.t0 + T.ld)) { T.dep = now; nextStop(c, ci, T); return true; } return false;
+      case 'drive': if (!T.leg || T.lt >= T.leg.time) { arriveAt(c, ci, T); return true; } return false;
+      case 'wait': { const o = stopOrder(T); if (!o) { nextStop(c, ci, T); return true; } if (now >= wsA(o)) { T.st = 'door'; T.dw = LMC.dwell(o.n, o.firm); T.hs = now; cenStruct = true; return true; } return false; }
+      case 'door': if (T.dw <= 0) { deliverStop(c, ci, T); return true; } return false;
+      case 'back': if (!T.leg || T.lt >= T.leg.time) {
+        if (T.leg) { bill.veh += T.leg.len / 1000 * cenKm(c); T.km += T.leg.len / 1000; }
+        T.node = c.node; T.leg = null; T.st = 'unload'; T.dw = LMC.UNLOAD; cenStruct = true; return true;
+      } return false;
+      case 'unload': if (T.dw <= 0) {
+        const n = T.res.length, tot = T.res.reduce((a, r) => a + r[2], 0), wage = wageOf({ veh: 'van', lvl: (tDrv(c, T) || { lvl: 1 }).lvl }) * (now - T.t0) / 3600;
+        endTour(c, ci, T, 'Tour ' + LMC.hm(LMC.DEP[T.k]) + ' zurück im Center: ' + n + ' von ' + (n + (T.lost || 0)) + ' zugestellt, ' + seur(tot) + ' Lohn, Fahrerlohn etwa ' + eur(wage) + ', ' + fmtHM(now - T.dep) + ' unterwegs');
+        return true;
+      } return false;
+    }
+    return false;
+  }
+  function tickTours(c, ci, adv) {
+    for (const T of c.tours.slice()) {
+      const now = absT();
+      if (T.st === 'plan') { if (now >= LMC.loadA(T.day, T.k)) beginTour(c, ci, T); continue; }
+      const d = tDrv(c, T); if (d) bill.wage += wageOf({ veh: 'van', lvl: d.lvl }) * adv / 3600;     // Lohn nur von Beladebeginn bis Rückkehr
+      if ((T.st === 'drive' || T.st === 'back') && T.lt < 0) { if (T.st === 'back') startLeg(c, T, c.node); else nextStop(c, ci, T); }     // nach dem Laden: Strecke neu berechnen
+      if (T.stall) { T.stall.left -= adv; if (T.stall.left <= 0) { log(cenName(ci) + ': Transporter ' + T.van + ': ' + T.stall.kind + ' behoben, weiter geht es'); T.stall = null; cenStruct = true; } }
+      else if (T.st === 'drive' || T.st === 'back') {
+        if (T.leg && T.lt >= 0) {
+          const sm = E.sample(T.leg, T.lt), b = BRK.van, rate = b[0] / 3600 * WX[wx].risk * MODE.risk * (hl(c, 'service') ? 0.5 : 1);
+          if (Math.random() < 1 - Math.exp(-rate * adv)) { T.stall = { left: (b[2] + Math.random() * (b[3] - b[2])) * 60, kind: b[1] }; led.brk++; sfx('bad'); log(cenName(ci) + ': Panne bei Transporter ' + T.van + ': ' + b[1] + ', ' + fmtMin(T.stall.left) + ' min Pause', true); cenStruct = true; }
+          else T.lt += adv * pace(T.leg, sm.i, cenPs(d));
+        }
+      } else if (T.st === 'door' || T.st === 'unload') T.dw -= adv;
+      if (T.dep && (T.st === 'drive' || T.st === 'wait') && now - T.dep >= LMC.MAXTOUR) abortTour(c, ci, T);
+      for (let g = 0; g < 8 && c.tours.includes(T); g++) if (!tourStep(c, ci, T, absT())) break;
+    }
+  }
+  // Verfallene Bestellung aus einer Tour nehmen
+  function dropFromTour(o) {
+    const c = centers[o.c], T = c && c.tours.find(t => t.id === o.tour); if (!T) return;
+    const j = T.stops.indexOf(o.id); if (j < 0) return;
+    T.stops.splice(j, 1); T.lost = (T.lost || 0) + 1; if (j < T.i) T.i--;
+    if (T.st === 'plan' && !T.stops.length) { dropTour(c, T); log(cenName(o.c) + ': Tour ' + LMC.hm(LMC.DEP[T.k]) + ' entfällt, alle Bestellungen verfallen', true); }
+    else if (j === T.i && (T.st === 'drive' || T.st === 'wait' || T.st === 'door')) { T.node = tourNode(T); T.leg = null; T.lt = 0; nextStop(c, o.c, T); }
+    cenStruct = true;
+  }
+  // Abwesenheit: laufende Touren werden zu Ende geführt (voller Lohn, ohne Abzüge), geplante, die inzwischen beginnen müssten, fallen aus
+  function absenceTours(eff, a0) {
+    centers.forEach((c, ci) => {
+      for (const T of c.tours.slice()) {
+        if (T.st === 'plan') { if (LMC.loadA(T.day, T.k) < a0 + eff) cancelAuto(c, ci, T, 'du warst nicht da'); continue; }
+        const d = tDrv(c, T); let tot = 0;
+        for (const id of T.stops.slice(T.i)) { const o = orderById2(id); if (!o || o.state !== 'tour') continue; cash += o.pay; histAdd(o.pay, 0); cstats.n++; cstats.ontime++; cstats.pay += o.pay; tot += o.pay; o.state = 'delivered'; if (d) { d.done++; d.earn = (d.earn || 0) + o.pay; while (d.lvl < 5 && d.done >= CFG.cen.xp[d.lvl]) d.lvl++; } }
+        corders = corders.filter(o => o.state !== 'delivered');
+        const wage = wageOf({ veh: 'van', lvl: d ? d.lvl : 1 }) * Math.min(eff, Math.max(0, (T.est || a0) - a0)) / 3600; cash -= wage; stats.wage += wage;
+        endTour(c, ci, T, 'Tour ' + LMC.hm(LMC.DEP[T.k]) + ' ist in deiner Abwesenheit zu Ende gegangen, ' + seur(tot) + ' Lohn, Fahrerlohn ' + eur(wage));
+      }
+    });
+    cenOrdersDirty = cenStruct = true;
+  }
+
+  // Ansicht: Lieferdienst (Hubs) oder Fulfillment (Center)
+  function setView(v) {
+    if (v === 'cen' && !centers.length && placing !== 'cen') v = 'hq';
+    if (placing && (v === 'cen') !== (placing === 'cen')) endPlacing();
+    uiView = v; const c = v === 'cen';
+    for (const b of $('viewSeg').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+    if (!c) tpClose(); $('hqOrders').hidden = c; $('cenOrders').hidden = !c; $('tourBlock').hidden = !c; $('tourNew').hidden = !c || tp.open; tourSig = ''; $('hubsBlock').hidden = c; $('hireBlock').hidden = c; $('cenSide').hidden = !c; $('legK').hidden = !c; $('legB').hidden = $('legF').hidden = c;
+    syncCenUi(); cenStruct = cenOrdersDirty = orderStructDirty = true; tabInfo(); dirty = true;
+  }
+  let cenSelSig = '';
+  function syncCenUi() {
+    $('viewSeg').hidden = !centers.length; $('legC').hidden = !centers.length;
+    if (!centers.length && uiView === 'cen' && placing !== 'cen') { setView('hq'); return; }
+    const sig = String(centers.length); if (sig === cenSelSig) return; cenSelSig = sig;
+    const sl = $('cenSel'), keep = sl.value || 'all'; sl.textContent = '';
+    const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sl.appendChild(o); };
+    add('all', 'Alle Center'); centers.forEach((c, i) => add(String(i), cenName(i)));
+    sl.value = Array.from(sl.options).some(o => o.value === keep) ? keep : 'all';
+    sl.hidden = $('cenSelL').hidden = centers.length < 2; cenOrdersDirty = true;
+  }
+  $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setView(b.dataset.v); });
+  $('cenSel').onchange = () => { cenOrdersDirty = true; dirty = true; };
+
+  // Liste der Center-Bestellungen: nach Tag und Fenster sortiert
+  const colist = $('colist'); let coRows = [];
+  const cenOrderList = () => { if (tp.open) return tpCand().sort((a, b) => a.day - b.day || a.ws - b.ws || a.id - b.id); const f = $('cenSel').value || 'all'; return corders.filter(o => (o.state === 'open' || o.state === 'tour') && (f === 'all' || String(o.c) === f)).sort((a, b) => a.day - b.day || a.ws - b.ws || a.id - b.id); };
+  function dayHead(day) { const t = Math.floor(absT() / 86400), nm = dayL[LMC.wdOf(day)]; return day === t ? 'Heute · ' + nm : day === t + 1 ? 'Morgen · ' + nm : nm; }
+  function selectCenOrder(id) { csel.order = csel.order === id ? null : id; cenOrdersDirty = true; dirty = true; }
+  function cycleCenOrder(dir) {
+    const list = cenOrderList(); if (!list.length) return;
+    let i = list.findIndex(o => o.id === csel.order); i = i < 0 ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length;
+    csel.order = list[i].id; cenOrdersDirty = true; dirty = true;
+  }
+  let cenDaySig = -1;
+  function renderCenOrders() {
+    cenOrdersDirty = false; cenDaySig = Math.floor(absT() / 86400);
+    const list = cenOrderList(), multi = centers.length > 1; colist.textContent = ''; coRows = [];
+    let lastDay = null;
+    for (const o of list) {
+      if (o.day !== lastDay) { lastDay = o.day; colist.appendChild(elt('li', 'dayhdr', dayHead(o.day))); }
+      const li = elt('li', 'order' + (o.firm ? ' firm' : '') + (csel.order === o.id ? ' sel' : '')), b = elt('button', 'ocard'); b.type = 'button';
+      const top = elt('span', 'o-top'), nm = elt('strong', null, o.firm ? o.name : (o.street || 'Privatkunde')), pay = elt('span', 'o-pay', eur(o.pay)); top.append(nm, pay);
+      const sub = elt('span', 'o-sub', (multi ? 'C' + (o.c + 1) + ' · ' : '') + '#' + o.id + ' · ' + (o.firm ? (E.FIRM_LABEL[o.kind] || 'Firma') : 'Privat') + ' · ' + o.n + (o.n === 1 ? ' Paket' : ' Pakete') + (o.firm && o.street ? ' · ' + o.street : ''));
+      const age = elt('span', 'o-age'), st = elt('span', 'o-st'); age.append(elt('span', null, LMC.winLabel(o.wh[0], o.wh[1])), st);
+      b.append(top, sub, age); li.appendChild(b); li.dataset.id = String(o.id); b.setAttribute('aria-pressed', String(csel.order === o.id));
+      b.onclick = () => selectCenOrder(o.id);
+      if (tp.open) {
+        const at = tp.stops.indexOf(o.id), row = elt('div', 'oadd'), ab = elt('button', 'btn', at >= 0 ? 'Aus der Tour nehmen' : 'In die Tour'); ab.type = 'button'; ab.dataset.act = 'tourToggle';
+        ab.disabled = at < 0 && tp.stops.length >= cStops(centers[tp.ci]); ab.onclick = () => tpToggle(o.id);
+        row.append(elt('span', 'o-st' + (at >= 0 ? ' run' : ''), at >= 0 ? 'Stopp ' + (at + 1) : ''), ab); li.appendChild(row); if (at >= 0) li.classList.add('intour');
+      }
+      colist.appendChild(li); coRows.push({ o, st });
+    }
+    setText($('cocount'), String(list.length));
+    setText($('cohint'), tp.open ? (list.length ? 'Es werden nur Bestellungen gezeigt, die zu dieser Abfahrt passen (gleicher Tag, rechtzeitig vor Annahmeschluss). Du kannst sie auch auf der Karte antippen.' : 'Für diese Abfahrt liegt keine passende Bestellung vor.') : centers.length ? (list.length ? 'Karte: Kreis = Privatperson, Quadrat = Firma. Wähle „Tour planen“, um Bestellungen zu einer Tour zusammenzufassen.' : 'Noch keine Bestellungen. Das Center braucht mindestens einen Transporter und einen Fahrer.') : '');
+    updateCenOrderTexts();
+  }
+  const fmtHM = s => { s = Math.max(0, Math.round(s / 60)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' h'; };
+  function updateCenOrderTexts() {
+    for (const r of coRows) {
+      const o = r.o, over = simClock > o.we, run = !over && simClock >= o.ws;
+      setText(r.st, o.state === 'tour' ? 'in Tour' : over ? 'überfällig' : run ? 'Fenster läuft' : 'in ' + fmtHM(o.ws - simClock));
+      const cls = 'o-st' + (over ? ' over' : run ? ' run' : ''); if (r.st.className !== cls) r.st.className = cls;
+    }
+  }
+
+  // ---------- Tourenplaner und Tourenliste (linke Spalte, Center-Ansicht) ----------
+  const clk = s => { const m = Math.floor((((s % 86400) + 86400) % 86400) / 60); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
+  const SHORT = ['Fr', 'Sa', 'So', 'Mo', 'Di', 'Mi', 'Do'];
+  const tourName = Tr => SHORT[LMC.wdOf(Tr.day)] + ' ' + LMC.hm(LMC.DEP[Tr.k]);
+  const stopName = o => o ? (o.firm ? o.name : (o.street || 'Privatkunde')) : '';
+  const tlist = $('tlist'), plStops = $('plStops');
+  let tourSig = '', tourTxtAt = 0, tpDirty = false, tpNext = 0, trefs = [];
+  const tpC = () => centers[tp.ci] || null;
+  const tpDrv = () => { const c = tpC(); return (c && c.drv.find(d => d.id === tp.drv)) || null; };
+  const tpSlots = () => LMC.upcoming(absT(), 12);
+  // Bestellungen, die zu dieser Abfahrt passen: gleicher Tag, rechtzeitig vor Annahmeschluss, noch frei (oder schon in der bearbeiteten Tour)
+  const tpCand = () => corders.filter(o => o.c === tp.ci && (o.state === 'open' || (tp.edit && o.state === 'tour' && o.tour === tp.edit)) && LMC.canJoin(o.created, o.day, tp.day, tp.k));
+  // Fahrplan einer Reihenfolge (nur Rechnung, ohne Spielzustand zu ändern)
+  function mkEval(c, drv, day, k) {
+    const pm = speedMult(cenPs(drv)), quick = !!hl(c, 'quick');
+    return ords => {
+      const stops = ords.map(o => ({ id: o.id, ws: wsA(o), we: weA(o), n: o.n, firm: o.firm, node: o.node }));
+      const dep = Math.max(LMC.depA(day, k), LMC.loadA(day, k) + LMC.loadTime(stops, quick));
+      const sc = LMC.schedule(dep, stops, (a, b, t) => neutralLeg(c, a ? a.node : c.node, b ? b.node : c.node).t * slowF(rushProfile(t - START).load) / pm);
+      return { stops, dep, sc, cost: sc.dur + 20 * sc.late };
+    };
+  }
+  function bestInsert(ev, ords, o) {
+    let best = null;
+    for (let i = 0; i <= ords.length; i++) { const r = ev(ords.slice(0, i).concat([o], ords.slice(i))); if (!best || r.cost < best.r.cost - 1e-9) best = { i, r }; }
+    return best;
+  }
+  function tpPick() {                                       // freien Transporter und Fahrer für die gewählte Abfahrt vorbelegen
+    const c = tpC(); if (!c) return;
+    const t0 = LMC.loadA(tp.day, tp.k), span = [t0, t0 + 4 * 3600], skip = tp.edit || -1;
+    const vOk = v => !spanBusy(c, 'van', v.id, span, skip), dOk = d => drvFitAt(d, t0) && !spanBusy(c, 'drv', d.id, span, skip);
+    if (!c.vans.some(v => v.id === tp.van && vOk(v))) { const v = c.vans.find(vOk); tp.van = v ? v.id : 0; }
+    if (!c.drv.some(d => d.id === tp.drv && dOk(d))) { const d = c.drv.find(dOk); tp.drv = d ? d.id : 0; }
+  }
+  function tpOpen(ci, edit) {
+    const c = centers[ci]; if (!c) return;
+    const sl = tpSlots(); if (!sl.length) return;
+    tp.open = true; tp.ci = ci; tp.err = ''; tp.info = ''; tp.edit = 0; tp.stops = []; tp.pathSig = ''; tp.path = null;
+    if (edit) { tp.edit = edit.id; tp.day = edit.day; tp.k = edit.k; tp.van = edit.van; tp.drv = edit.drv; tp.stops = edit.stops.filter(id => orderById2(id)); }
+    else {
+      // Vorbelegung: die Abfahrt, zu der die meisten freien Bestellungen zeitlich passen (Fenster noch offen oder in der nächsten Stunde nach der Ankunft)
+      const fit = s => corders.filter(o => o.c === ci && o.state === 'open' && LMC.canJoin(o.created, o.day, s.day, s.k) && weA(o) > s.dep + 900 && wsA(o) <= s.dep + 900 + 3600).length;
+      let first = sl[0], bs = 0; for (const s of sl) { const n = fit(s); if (n > bs) { bs = n; first = s; } }
+      if (!bs) first = sl.find(s => corders.some(o => o.c === ci && o.state === 'open' && LMC.canJoin(o.created, o.day, s.day, s.k))) || sl[0];
+      tp.day = first.day; tp.k = first.k; tp.van = tp.drv = 0;
+    }
+    tpPick(); tpDirty = true; tsel = 0; cenOrdersDirty = true; tourSig = ''; dirty = true;
+    if ($('planner').scrollIntoView) setTimeout(() => $('planner').scrollIntoView({ block: 'nearest' }), 50);
+  }
+  function tpClose() {
+    if (!tp.open) return; tp.open = false; tp.stops = []; tp.path = null; tp.pathSig = ''; tp.err = tp.info = '';
+    $('planner').hidden = true; $('tourNew').hidden = uiView !== 'cen'; cenOrdersDirty = true; tourSig = ''; dirty = true;
+  }
+  function tpToggle(id) {
+    if (!tp.open) return false;
+    const i = tp.stops.indexOf(id);
+    if (i >= 0) tp.stops.splice(i, 1);
+    else {
+      const c = tpC(), o = orderById2(id), drv = tpDrv();
+      if (!o || !tpCand().some(x => x.id === id)) return false;
+      if (tp.stops.length >= cStops(c)) { tp.err = 'Ein Transporter fährt höchstens ' + cStops(c) + ' Stopps.'; tpDirty = true; return true; }
+      if (drv) { const ords = tp.stops.map(orderById2).filter(Boolean); tp.stops.splice(bestInsert(mkEval(c, drv, tp.day, tp.k), ords, o).i, 0, id); }
+      else tp.stops.push(id);
+    }
+    tp.err = tp.info = ''; tpDirty = cenOrdersDirty = dirty = true; return true;
+  }
+  function tpMove(i, d) {
+    const j = i + d; if (j < 0 || j >= tp.stops.length) return;
+    const a = tp.stops[i]; tp.stops[i] = tp.stops[j]; tp.stops[j] = a; tp.info = ''; tpDirty = dirty = true;
+  }
+  function tpOptimize() {
+    const c = tpC(), drv = tpDrv(), ords = tp.stops.map(orderById2).filter(Boolean);
+    if (!c || !drv || ords.length < 2) return;
+    const ev = mkEval(c, drv, tp.day, tp.k), dist = (a, b) => neutralLeg(c, a < 0 ? c.node : ords[a].node, ords[b].node).t;
+    const before = ev(ords), best = LMC.optimize(ords.length, order => ev(order.map(i => ords[i])).cost, dist, ords.map((_, i) => i));
+    tp.stops = best.map(i => ords[i].id); const after = ev(best.map(i => ords[i]));
+    tp.info = after.cost < before.cost - 1 ? 'Reihenfolge verbessert: ' + fmtHM(before.sc.dur) + ' → ' + fmtHM(after.sc.dur) + (before.sc.late > after.sc.late ? ', weniger Verspätung' : '') : 'Die Reihenfolge war schon gut.';
+    tp.err = ''; tpDirty = dirty = true;
+  }
+  // Vorschlag: füllt die Tour Schritt für Schritt mit der Bestellung, die am wenigsten Zeit kostet und keine neue Verspätung bringt
+  function tpSuggest() {
+    const c = tpC(), drv = tpDrv(); if (!c) return;
+    if (!drv || !tp.van) { tp.err = 'Wähle erst einen freien Transporter und Fahrer.'; tp.info = ''; tpDirty = true; return; }
+    const ev = mkEval(c, drv, tp.day, tp.k), max = cStops(c);
+    let ords = tp.stops.map(orderById2).filter(Boolean), pool = tpCand().filter(o => !tp.stops.includes(o.id)), added = 0;
+    const near = ords.length ? ords[0] : null;
+    while (ords.length < max && pool.length) {
+      const cur = ords.length ? ev(ords) : null; let pick = null;
+      for (const o of pool) {
+        const b = bestInsert(ev, ords, o);
+        if (b.r.sc.dur > LMC.MAXTOUR - 900) continue;                                              // Reserve für Verzögerungen
+        if (cur && (b.r.sc.late > cur.sc.late + 1 || b.r.sc.wait > cur.sc.wait + 1200)) continue;  // keine neue Verspätung, kein langes Warten
+        if (!cur && b.r.sc.late > 1) continue;
+        const inc = b.r.cost - (cur ? cur.cost : 0);
+        if (!pick || inc < pick.inc - 1e-9) pick = { o, b, inc };
+      }
+      if (!pick) break;
+      ords.splice(pick.b.i, 0, pick.o); pool = pool.filter(x => x !== pick.o); added++;
+    }
+    if (!added) { tp.err = ''; tp.info = tp.stops.length ? 'Keine weitere Bestellung passt noch dazu (Fenster, Wartezeit, Stopp-Grenze, 8 Stunden).' : 'Für diese Abfahrt gibt es keine passende Bestellung.'; tpDirty = true; return; }
+    if (ords.length > 1) { const best = LMC.optimize(ords.length, order => ev(order.map(i => ords[i])).cost, (a, b) => neutralLeg(c, a < 0 ? c.node : ords[a].node, ords[b].node).t, ords.map((_, i) => i)); ords = best.map(i => ords[i]); }
+    tp.stops = ords.map(o => o.id); tp.err = ''; tp.info = 'Vorschlag: ' + added + (added === 1 ? ' Bestellung' : ' Bestellungen') + ' ergänzt, zurück etwa ' + clk(ev(ords).sc.end) + '.';
+    tpDirty = cenOrdersDirty = dirty = true;
+  }
+  function tpSave() {
+    const r = planTour(tp.ci, { k: tp.k, day: tp.day, van: tp.van, drv: tp.drv, stops: tp.stops.slice(), edit: tp.edit });
+    if (!r.ok) { tp.err = r.err; tp.info = ''; tpDirty = true; return; }
+    const Tr = r.tour;
+    log(cenName(tp.ci) + ': Tour ' + tourName(Tr) + (tp.edit ? ' geändert' : ' geplant') + ': ' + Tr.stops.length + (Tr.stops.length === 1 ? ' Stopp' : ' Stopps') + ', Transporter ' + Tr.van + ', Fahrer ' + Tr.drv + ', zurück etwa ' + clk(Tr.est), true);
+    sfx('order'); tsel = Tr.id; tpClose();
+  }
+  function tpFill(sel, rows, val) {
+    const sig = rows.map(r => r[0] + '|' + r[1] + '|' + (r[2] ? 1 : 0)).join('~');
+    if (sel._sig !== sig) { sel._sig = sig; sel.textContent = ''; for (const r of rows) { const o = document.createElement('option'); o.value = r[0]; o.textContent = r[1]; o.disabled = !!r[2]; sel.appendChild(o); } }
+    if (sel.value !== String(val)) sel.value = String(val);
+  }
+  function tpPathUpdate() {
+    const c = tpC(), sig = tp.ci + ':' + tp.stops.join(',');
+    if (!c || sig === tp.pathSig) return; tp.pathSig = sig; tp.path = []; let prev = c.node;
+    for (const id of tp.stops.concat([0])) {
+      const o = id ? orderById2(id) : null, nd = o ? o.node : c.node;
+      if (nd !== prev) { const leg = E.returnLeg('van', prev, nd, cenAvoid(c)); if (leg) tp.path.push(leg); }
+      prev = nd;
+    }
+    dirty = true;
+  }
+  function tpRender() {
+    tpDirty = false; tpNext = performance.now() + 2000;
+    const box = $('planner'), c = tpC();
+    $('tourNew').hidden = tp.open || uiView !== 'cen'; box.hidden = !tp.open;
+    if (!tp.open) return;
+    if (!c) return tpClose();
+    if (tp.edit) { const Tr = c.tours.find(t => t.id === tp.edit); if (!Tr || Tr.st !== 'plan') { log(cenName(tp.ci) + ': Die Tour hat inzwischen begonnen und lässt sich nicht mehr ändern.', true); return tpClose(); } }
+    const sl = tpSlots();
+    if (!sl.some(s => s.day === tp.day && s.k === tp.k)) {
+      if (tp.edit || !sl.length) return tpClose();
+      tp.day = sl[0].day; tp.k = sl[0].k; tp.err = 'Das Beladen dieser Abfahrt hat begonnen, die nächste ist gewählt.';
+    }
+    const cand = tpCand(); tp.stops = tp.stops.filter(id => cand.some(o => o.id === id));
+    tpPick();
+    // Auswahlfelder
+    $('plCenL').hidden = $('plCen').hidden = centers.length < 2 || !!tp.edit;
+    tpFill($('plCen'), centers.map((_, i) => [String(i), cenName(i)]), tp.ci);
+    tpFill($('plSlot'), sl.map(s => [s.day + ':' + s.k, dayHead(s.day) + ' · ' + LMC.hm(LMC.DEP[s.k]) + ' Uhr · Annahmeschluss ' + LMC.hm(LMC.cutoff(s.k))]), tp.day + ':' + tp.k);
+    $('plSlot').disabled = !!tp.edit; $('plCen').disabled = !!tp.edit;
+    const t0 = LMC.loadA(tp.day, tp.k), span = [t0, t0 + 4 * 3600], skip = tp.edit || -1;
+    tpFill($('plVan'), c.vans.length ? c.vans.map(v => { const b = spanBusy(c, 'van', v.id, span, skip); return [String(v.id), 'Transporter ' + v.id + (b ? ' · belegt' : ''), b]; }) : [['0', 'kein Transporter', true]], tp.van);
+    tpFill($('plDrv'), c.drv.length ? c.drv.map(d => { const b = !drvFitAt(d, t0) ? (d.sick ? 'krank' : 'in Schulung') : spanBusy(c, 'drv', d.id, span, skip) ? 'belegt' : ''; return [String(d.id), 'Fahrer ' + d.id + ' · Stufe ' + d.lvl + (b ? ' · ' + b : ''), !!b]; }) : [['0', 'kein Fahrer', true]], tp.drv);
+    // Fahrplan
+    const drv = tpDrv(), ords = tp.stops.map(orderById2).filter(Boolean), ev = drv ? mkEval(c, drv, tp.day, tp.k) : null, r = ev && ords.length ? ev(ords) : null;
+    tp.calc = r;
+    $('plTitle').textContent = tp.edit ? 'Tour ändern' : 'Neue Tour';
+    plStops.textContent = '';
+    ords.forEach((o, i) => {
+      const li = elt('li', 'pstop'), n = elt('span', 'pn', String(i + 1)), main = elt('span', 'pmain'), nm = elt('strong', null, stopName(o));
+      const sub = elt('small', null, (o.firm ? (E.FIRM_LABEL[o.kind] || 'Firma') : 'Privat') + ' · ' + o.n + (o.n === 1 ? ' Paket' : ' Pakete') + ' · Fenster ' + LMC.winLabel(o.wh[0], o.wh[1]) + ' · ' + eur(o.pay));
+      main.append(nm, sub);
+      if (r) {
+        const row = r.sc.rows[i], late = row.late, cls = late > 0 ? 'late' : row.wait > 60 ? 'wait' : 'ok';
+        main.appendChild(elt('small', 'peta ' + cls, late > 0 ? 'Ankunft ' + clk(row.arr) + ' · ' + Math.round(late / 60) + ' min nach Fensterende' : row.wait > 60 ? 'Ankunft ' + clk(row.arr) + ' · wartet bis ' + clk(row.start) : 'Ankunft ca. ' + clk(row.arr)));
+      }
+      const bt = elt('span', 'pbtn'), mk2 = (t, lab, fn, dis) => { const b = elt('button', 'btn', t); b.type = 'button'; b.setAttribute('aria-label', lab); b.title = lab; b.disabled = !!dis; b.onclick = fn; return b; };
+      bt.append(mk2('▲', 'Nach oben', () => tpMove(i, -1), i === 0), mk2('▼', 'Nach unten', () => tpMove(i, 1), i === ords.length - 1), mk2('✕', 'Aus der Tour nehmen', () => tpToggle(o.id)));
+      li.append(n, main, bt); plStops.appendChild(li);
+    });
+    const lines = [];
+    if (!ords.length) lines.push('Noch keine Stopps. Wähle Bestellungen unten in der Liste oder auf der Karte, oder lass dir einen Vorschlag machen.');
+    else if (r) {
+      const lateN = r.sc.rows.filter(x => x.late > 0).length, waitS = r.sc.wait, pay = ords.reduce((a, o) => a + o.pay, 0), wg = wageOf({ veh: 'van', lvl: drv.lvl }) * (r.sc.end - t0) / 3600;
+      lines.push('Beladen ab ' + clk(t0) + ' · Abfahrt ' + clk(r.dep) + ' · zurück etwa ' + clk(r.sc.end));
+      lines.push(ords.length + ' von ' + cStops(c) + ' Stopps · Dauer ' + fmtHM(r.sc.dur) + ' (höchstens 8:00 h) · Wartezeit ' + fmtHM(waitS));
+      lines.push('Lohn der Bestellungen ' + eur(pay) + ' · Fahrerlohn etwa ' + eur(wg));
+      if (lateN) lines.push(lateN + (lateN === 1 ? ' Stopp kommt' : ' Stopps kommen') + ' voraussichtlich zu spät (kostet Ruf).');
+    }
+    setText($('plSum'), lines.join('\n'));
+    const tooLong = !!r && r.sc.dur > LMC.MAXTOUR + 1e-6;
+    const err = tp.err || (tooLong ? 'Die Tour dauert länger als 8 Stunden. Nimm Stopps heraus.' : !c.vans.length ? 'Das Center hat keinen Transporter.' : !c.drv.length ? 'Das Center hat keinen Fahrer.' : !tp.van ? 'Kein Transporter frei für diese Abfahrt.' : !tp.drv ? 'Kein Fahrer frei für diese Abfahrt.' : '');
+    setText($('plErr'), err); $('plErr').hidden = !err;
+    setText($('plInfo'), tp.info); $('plInfo').hidden = !tp.info;
+    $('plSave').disabled = !ords.length || !tp.van || !tp.drv || tooLong;
+    $('plOpt').disabled = ords.length < 2; $('plClr').disabled = !ords.length; $('plSug').disabled = !tp.van || !tp.drv;
+    setText($('plSave'), tp.edit ? 'Änderung speichern' : 'Tour speichern');
+    tpPathUpdate(); dirty = true;
+  }
+  $('tourNew').onclick = () => { const f = $('cenSel').value, ci = f && f !== 'all' ? Number(f) : 0; tpOpen(ci); };
+  $('plCen').onchange = () => { tp.ci = Number($('plCen').value) || 0; tp.stops = []; tp.van = tp.drv = 0; tp.err = tp.info = ''; tpDirty = cenOrdersDirty = true; };
+  $('plSlot').onchange = () => { const [d, k] = $('plSlot').value.split(':').map(Number); tp.day = d; tp.k = k; tp.err = tp.info = ''; tpDirty = cenOrdersDirty = true; };
+  $('plVan').onchange = () => { tp.van = Number($('plVan').value) || 0; tp.err = tp.info = ''; tpDirty = true; };
+  $('plDrv').onchange = () => { tp.drv = Number($('plDrv').value) || 0; tp.err = tp.info = ''; tpDirty = true; };
+  $('plOpt').onclick = tpOptimize; $('plSug').onclick = tpSuggest; $('plSave').onclick = tpSave; $('plX').onclick = tpClose;
+  $('plClr').onclick = () => { tp.stops = []; tp.err = tp.info = ''; tpDirty = cenOrdersDirty = dirty = true; };
+
+  // Tourenliste: geplante und laufende Touren aller Center
+  const tourRows = () => { const out = []; centers.forEach((c, ci) => c.tours.forEach(Tr => out.push({ c, ci, Tr }))); return out.sort((a, b) => (a.Tr.st === 'plan') - (b.Tr.st === 'plan') || LMC.loadA(a.Tr.day, a.Tr.k) - LMC.loadA(b.Tr.day, b.Tr.k) || a.Tr.id - b.Tr.id); };
+  const tourSigOf = () => tourRows().map(x => x.Tr.id + ':' + x.Tr.st + ':' + x.Tr.i + ':' + (x.Tr.hold ? 1 : 0) + ':' + (x.Tr.stall ? 1 : 0) + ':' + x.Tr.stops.length + ':' + x.Tr.van + ':' + x.Tr.drv).join(',') + '|' + tsel + '|' + (tp.open ? tp.edit + 'o' : '') + '|' + centers.length;
+  function tourStatus(c, Tr) {
+    const o = Tr.st === 'drive' || Tr.st === 'wait' || Tr.st === 'door' ? stopOrder(Tr) : null, nm = stopName(o), n = Tr.stops.length, ps = Tr.stall ? 'Panne (' + Tr.stall.kind + ') · ' : '';
+    switch (Tr.st) {
+      case 'plan': return Tr.hold ? 'wartet auf einen gesunden Fahrer oder den Transporter' : 'geplant · Beladen ab ' + clk(LMC.loadA(Tr.day, Tr.k)) + ' · zurück etwa ' + clk(Tr.est);
+      case 'load': return 'wird beladen · Abfahrt ' + clk(Math.max(LMC.depA(Tr.day, Tr.k), Tr.t0 + Tr.ld));
+      case 'drive': return ps + 'unterwegs nach ' + nm + ' (Stopp ' + (Tr.i + 1) + ' von ' + n + ')';
+      case 'wait': return 'wartet vor ' + nm + ' bis ' + clk(o ? wsA(o) : 0) + ' (Fensterbeginn)';
+      case 'door': return 'Übergabe bei ' + nm;
+      case 'back': return ps + 'Rückfahrt zum Center · ' + Tr.res.length + ' zugestellt';
+      default: return 'entlädt im Center';
+    }
+  }
+  const TOUR_CLS = { plan: 's-idle', load: 's-wait', drive: 's-drive', wait: 's-wait', door: 's-done', back: 's-drive', unload: 's-done' }, TOUR_TXT = { plan: 'Geplant', load: 'Beladen', drive: 'Unterwegs', wait: 'Wartet', door: 'Übergabe', back: 'Rückfahrt', unload: 'Entladen' };
+  function renderTours() {
+    tourSig = tourSigOf(); tlist.textContent = ''; trefs = [];
+    const rows = tourRows(), multi = centers.length > 1;
+    for (const { c, ci, Tr } of rows) {
+      const li = elt('li', 'tour' + (tsel === Tr.id ? ' sel' : '')), top = elt('div', 't-top'), nm = elt('strong', null, (multi ? 'C' + (ci + 1) + ' · ' : '') + tourName(Tr)), pill = elt('span', 'pill');
+      top.append(nm, pill); li.dataset.id = String(Tr.id);
+      const meta = elt('small', null, 'Transporter ' + Tr.van + ' · Fahrer ' + Tr.drv + ' · ' + Tr.stops.length + (Tr.stops.length === 1 ? ' Stopp' : ' Stopps')), st = elt('small', 't-st');
+      li.append(top, meta, st);
+      if (Tr.st === 'plan') {
+        const row = elt('div', 'crow'), eb = elt('button', 'btn', 'Ändern'), cb = elt('button', 'btn', 'Stornieren'); eb.type = cb.type = 'button'; eb.dataset.act = 'tourEdit'; cb.dataset.act = 'tourCancel';
+        eb.onclick = e => { e.stopPropagation(); tpOpen(ci, Tr); };
+        cb.onclick = e => { e.stopPropagation(); if (tp.open && tp.edit === Tr.id) tpClose(); if (cancelTour(ci, Tr.id)) { log(cenName(ci) + ': Tour ' + tourName(Tr) + ' abgesagt, die Bestellungen sind wieder frei.', true); if (tsel === Tr.id) tsel = 0; tourSig = ''; dirty = true; } };
+        row.append(eb, cb); li.appendChild(row);
+      }
+      li.onclick = () => { tsel = tsel === Tr.id ? 0 : Tr.id; tourSig = ''; dirty = true; };
+      tlist.appendChild(li); trefs.push({ c, Tr, pill, st });
+    }
+    setText($('tcount'), String(rows.length));
+    updateTourTexts();
+  }
+  function updateTourTexts() {
+    for (const r of trefs) {
+      const Tr = r.Tr, bad = Tr.hold || Tr.stall;
+      const cls = 'pill ' + (bad ? 's-bad' : TOUR_CLS[Tr.st]); if (r.pill.className !== cls) r.pill.className = cls;
+      setText(r.pill, Tr.stall ? 'Panne' : Tr.hold ? 'Wartet' : TOUR_TXT[Tr.st]);
+      setText(r.st, tourStatus(r.c, Tr));
+    }
+    const any = centers.some(c => cenReady(c));
+    setText($('thint'), tp.open ? '' : rowsHint());
+    $('tourNew').disabled = !any || !tpSlots().length;
+  }
+  const rowsHint = () => centers.length ? (centers.some(c => cenReady(c)) ? 'Abfahrten ab Center: 6:35, 9:35, 12:00, 14:35 und 17:00 Uhr (Montag bis Samstag). Der Fahrer beginnt eine halbe Stunde früher mit dem Beladen, Bestellungen müssen eine Stunde vorher vorliegen. Eine Tour dauert höchstens 8 Stunden.' : 'Ohne Transporter und Fahrer lässt sich keine Tour planen.') : '';
+  function tourUi() {
+    const now = performance.now(), sig = tourSigOf();
+    if (sig !== tourSig) renderTours(); else if (now - tourTxtAt > 500) { tourTxtAt = now; updateTourTexts(); }
+    if (tp.open && (tpDirty || now > tpNext)) tpRender();
+  }
+  // Karte: geplante Route im Planer, laufende Touren mit Transporter
+  const pathCache = new Map();
+  function tourPath(c, ids) {
+    const key = centers.indexOf(c) + ':' + ids.join(','), hit0 = pathCache.get(key); if (hit0) return hit0;
+    const legs = []; let prev = c.node;
+    for (const id of ids.concat([0])) { const o = id ? orderById2(id) : null, nd = o ? o.node : c.node; if (nd !== prev) { const leg = E.returnLeg('van', prev, nd, cenAvoid(c)); if (leg) legs.push(leg); } prev = nd; }
+    if (pathCache.size > 40) pathCache.clear(); pathCache.set(key, legs); return legs;
+  }
+  function stopMark(o, label, col) {
+    const x = toX(o.x), y = toY(o.y);
+    ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.283); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+    ctx.fillStyle = T.mapbg; ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, x, y + 0.5);
+  }
+  function drawTours() {
+    if (tp.open && tp.path) {
+      for (const leg of tp.path) drawRouteLeg(leg, 0, null, true, 0.6);
+      tp.stops.forEach((id, i) => { const o = orderById2(id); if (o) stopMark(o, String(i + 1), T.route); });
+    }
+    centers.forEach(c => {
+      for (const Tr of c.tours) {
+        if (Tr.st === 'plan') {
+          if (Tr.id === tsel && !(tp.open && tp.edit === Tr.id)) { for (const leg of tourPath(c, Tr.stops)) drawRouteLeg(leg, 0, null, true, 0.6); Tr.stops.forEach((id, i) => { const o = orderById2(id); if (o) stopMark(o, String(i + 1), T.route); }); }
+          continue;
+        }
+        const p = tourPos(Tr), sel2 = Tr.id === tsel;
+        if (Tr.leg && Tr.lt >= 0) { const s = E.sample(Tr.leg, Math.min(Tr.lt, Tr.leg.time)); drawRouteLeg(Tr.leg, s.i, s, false, sel2 ? 0.8 : 0.3); }
+        if (sel2) Tr.stops.forEach((id, i) => { const o = orderById2(id); if (o && i >= Tr.i) stopMark(o, String(i + 1), T.route); });
+        const x = toX(p.x), y = toY(p.y);
+        if (Tr.stall) { const k = (performance.now() / 700) % 1; ctx.beginPath(); ctx.arc(x, y, 14 + k * 8, 0, 6.283); ctx.strokeStyle = '#e0402a'; ctx.globalAlpha = 0.8 * (1 - k); ctx.lineWidth = 2.5; ctx.stroke(); ctx.globalAlpha = 1; dirty = true; }
+        ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - 10, y - 8, 20, 16, 4); else ctx.rect(x - 10, y - 8, 20, 16);
+        ctx.fillStyle = T.route; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = sel2 ? T.ink : T.mapbg; ctx.stroke();
+        ctx.fillStyle = T.mapbg; ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(Tr.van), x, y + 0.5);
+      }
+    });
+  }
+
+  // Rechte Spalte: je Center eine aufklappbare Gruppe mit Transportern und Fahrern
+  const clist = $('clist'), cenOpen = {}; let cRefs = [];
+  const cenOpenOf = i => cenOpen[i] === undefined ? true : cenOpen[i];
+  function renderCenters() {
+    cenStruct = false;
+    clist.textContent = ''; cRefs = [];
+    centers.forEach((c, i) => {
+      const open = cenOpenOf(i), R = { c, vans: [], drv: [] };
+      const box = elt('section', 'hubbox cbox'), top = elt('div', 'hubtop'), head = elt('button', 'hubhead'), body = elt('div', 'hubbody');
+      box.dataset.c = String(i); head.type = 'button'; head.setAttribute('aria-expanded', String(open)); body.hidden = !open;
+      const chev = elt('span', 'chev'), name = elt('span', 'hname', cenName(i)); name.appendChild(elt('em', null, 'Fulfillment'));
+      R.cnt = elt('span', 'hcount'); R.sum = elt('span', 'hsum'); head.append(chev, name, R.cnt, R.sum);
+      const upb = elt('button', 'btn hubup', 'Ausbau'); upb.type = 'button'; upb.title = 'Verbesserungen für ' + cenName(i);
+      upb.onclick = () => (win.kind === 'hq' && !winEl.hidden && hq.tab === 'c' + i ? closeWin() : openHQ('c' + i));
+      top.append(head, upb);
+      head.onclick = () => { cenOpen[i] = !cenOpenOf(i); renderCenters(); };
+      R.info = elt('p', 'note cinfo');
+      body.appendChild(R.info);
+      // Transporter
+      const hv = elt('h3', null, 'Transporter'); R.vcnt = elt('span'); hv.appendChild(R.vcnt); body.appendChild(hv);
+      const vl = elt('ul', 'vlist');
+      for (const v of c.vans) {
+        const li = elt('li', 'van'), nm = elt('strong', null, 'Transporter ' + v.id), st = elt('small'), sb = elt('button', 'btn'); sb.type = 'button'; sb.dataset.act = 'sellVan'; sb.dataset.id = String(v.id);
+        sb.onclick = () => sellVan(i, v.id); li.append(nm, st, sb); vl.appendChild(li); R.vans.push({ v, st, sb });
+      }
+      body.appendChild(vl);
+      R.bv = elt('button', 'btn hadd'); R.bv.type = 'button'; R.bv.dataset.act = 'buyVan'; R.bv.onclick = () => buyVan(i); body.appendChild(R.bv);
+      // Fahrer
+      const hd = elt('h3', null, 'Fahrer'); R.dcnt = elt('span'); hd.appendChild(R.dcnt); body.appendChild(hd);
+      const dl2 = elt('ul', 'vlist');
+      for (const d of c.drv) {
+        const li = elt('li', 'cdr'), tp = elt('span', 'd-top'), nm = elt('strong', null, 'Fahrer ' + d.id), lv = elt('span', 'd-veh'); tp.append(nm, lv);
+        const pill = elt('span', 'pill'), line = elt('span', 'd-line'), row = elt('div', 'crow');
+        const tb = elt('button', 'btn'), fb = elt('button', 'btn'); tb.type = fb.type = 'button'; tb.dataset.act = 'train'; fb.dataset.act = 'fire'; tb.dataset.id = fb.dataset.id = String(d.id);
+        tb.onclick = () => trainCenDriver(i, d.id);
+        fb.onclick = () => {
+          if (!canFireC(c, d)) return;
+          if (cFire && cFire.key === i + ':' + d.id && Date.now() < cFire.until) return void fireCenDriver(i, d.id);
+          cFire = { key: i + ':' + d.id, until: Date.now() + 6000 }; updateCenterTexts(); setTimeout(() => { if (cFire && Date.now() >= cFire.until) { cFire = null; updateCenterTexts(); } }, 6100);
+        };
+        row.append(tb, fb); li.append(tp, pill, line, row); dl2.appendChild(li); R.drv.push({ d, lv, pill, line, tb, fb });
+      }
+      body.appendChild(dl2);
+      R.bd = elt('button', 'btn hadd'); R.bd.type = 'button'; R.bd.dataset.act = 'hire'; R.bd.onclick = () => hireCenDriver(i); body.appendChild(R.bd);
+      box.append(top, body); clist.appendChild(box); cRefs.push(R);
+    });
+    const tv = centers.reduce((a, c) => a + c.vans.length, 0), ts = centers.reduce((a, c) => a + cSlots(c), 0);
+    setText($('ccount'), centers.length ? tv + ' / ' + ts : '0');
+    setText($('cnote'), centers.length ? 'Ein Center braucht mindestens einen Transporter und einen Fahrer, sonst kommen keine Bestellungen. Fahrer sind nicht an einen Transporter gebunden; beim Planen einer Tour wählst du beides. Lohn gibt es nur während einer Tour. „Ausbau“ öffnet die Verbesserungen dieses Centers.' : 'Noch kein Center gebaut. Unter „Verbesserungen“, Reiter „Spiel“, kannst du ein Fulfillment Center bauen.');
+    updateCenterTexts();
+  }
+  const cenKind = d => d.sick ? 'sick' : d.tour ? 'tour' : d.train ? 'train' : 'free';
+  function updateCenterTexts() {
+    for (const R of cRefs) {
+      const c = R.c, i = centers.indexOf(c), nOpen = corders.filter(o => o.c === i && (o.state === 'open' || o.state === 'tour')).length;
+      setText(R.cnt, c.vans.length + ' / ' + cSlots(c));
+      setText(R.sum, c.vans.length + (c.vans.length === 1 ? ' Transporter' : ' Transporter') + ' · ' + c.drv.length + (c.drv.length === 1 ? ' Fahrer' : ' Fahrer') + ' · ' + nOpen + ' offen · ★ ' + nf(1).format(c.rep));
+      const nf2 = cenZone(c).zf.length, fs = firmState === 'loading' ? 'Firmenkunden werden geladen …' : firmState === 'ok' ? nf2 + (nf2 === 1 ? ' Firma' : ' Firmen') + ' im Gebiet' : 'keine Firmendaten, nur Privatkunden';
+      setText(R.info, 'Liefergebiet ' + zr(c) + ' m · bis zu ' + cStops(c) + ' Stopps je Transporter · Ruf ★ ' + nf(1).format(c.rep) + ' · ' + fs + (cenReady(c) ? '' : ' · ohne Transporter oder Fahrer kommen keine Bestellungen'));
+      setText(R.vcnt, c.vans.length + ' von ' + cSlots(c) + ' Stellplätzen');
+      setText(R.dcnt, c.drv.length + ' von ' + cPool(c));
+      for (const r of R.vans) { setText(r.st, r.v.tour ? 'unterwegs' : vanReserved(c, r.v.id) ? 'für Tour eingeplant' : 'frei im Center'); setText(r.sb, 'Verkaufen +' + eur(CFG.cen.van * CFG.cen.vanSell)); r.sb.disabled = !!r.v.tour || vanReserved(c, r.v.id); }
+      const fullV = c.vans.length >= cSlots(c);
+      setText(R.bv, fullV ? 'Alle Stellplätze belegt' : 'Transporter kaufen (' + eur(CFG.cen.van) + ')'); R.bv.disabled = fullV || cash < CFG.cen.van;
+      const fullD = c.drv.length >= cPool(c);
+      setText(R.bd, fullD ? 'Fahrerpool voll' : 'Fahrer einstellen (' + eur(CFG.cen.hire) + ')'); R.bd.disabled = fullD || cash < CFG.cen.hire;
+      for (const r of R.drv) {
+        const d = r.d, k = cenKind(d);
+        setText(r.lv, 'Stufe ' + d.lvl);
+        r.pill.className = 'pill ' + (k === 'sick' ? 's-bad' : k === 'tour' ? 's-drive' : k === 'train' ? 's-wait' : 's-idle');
+        setText(r.pill, { sick: 'Krank', tour: 'Auf Tour', train: 'In Schulung', free: 'Frei' }[k]);
+        setText(r.line, d.sick ? 'wieder gesund in ' + fmtMin(d.sick.left) + ' min' : d.train ? 'noch ' + fmtMin(d.train.dur - d.train.t) + ' min bis Stufe ' + d.train.to : d.done + (d.done === 1 ? ' Stopp' : ' Stopps') + ' geliefert');
+        const k2 = d.lvl >= 5 ? 0 : CFG.trainCost(d.lvl);
+        setText(r.tb, d.lvl >= 5 ? 'Höchste Stufe' : 'Schulung ' + eur(k2)); r.tb.disabled = d.lvl >= 5 || !!d.train || !!d.tour || !!d.sick || drvReserved(c, d.id) || cash < k2;
+        const armed = !!cFire && cFire.key === centers.indexOf(c) + ':' + d.id && Date.now() < cFire.until;
+        setText(r.fb, armed ? 'Wirklich? Nochmal tippen.' : 'Kündigen'); r.fb.disabled = !canFireC(c, d);
+      }
+    }
+  }
+  function updateCenBuild() {
+    const pc = placing === 'cen';
+    setText($('cbLv'), centers.length + (centers.length === 1 ? ' gebaut' : ' gebaut'));
+    setText($('cbInfo'), 'Bau: ' + eur(CFG.cen.build) + '. Start mit ' + CFG.cen.slots[0] + ' Stellplätzen für Transporter und bis zu ' + (CFG.cen.slots[0] + CFG.cen.pool) + ' Fahrern; Ausbau bis ' + CFG.cen.slots[CFG.cen.slots.length - 1] + ' Stellplätze.');
+    setText($('cbBtn'), pc ? 'Abbrechen' : eur(CFG.cen.build)); $('cbBtn').disabled = !pc && cash < CFG.cen.build;
+  }
+  $('cbBtn').onclick = () => { if (placing === 'cen') return endPlacing(); if (cash < CFG.cen.build) return; startPlacing('cen'); };
+
+  // ---------- Verbesserungen: Reiter Hub 1…3, Center, Spiel, Partner ----------
   const hq = { tab: 'h0' };
   const NEWHUB = { id: 'newhub', name: 'Hubs', base: true, cost: CFG.hubBuild.slice(1), eff: l => (l + 1) + (l ? ' Hubs' : ' Hub (das Hauptquartier)') };
   function umax(u) { return u.id === 'zone' ? Math.min(u.cost.length, ZMAX) : u.cost.length; }                       // höchste Stufe
@@ -3801,7 +4911,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function buyUp(u, hi) {                                                                                           // hi: Hub-Nummer, ohne Angabe eine Verbesserung für das Spiel
     const h = hi === undefined ? null : hubs[hi]; if (hi !== undefined && !h) return;
     const l = ulvl(u, h); if (l >= umax(u)) return; const c = u.cost[l];
-    if (u.id === 'newhub') { if (!placing && cash < c) return; placing = !placing; ghost = null; $('placeBan').hidden = !placing; cv.classList.toggle('placing', placing); if (placing) closeWin(); dirty = true; return; }
+    if (u.id === 'newhub') { if (placing === 'hub') return endPlacing(); if (cash < c) return; startPlacing('hub'); return; }
     if (cash < c) return;
     spend(u.id === 'cap' ? 'hub' : u.id === 'zone' ? 'zone' : 'upg', c);
     if (h) h.up[u.id] = l + 1; else owned[u.id] = true;
@@ -3814,19 +4924,33 @@ function startGame(DATA, MODEKEY, PRE) {
     if (u.id !== 'cap' && u.id !== 'zone') { plansDirty = true; orderStructDirty = true; } else plansDirty = true;
     dirty = true;
   }
+  const cenIdx = () => hq.tab[0] === 'c' ? Math.max(0, Math.min(centers.length - 1, Number(hq.tab.slice(1)) || 0)) : 0;
+  function buyCenUp(u, ci) {
+    const c = centers[ci]; if (!c) return;
+    const l = hl(c, u.id); if (l >= umax(u)) return; const k = u.cost[l];
+    if (cash < k) return;
+    spend(u.id === 'slots' || u.id === 'stops' ? 'cen' : u.id === 'zone' ? 'zone' : 'upg', k);
+    c.up[u.id] = l + 1;
+    if (u.id === 'slots') log(cenName(ci) + ' ausgebaut: jetzt ' + cSlots(c) + ' Stellplätze und bis zu ' + cPool(c) + ' Fahrer, ' + seur(-k), true);
+    else if (u.id === 'stops') log(cenName(ci) + ': Transporter fahren jetzt bis zu ' + cStops(c) + ' Stopps pro Tour, ' + seur(-k), true);
+    else if (u.id === 'zone') { c.zk = ''; log('Liefergebiet von ' + cenName(ci) + ' erweitert: jetzt ' + zr(c) + ' m, ' + seur(-k), true); }
+    else log(u.name + ' (' + cenName(ci) + ') gekauft, ' + seur(-k), true);
+    cenStruct = true; dirty = true;
+  }
   // Für Tests: Kauf über die Kennung (Hub-Verbesserungen beziehen sich auf Hub hi, Standard Hub 1)
   function buyUpgrade(id, hi) {
     const g = UPG.find(x => x.id === id); if (g) return buyUp(g);
     if (id === 'newhub') return buyUp(NEWHUB);
     const u = UPG_HUB.find(x => x.id === id); if (u) buyUp(u, hi === undefined ? 0 : hi);
   }
+  function buyCenUpgrade(id, ci) { const u = UPG_CEN.find(x => x.id === id); if (u) buyCenUp(u, ci === undefined ? 0 : ci); }
   function mkUpgRow(u) {
     const row = elt('div', 'upg'), top = elt('div', 'u-top'), n = elt('strong', null, u.name), lv = elt('span', 'u-lv'), bar = elt('div', 'lvbar');
     bar.setAttribute('role', 'meter'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', String(usegs(u)));
     const segs = []; for (let i = 0; i < usegs(u); i++) { const sg = elt('i'); bar.appendChild(sg); segs.push(sg); }
     const now = elt('small', 'u-now'), next = elt('small', 'u-next'), b = elt('button', 'btn'); b.type = 'button';
     top.append(n, lv); row.append(top, bar, now, next, b);
-    b.onclick = () => buyUp(u, u.scope === 'hub' ? hubIdx() : undefined);
+    b.onclick = () => u.scope === 'cen' ? buyCenUp(u, cenIdx()) : buyUp(u, u.scope === 'hub' ? hubIdx() : undefined);
     return { u, row, lv, bar, segs, now, next, b };
   }
   function setUpgRow(r, h) {                                                                                         // h: Hub, bei Verbesserungen für das Spiel null
@@ -3842,27 +4966,37 @@ function startGame(DATA, MODEKEY, PRE) {
     r.next.hidden = !r.next.textContent;
     if (done) { setText(r.b, 'Fertig'); r.b.disabled = true; return; }
     const c = u.cost[l];
-    if (u.id === 'newhub' && placing) { setText(r.b, 'Abbrechen'); r.b.disabled = false; return; }
+    if (u.id === 'newhub' && placing === 'hub') { setText(r.b, 'Abbrechen'); r.b.disabled = false; return; }
     setText(r.b, eur(c)); r.b.disabled = cash < c;
   }
-  const hubRows = UPG_HUB.map(u => { u.scope = 'hub'; return mkUpgRow(u); }), gameRows = UPG.concat([NEWHUB]).map(mkUpgRow);
+  const hubRows = UPG_HUB.map(u => { u.scope = 'hub'; return mkUpgRow(u); }), gameRows = UPG.concat([NEWHUB]).map(mkUpgRow), cenRows = UPG_CEN.map(u => { u.scope = 'cen'; return mkUpgRow(u); });
+  for (const r of cenRows) $('celist').appendChild(r.row);
   for (const r of hubRows) $('ulist').appendChild(r.row);
   for (const r of gameRows) $('glist').appendChild(r.row);
   let hqSig = '';
   function syncHqTabs() {
-    if (hqSig !== String(hubs.length)) {
-      hqSig = String(hubs.length); const box = $('hqTabs'); box.textContent = '';
+    const sg = hubs.length + '|' + centers.length;
+    if (hqSig !== sg) {
+      hqSig = sg; const box = $('hqTabs'); box.textContent = '';
       const add = (t, label) => { const b = elt('button', null, label); b.type = 'button'; b.setAttribute('role', 'tab'); b.dataset.tab = t; box.appendChild(b); };
       hubs.forEach((h, i) => add('h' + i, 'Hub ' + (i + 1)));
+      centers.forEach((c, i) => add('c' + i, cenName(i)));
       add('gm', 'Spiel'); add('pa', 'Partner');
     }
     if (hq.tab[0] === 'h' && Number(hq.tab.slice(1)) >= hubs.length) hq.tab = 'h0';
+    if (hq.tab[0] === 'c' && Number(hq.tab.slice(1)) >= centers.length) hq.tab = 'h0';
     for (const b of $('hqTabs').children) { const on = String(b.dataset.tab === hq.tab); if (b.getAttribute('aria-selected') !== on) b.setAttribute('aria-selected', on); }
-    $('tab-up').hidden = hq.tab[0] !== 'h'; $('tab-gm').hidden = hq.tab !== 'gm'; $('tab-pa').hidden = hq.tab !== 'pa';
+    $('tab-up').hidden = hq.tab[0] !== 'h'; $('tab-ce').hidden = hq.tab[0] !== 'c'; $('tab-gm').hidden = hq.tab !== 'gm'; $('tab-pa').hidden = hq.tab !== 'pa';
   }
   function updateUpgrades() {
     syncHqTabs();
-    if (hq.tab === 'gm') { for (const r of gameRows) setUpgRow(r, null); }
+    if (hq.tab === 'gm') { for (const r of gameRows) setUpgRow(r, null); updateCenBuild(); }
+    else if (hq.tab[0] === 'c') {
+      const i = cenIdx(), c = centers[i];
+      setText($('ceName'), cenName(i) + ' · Fulfillment');
+      setText($('ceInfo'), c.vans.length + ' von ' + cSlots(c) + ' Stellplätzen · ' + c.drv.length + ' von ' + cPool(c) + ' Fahrern · Liefergebiet ' + zr(c) + ' m' + (E.nodeName[c.node] ? ' · ' + E.nodeName[c.node] : ''));
+      for (const r of cenRows) setUpgRow(r, c);
+    }
     else if (hq.tab[0] === 'h') {
       const i = hubIdx(), h = hubs[i];
       setText($('huName'), 'Hub ' + (i + 1) + (i === 0 ? ' · Hauptquartier' : ''));
@@ -3915,9 +5049,16 @@ function startGame(DATA, MODEKEY, PRE) {
   function hit(px, py, r) {
     let best = null, bd = r * r;
     const test = (x, y, v) => { const dx = toX(x) - px, dy = toY(y) - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = v; } };
-    for (const o of orders) if (o.state === 'open' || (o.state === 'assigned' && !o.picked)) test(o.pick.x, o.pick.y, { kind: 'order', o });
-    for (const d of drivers) { const p = driverPos(d); test(p.x, p.y, { kind: 'driver', d }); }
+    if (uiView === 'cen') {
+      for (const o of corders) if (o.state === 'open' || o.state === 'tour') test(o.x, o.y, { kind: 'corder', o });
+      for (const c of centers) for (const Tr of c.tours) if (Tr.st !== 'plan') { const q = tourPos(Tr); test(q.x, q.y, { kind: 'van', c, Tr }); }
+    }
+    if (uiView !== 'cen') {
+      for (const o of orders) if (o.state === 'open' || (o.state === 'assigned' && !o.picked)) test(o.pick.x, o.pick.y, { kind: 'order', o });
+      for (const d of drivers) { const p = driverPos(d); test(p.x, p.y, { kind: 'driver', d }); }
+    }
     hubs.forEach((h, i) => test(h.x, h.y, { kind: 'hub', i }));
+    centers.forEach((c, i) => test(c.x, c.y, { kind: 'center', i }));
     for (const e of tevents) test(e.x, e.y, { kind: 'event', e });
     return best;
   }
@@ -3936,7 +5077,10 @@ function startGame(DATA, MODEKEY, PRE) {
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
     tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
-    tip.textContent = h.kind === 'event' ? TEV[h.e.kind].name + ' · ' + h.e.street + ' · noch ' + fmtMin(h.e.dur - (simClock - h.e.t0)) + ' min' : h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zr(hubs[h.i]) + ' m · ' + slotsUsed(h.i) + ' / ' + capOf(h.i) + ' Fahrer'
+    tip.textContent = h.kind === 'center' ? cenName(h.i) + ' · Liefergebiet ' + zr(centers[h.i]) + ' m · ' + centers[h.i].vans.length + ' / ' + cSlots(centers[h.i]) + ' Transporter · ' + centers[h.i].drv.length + ' Fahrer'
+      : h.kind === 'corder' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.firm ? h.o.name : h.o.street || 'Privatkunde') + ' · ' + h.o.n + (h.o.n === 1 ? ' Paket' : ' Pakete') + ' · ' + LMC.winLabel(h.o.wh[0], h.o.wh[1]) + ' · ' + eur(h.o.pay)
+      : h.kind === 'van' ? 'Transporter ' + h.Tr.van + ' · Tour ' + tourName(h.Tr) + ' · Fahrer ' + h.Tr.drv + ' · ' + tourStatus(h.c, h.Tr)
+      : h.kind === 'event' ? TEV[h.e.kind].name + ' · ' + h.e.street + ' · noch ' + fmtMin(h.e.dur - (simClock - h.e.t0)) + ' min' : h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zr(hubs[h.i]) + ' m · ' + slotsUsed(h.i) + ' / ' + capOf(h.i) + ' Fahrer'
       : h.kind === 'order' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.pick.name || TYPE_LABEL[h.o.pick.type]) + ' · ' + eur(h.o.pay)
       : 'Fahrer ' + h.d.id + ' · ' + driverLabel(h.d);
   });
@@ -3945,14 +5089,18 @@ function startGame(DATA, MODEKEY, PRE) {
     const wasClick = drag && !drag.moved; drag = null; cv.classList.remove('dragging');
     if (!wasClick) return;
     const [px, py] = rel(e);
-    if (placing) return placeHub(unX(px), unY(py));
+    if (placing) return placing === 'cen' ? placeCenter(unX(px), unY(py)) : placeHub(unX(px), unY(py));
     const h = hit(px, py, e.pointerType === 'touch' ? 26 : 14); if (!h) return;
     if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
     else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; openDriverWin(h.d.id); }
     else if (h.kind === 'hub') openHQ(h.i);
+    else if (h.kind === 'center') openHQ('c' + h.i);
+    else if (h.kind === 'van') { tsel = h.Tr.id; tourSig = ''; dirty = true; setTimeout(() => { const l2 = tlist.querySelector('[data-id="' + h.Tr.id + '"]'); if (l2 && l2.scrollIntoView) l2.scrollIntoView({ block: 'nearest' }); }, 30); }
+    else if (h.kind === 'corder' && tp.open && tpToggle(h.o.id)) { csel.order = h.o.id; }
+    else if (h.kind === 'corder') { csel.order = h.o.id; cenOrdersDirty = true; dirty = true; const li = colist.querySelector('[data-id="' + h.o.id + '"]'); if (li && li.scrollIntoView) setTimeout(() => { const l2 = colist.querySelector('[data-id="' + h.o.id + '"]'); if (l2) l2.scrollIntoView({ block: 'nearest' }); }, 0); }
     else if (h.kind === 'event') openEventInfo(h.e);
   });
-  function endPlacing() { placing = false; ghost = null; $('placeBan').hidden = true; cv.classList.remove('placing'); dirty = true; }
+  function endPlacing() { placing = false; ghost = null; $('placeBan').hidden = true; cv.classList.remove('placing'); dirty = true; if (uiView === 'cen' && !centers.length) setView('hq'); }
   function placeHub(x, y) {
     const c = CFG.hubBuild[hubs.length]; if (hubs.length >= 3 || cash < c) return endPlacing();
     const n = E.hubNode('scooter', x, y), b = E.hubNode('bike', x, y);
@@ -3962,7 +5110,7 @@ function startGame(DATA, MODEKEY, PRE) {
     spend('hub', c); hubs.push({ x: nx[n], y: ny[n], n: { bike: b, car: n }, up: {} }); rezone(); endPlacing();
     log('Neuer Hub ' + hubs.length + ' an ' + (E.nodeName[n] || 'einer Straße') + ', ' + seur(-c), true); plansDirty = true; driverStructDirty = true;
   }
-  function flash(t) { const el = $('placeBan'); el.textContent = t; setTimeout(() => { el.innerHTML = 'Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.'; }, 2600); }
+  function flash(t) { const el = $('placeBan'); el.textContent = t; setTimeout(() => { el.innerHTML = placeText(); }, 2600); }
   const pts = new Map(); let pinch = 0;
   cv.addEventListener('pointerdown', e => { pts.set(e.pointerId, [e.clientX, e.clientY]); if (pts.size === 2) { drag = null; cv.classList.remove('dragging'); const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); } });
   cv.addEventListener('pointermove', e => {
@@ -3995,10 +5143,11 @@ function startGame(DATA, MODEKEY, PRE) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
     const k = e.key;
-    if (k === 'Escape') { if (!dlg.hidden) closeDlg(); else if (placing) endPlacing(); else if (!winEl.hidden) closeWin(); return; }
-    if (k === 'a' || k === 'A') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); }
-    else if (k === 'ArrowDown') { e.preventDefault(); cycleOrder(1); }
-    else if (k === 'ArrowUp') { e.preventDefault(); cycleOrder(-1); }
+    if (k === 'Escape') { if (!dlg.hidden) closeDlg(); else if (placing) endPlacing(); else if (tp.open) tpClose(); else if (!winEl.hidden) closeWin(); return; }
+    if (k === 'a' || k === 'A') { if (uiView === 'hq') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); } }
+    else if (k === 'ArrowDown') { e.preventDefault(); if (uiView === 'cen') cycleCenOrder(1); else cycleOrder(1); }
+    else if (k === 'ArrowUp') { e.preventDefault(); if (uiView === 'cen') cycleCenOrder(-1); else cycleOrder(-1); }
+    else if ((k === 'v' || k === 'V') && centers.length) setView(uiView === 'cen' ? 'hq' : 'cen');
     else if (k === 'f' || k === 'F') flyTo(fitTarget(), 700);
     else if ((k === 'w' || k === 'W') && baseOn()) showWorld();
     else if (k === 'h' || k === 'H') $('heatBtn').click();
@@ -4019,7 +5168,7 @@ function startGame(DATA, MODEKEY, PRE) {
       if (d.ret) { const sm = E.sample(d.ret.leg, d.ret.t); d.ret.t += adv * pace(d.ret.leg, sm.i, d); }
       if (d.train && d.train.state === 'active') d.train.t += adv;
     }
-    updateDrivers(); tickWorld(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
+    updateDrivers(); tickWorld(adv); tickCenters(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
     let w = 0; for (const d of drivers) w += payOf(d); bill.wage += w * adv / 3600;
     const hr = Math.floor((simClock + START) / 3600); if (hr > bill.hr) { bill.hr = hr; chargeBill(); }
     expireOrders();
@@ -4044,9 +5193,10 @@ function startGame(DATA, MODEKEY, PRE) {
     else if (!paused) stepSim(dt * speed, now);
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
+    if (uiView === 'cen') { if (cenStruct) renderCenters(); if (cenOrdersDirty || Math.floor(absT() / 86400) !== cenDaySig) renderCenOrders(); tourUi(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
     stepAnim(now);
-    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (uiView === 'cen') { updateCenterTexts(); updateCenOrderTexts(); } if (firmState === 'none' && firmRetryAt && Date.now() > firmRetryAt && centers.length) { firmRetryAt = 0; startFirms(); } if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
@@ -4171,9 +5321,10 @@ function startGame(DATA, MODEKEY, PRE) {
       ['W', 'Ganze Erde zeigen (wenn das Kartenbild geladen ist)'],
       ['+ −', 'Karte vergrößern und verkleinern'],
       ['H', 'Karte der Nachfrage ein- und ausschalten'],
+      ['V', 'Zwischen Lieferdienst und Fulfillment wechseln (sobald ein Center gebaut ist)'],
       ['T', 'Verkehrsfarben ein- und ausschalten'],
       ['K', 'Finanzen und Statistik öffnen und schließen'],
-      ['Esc', 'Fenster schließen, Hub-Platzierung abbrechen']
+      ['Esc', 'Fenster schließen, Hub-Platzierung oder Tourenplaner abbrechen']
     ];
     if (!ONLINE) K.splice(5, 0, ['Leertaste', 'Pause']);
     openDlg('Tastenkürzel', b => {
@@ -4227,12 +5378,12 @@ function startGame(DATA, MODEKEY, PRE) {
     for (const x of $('tabbar').children) x.setAttribute('aria-selected', String(x === b));
     dirty = true; if (b.dataset.t === 'map') requestAnimationFrame(() => { resize(); dirty = true; });
   });
-  function tabInfo() { const n = openOrders().length; setText($('tabO'), n ? 'Aufträge (' + n + ')' : 'Aufträge'); }
+  function tabInfo() { const n = uiView === 'cen' ? corders.filter(o => o.state === 'open').length : openOrders().length; setText($('tabO'), n ? 'Aufträge (' + n + ')' : 'Aufträge'); }
 
   // ---------- Speichern und Laden ----------
   // Online liegt der maßgebliche Stand in der Cloud; auf dem Gerät bleibt nur eine Kopie (nie in der Liste „Weiter spielen“)
   const SAVEKEY = ONLINE ? 'lm.osave.' + (LMO.state().uid || 'x') + '.' + CK : 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
-  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 3, BUILD = '2026-10-18';
+  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 4, BUILD = '2026-10-18';
   let noSave = false, saveCount = 0;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsKeys = pre => { const r = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) r.push(k); } } catch (e) {} return r; };
@@ -4244,6 +5395,11 @@ function startGame(DATA, MODEKEY, PRE) {
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
       simClock, cash, rep, autoOn, owned: Object.assign({}, owned), partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car, up: Object.assign({}, h.up) })),
+      centers: centers.map(c => ({ x: c.x, y: c.y, nd: c.node, up: Object.assign({}, c.up), rep: c.rep, vans: c.vans.map(v => ({ id: v.id })),
+        drv: c.drv.map(d => ({ id: d.id, lvl: d.lvl, done: d.done, earn: d.earn, sick: d.sick ? { left: d.sick.left } : null, train: d.train ? Object.assign({}, d.train) : null })),
+        tours: c.tours.map(T => { const nd = tourNode(T); return { id: T.id, k: T.k, day: T.day, van: T.van, drv: T.drv, stops: T.stops.slice(), st: T.st, i: T.i, t0: T.t0, dep: T.dep, ld: T.ld, dw: T.dw, hs: T.hs, est: T.est, km: T.km, hold: T.hold, lost: T.lost || 0, stall: T.stall ? { left: T.stall.left, kind: T.stall.kind } : null, res: T.res.slice(-60), nd, x: rd(nx[nd]), y: rd(ny[nd]) }; }) })),
+      corders: corders.filter(o => o.state === 'open' || o.state === 'tour').map(o => ({ id: o.id, c: o.c, firm: o.firm, kind: o.kind, name: o.name, street: o.street, x: rd(o.x), y: rd(o.y), nd: o.node, n: o.n, pay: o.pay, created: o.created, pres: !!o.pres, day: o.day, wh: o.wh, ws: o.ws, we: o.we, state: o.state })),
+      vanSeq, tourSeq, cstats: Object.assign({}, cstats),
       orderSeq, driverSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh },
       led: { exp: led.exp, hist: led.hist, ontime: led.ontime, base: led.base, brk: led.brk, ev: led.ev, places: Object.fromEntries(Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 40)), det: led.det, detSec: led.detSec }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
       seed: WORLD.seed, teScan, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, selDriver: sel.driver,
@@ -4278,8 +5434,8 @@ function startGame(DATA, MODEKEY, PRE) {
   // Prüft und repariert einen Spielstand: fehlende Felder bekommen Standardwerte, unmögliche Werte werden begrenzt.
   const num = (x, d, lo, hi) => (typeof x === 'number' && isFinite(x)) ? Math.min(hi === undefined ? Infinity : hi, Math.max(lo === undefined ? -Infinity : lo, x)) : d;
   const isObj = x => !!x && typeof x === 'object' && !Array.isArray(x), arr = x => Array.isArray(x) ? x : [];
-  function normUp(src) {
-    const up = {}; if (isObj(src)) for (const u of UPG_HUB) { const l = Math.round(num(src[u.id], 0, 0, umax(u))); if (l > 0) up[u.id] = l; }
+  function normUp(src, list) {
+    const up = {}; if (isObj(src)) for (const u of list || UPG_HUB) { const l = Math.round(num(src[u.id], 0, 0, umax(u))); if (l > 0) up[u.id] = l; }
     return up;
   }
   function legacyUp(sv) {
@@ -4307,11 +5463,54 @@ function startGame(DATA, MODEKEY, PRE) {
     n.hubs = arr(sv.hubs).filter(h => isObj(h) && isFinite(h.x) && isFinite(h.y)).slice(0, 3).map(h => ({ x: h.x, y: h.y, nb: h.nb, nc: h.nc, up: normUp(lg || h.up) }));
     if (!n.hubs.length) throw new Error('kein Hub im Spielstand');
     for (const d of n.drivers) d.hub = Math.min(d.hub, n.hubs.length - 1);
+    // Fulfillment Center (ab Version 4): Fahrernummern sind für alle eindeutig
+    const dseen = new Set(n.drivers.map(d => d.id)); let maxVan = 0, maxCd = 0;
+    const rawC = arr(sv.centers), cmap = new Map(); { let k = 0; rawC.forEach((c, i) => { if (isObj(c) && isFinite(c.x) && isFinite(c.y) && k < 40) cmap.set(i, k++); }); }
+    n.centers = rawC.filter((c, i) => cmap.has(i)).map(c => {
+      const up = normUp(c.up, UPG_CEN), slots = CFG.cen.slots[up.slots || 0], pool = slots + CFG.cen.pool, vans = [], vs = new Set(), drv = [];
+      for (const v of arr(c.vans)) if (isObj(v) && Number.isInteger(v.id) && v.id > 0 && !vs.has(v.id) && vans.length < slots) { vs.add(v.id); vans.push({ id: v.id }); maxVan = Math.max(maxVan, v.id); }
+      for (const d of arr(c.drv)) {
+        if (!isObj(d) || !Number.isInteger(d.id) || d.id < 1 || dseen.has(d.id) || drv.length >= pool) continue; dseen.add(d.id); maxCd = Math.max(maxCd, d.id);
+        drv.push({ id: d.id, lvl: Math.round(num(d.lvl, 1, 1, 5)), done: Math.round(num(d.done, 0, 0)), earn: num(d.earn, 0, 0), sick: isObj(d.sick) ? { left: num(d.sick.left, 0, 0) } : null,
+          train: isObj(d.train) && isFinite(d.train.t) && isFinite(d.train.dur) && isFinite(d.train.to) ? { t: num(d.train.t, 0, 0), dur: num(d.train.dur, 60, 1), to: Math.round(num(d.train.to, 2, 2, 5)), cost: num(d.train.cost, 0, 0) } : null });
+      }
+      return { x: c.x, y: c.y, nd: c.nd, up, rep: num(c.rep, 3, 1, 5), vans, drv, raw: c };
+    });
+    n.corders = arr(sv.corders).filter(o => isObj(o) && Number.isInteger(o.id) && cmap.has(o.c) && isFinite(o.x) && isFinite(o.y) && Number.isInteger(o.day)
+      && ['created', 'ws', 'we', 'pay'].every(k => isFinite(o[k])) && Array.isArray(o.wh) && o.wh.length === 2 && isFinite(o.wh[0]) && isFinite(o.wh[1]) && (o.state === 'open' || o.state === 'tour')).slice(0, 3000).map(o => ({
+      id: o.id, c: cmap.get(o.c), firm: !!o.firm, pres: !!o.pres, kind: Math.round(num(o.kind, -1, -1, 4)), name: String(o.name || '').slice(0, 80), street: String(o.street || '').slice(0, 80), x: o.x, y: o.y, nd: o.nd,
+      n: Math.round(num(o.n, 1, 1, 30)), pay: num(o.pay, 0, 0), created: o.created, day: o.day, wh: [num(o.wh[0], 7, 0, 24), num(o.wh[1], 9, 0, 24)], ws: o.ws, we: o.we, state: o.state }));
+    n.vanSeq = Math.max(Math.round(num(sv.vanSeq, 1, 1)), maxVan + 1);
+    // Touren: nur mit vorhandenem Transporter und Fahrer; Bestellungen müssen zur Tour gehören, sonst sind sie wieder frei
+    { const TS = ['plan', 'load', 'drive', 'wait', 'door', 'back', 'unload'], tseen = new Set(), claimed = new Map(); let maxT = 0;
+      n.centers.forEach((c, ci) => {
+        c.tours = []; const vu = new Set(), du = new Set();
+        for (const t of arr(c.raw.tours)) {
+          if (!isObj(t) || !Number.isInteger(t.id) || t.id < 1 || tseen.has(t.id) || !TS.includes(t.st) || !Number.isInteger(t.day) || !Number.isInteger(t.k) || t.k < 0 || t.k >= LMC.DEP.length) continue;
+          const van = c.vans.find(v => v.id === t.van), drv = c.drv.find(d => d.id === t.drv); if (!van || !drv) continue;
+          const run = t.st !== 'plan'; if (run && (vu.has(van.id) || du.has(drv.id))) continue;
+          const rawStops = arr(t.stops), ri = Math.round(num(t.i, 0, 0)); let i = 0;       // schon gelieferte Stopps gibt es nicht mehr: der Zeiger rückt entsprechend nach
+          const stops = rawStops.filter((id, j, a) => { const k = Number.isInteger(id) && a.indexOf(id) === j && !claimed.has(id) && n.corders.some(o => o.id === id && o.c === ci && o.state === 'tour'); if (k && j < ri) i++; return k; }).slice(0, 30);
+          if (!stops.length && (t.st === 'plan' || t.st === 'load')) continue;
+          tseen.add(t.id); maxT = Math.max(maxT, t.id); if (run) { vu.add(van.id); du.add(drv.id); }
+          for (const id of stops) claimed.set(id, t.id);
+          let st = t.st; i = Math.min(stops.length, i);
+          if (i >= stops.length && (st === 'drive' || st === 'wait' || st === 'door')) st = 'back';
+          c.tours.push({ id: t.id, k: t.k, day: t.day, van: t.van, drv: t.drv, stops, st, i, t0: num(t.t0, 0, 0), dep: num(t.dep, 0, 0), ld: num(t.ld, 0, 0), dw: num(t.dw, 0), hs: num(t.hs, 0, 0), est: num(t.est, 0, 0), km: num(t.km, 0, 0), hold: !!t.hold, lost: Math.round(num(t.lost, 0, 0)),
+            stall: isObj(t.stall) && isFinite(t.stall.left) ? { left: num(t.stall.left, 0, 0), kind: String(t.stall.kind || 'Panne').slice(0, 40) } : null,
+            res: arr(t.res).filter(r => Array.isArray(r) && r.length === 3 && r.every(isFinite)).slice(-60).map(r => [Math.round(r[0]), Math.round(r[1]), r[2]]), nd: t.nd, x: isFinite(t.x) ? t.x : c.x, y: isFinite(t.y) ? t.y : c.y });
+        }
+        c.tours.sort((a, b) => LMC.loadA(a.day, a.k) - LMC.loadA(b.day, b.k) || a.id - b.id);
+        delete c.raw;
+      });
+      for (const o of n.corders) if (o.state === 'tour') { if (claimed.has(o.id)) o.tour = claimed.get(o.id); else o.state = 'open'; }
+      n.tourSeq = Math.max(Math.round(num(sv.tourSeq, 1, 1)), maxT + 1); }
+    { const cs = isObj(sv.cstats) ? sv.cstats : {}; n.cstats = {}; for (const k of ['n', 'ontime', 'late', 'expired', 'pay']) n.cstats[k] = num(cs[k], 0, 0); }
     n.simClock = num(sv.simClock, 0, 0); n.cash = num(sv.cash, CFG.startCash); n.rep = num(sv.rep, 3, 1, 5);
     n.autoOn = !!sv.autoOn; n.owned = {}; for (const u of UPG) if (isObj(sv.owned) && sv.owned[u.id]) n.owned[u.id] = true;
     n.partners = arr(sv.partners).filter(Number.isInteger); n.partnerXY = arr(sv.partnerXY).filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1]));
-    n.orderSeq = Math.round(num(sv.orderSeq, 1001, 1)); n.lastSpawnT = num(sv.lastSpawnT, 0);
-    n.driverSeq = Math.max(Math.round(num(sv.driverSeq, 1, 1)), n.drivers.reduce((m, d) => Math.max(m, d.id), 0) + 1);
+    n.orderSeq = Math.max(Math.round(num(sv.orderSeq, 1001, 1)), n.corders.reduce((m, o) => Math.max(m, o.id), 0) + 1); n.lastSpawnT = num(sv.lastSpawnT, 0);
+    n.driverSeq = Math.max(Math.round(num(sv.driverSeq, 1, 1)), n.drivers.reduce((m, d) => Math.max(m, d.id), 0) + 1, maxCd + 1);
     n.bill = { wage: num(sv.bill && sv.bill.wage, 0, 0), veh: num(sv.bill && sv.bill.veh, 0, 0) };
     const st = isObj(sv.stats) ? sv.stats : {}; n.stats = {}; for (const k of ['n', 'pay', 'tip', 'cost', 'wage', 'cancel', 'ageSum']) n.stats[k] = num(st[k], 0, 0);
     const L = isObj(sv.led) ? sv.led : null; n.led = { exp: {}, hist: [], ontime: 0, base: n.stats.n, brk: 0, ev: {}, places: {}, det: 0, detSec: 0 };
@@ -4349,6 +5548,23 @@ function startGame(DATA, MODEKEY, PRE) {
       const ok = same && Number.isInteger(h.nb) && Number.isInteger(h.nc) && h.nb >= 0 && h.nb < N && h.nc >= 0 && h.nc < N;
       hubs.push({ x: h.x, y: h.y, n: ok ? { bike: h.nb, car: h.nc } : { bike: E.hubNode('bike', h.x, h.y), car: E.hubNode('scooter', h.x, h.y) }, up: h.up });
     }
+    tpClose(); tsel = 0; pathCache.clear(); centers.length = 0; corders = []; csel.order = null; vanSeq = sv.vanSeq; Object.assign(cstats, sv.cstats); cenStruct = cenOrdersDirty = true;
+    for (const c of sv.centers) {
+      const ok = same && Number.isInteger(c.nd) && c.nd >= 0 && c.nd < N;
+      centers.push({ x: c.x, y: c.y, node: ok ? c.nd : E.hubNode('van', c.x, c.y), up: c.up, rep: c.rep, vans: c.vans.map(v => ({ id: v.id })), zk: '', zh: [], zf: [],
+        drv: c.drv.map(d => ({ id: d.id, lvl: d.lvl, done: d.done, earn: d.earn, sick: d.sick, train: d.train, tour: null })), tours: [] });
+      const C = centers[centers.length - 1];
+      for (const t of c.tours) {
+        const nd = same && Number.isInteger(t.nd) && t.nd >= 0 && t.nd < N ? t.nd : (t.st === 'plan' ? C.node : E.nearest(t.x, t.y, nets.car.ok)), mv = t.st === 'drive' || t.st === 'back';
+        const T = Object.assign({}, t, { stops: t.stops.slice(), res: t.res.slice(), node: nd, leg: null, lt: mv ? -1 : 0, to: C.node }); delete T.nd; delete T.x; delete T.y; C.tours.push(T);
+        if (t.st !== 'plan') { const v = C.vans.find(x => x.id === t.van), d = C.drv.find(x => x.id === t.drv); if (v) v.tour = t.id; if (d) d.tour = t.id; }
+      }
+    }
+    tourSeq = sv.tourSeq;
+    for (const o of sv.corders) {
+      const ok = same && Number.isInteger(o.nd) && o.nd >= 0 && o.nd < N, q = Object.assign({}, o, { node: ok ? o.nd : E.nearest(o.x, o.y, nets.car.ok) }); delete q.nd; corders.push(q);
+    }
+    refitCenterOrders();
     orderSeq = sv.orderSeq; driverSeq = sv.driverSeq; lastSpawnT = sv.lastSpawnT; bill.wage = sv.bill.wage; bill.veh = sv.bill.veh;
     Object.assign(led, sv.led); Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
     if (sv.seed !== null) { WORLD.seed = sv.seed; wxChain = []; }
@@ -4513,12 +5729,19 @@ function startGame(DATA, MODEKEY, PRE) {
       for (const d of act) { d.done += Math.floor(n / act.length); while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) d.lvl++; }
       Object.assign(rpt, { worked: true, n, net: gain - wages, wages });
     }
+    absenceTours(eff, absT());
     simClock += eff; lastSpawnT = simClock - CFG.spawnMin;
     for (const o of orders) if (o.state === 'assigned' || (keepOpen && o.state === 'open')) o.createdAt += eff;
     orders = orders.filter(o => o.state !== 'open' || keepOpen);
     for (const d of drivers) { d.sick = null; d.stall = null; }
+    // Center: keine neuen Bestellungen während der Abwesenheit, offene Bestellungen fallen weg (ohne Abzug), Kranke sind gesund
+    if (!keepOpen) corders = corders.filter(o => o.state !== 'open');
+    for (const c of centers) for (const d of c.drv) d.sick = null;
+    cenOrdersDirty = cenStruct = true;
     // Online läuft die Welt ohne das Unternehmen weiter: die Weltzeit wird neu an die Serverzeit gehängt
     if (ONLINE) { WORLD.t0 = LMO.world.gameNow() - simClock; realign(); bill.hr = Math.floor((simClock + START) / 3600); }
+    // Zeitfenster bleiben an ihrer Uhrzeit; was in der Abwesenheit verfallen wäre, entfällt ohne Abzug
+    refitCenterOrders(); corders = corders.filter(o => o.state !== 'open' || o.we + LMC.EXPIRE > simClock);
     events = []; tevents = []; syncWeather(true); teScan = worldT() - LOOKBACK; scanWorldEvents(worldT(), true); plansDirty = orderStructDirty = driverStructDirty = true;
     return rpt;
   }
@@ -4564,6 +5787,7 @@ function startGame(DATA, MODEKEY, PRE) {
     for (const u of UPG) if (owned[u.id]) v += u.cost[0];
     for (const h of hubs) for (const u of UPG_HUB) for (let l = 0; l < hl(h, u.id); l++) v += u.cost[l];
     for (let i = 1; i < hubs.length; i++) v += CFG.hubBuild[i] || 0;
+    for (const c of centers) { v += CFG.cen.build + c.vans.length * CFG.cen.van; for (const u of UPG_CEN) for (let l = 0; l < hl(c, u.id); l++) v += u.cost[l]; }
     return v + partners.size * CFG.partnerCost;
   }
   function rankStats() {
@@ -4736,14 +5960,18 @@ function startGame(DATA, MODEKEY, PRE) {
     for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
     if (ONLINE) scanWorldEvents(worldT(), true);
   }
-  realign(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
+  realign(); refitCenterOrders(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
+  syncCenUi(); if (centers.length) startFirms();
   if (ONLINE) { $('speedSeg').hidden = $('pauseBtn').hidden = $('winPause').hidden = true; $('onChip').hidden = false; lastG = worldT(); syncOnChip(); if (!loaded.corrupt && !loaded.future) saveNow(false); }
   resize();
   requestAnimationFrame(frame);
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
+  window.__lm = { adv: (sec, dt) => { dt = dt || 10; for (let t = 0; t < sec; t += dt) stepSim(Math.min(dt, sec - t), performance.now()); dirty = true; }, save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; },
+    cen: { centers: () => centers, orders: () => corders, firms: () => firms, firmState: () => firmState, startPlacing, build: placeCenter, buyVan, sellVan, hire: hireCenDriver, fire: fireCenDriver, train: trainCenDriver, spawn: spawnCenterOrder, tick: tickCenters, expire: expireCenter,
+      setView, view: () => uiView, upg: buyCenUpgrade, stats: cstats, startFirms, simOf, cSlots, cPool, cStops, zone: cenZone, sel: csel, absT, vanSeq: () => vanSeq, cenName,
+      auto: v => { cenAuto = v; }, refit: refitCenterOrders, full: cenFull, cap: cenCap, tour: { list: ci => centers[ci].tours, plan: planTour, cancel: cancelTour, calc: (ci, d, day, k, ids) => planCalc(centers[ci], d, day, k, ids), seq: () => tourSeq, slots: n => LMC.upcoming(absT(), n || 8), pos: tourPos, node: tourNode, reserved: vanReserved, begin: (ci, id) => { const c = centers[ci]; beginTour(c, ci, c.tours.find(t => t.id === id)); }, slowF, neutral: neutralLeg } } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });
@@ -4882,7 +6110,7 @@ function startGame(DATA, MODEKEY, PRE) {
       if (my !== seq) return;
       if (pre.raw) {
         let o = null; try { o = JSON.parse(pre.raw); } catch (e) {}
-        if (o && o.v > 3) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
+        if (o && o.v > 4) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
         if (!o || !(o.v >= 1) || !Array.isArray(o.drivers) || !o.drivers.length) throw new LMO.OErr('CORRUPT');
       }
     } catch (e) { if (my !== seq) return; console.error(e); failed(errMsg(e), again, back[0], back[1], e && e.code === 'CORRUPT'); return; }

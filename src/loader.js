@@ -29,9 +29,9 @@ const LM = (function () {
   }
 
   // ---------- Overpass ----------
-  async function overpass(query, onTry) {
+  async function overpass(query, onTry, rounds) {
     let lastErr = null;
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < (rounds || 2); round++) {
       for (let m = 0; m < OVERPASS.length; m++) {
         const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 70000);
         try {
@@ -57,6 +57,9 @@ const LM = (function () {
 
   const qRoads = b => `[out:json][timeout:60];way["highway"~"^(${HW_RE})$"](${bbStr(b)});out body;>;out skel qt;`;
   const qPlaces = b => `[out:json][timeout:90];(nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${bbStr(b)});nwr["shop"~"^(bakery|supermarket)$"]["name"](${bbStr(b)}););out center tags;way["building"~"^(apartments|residential|house|detached|terraced|semidetached_house|dormitory|yes)$"](${bbStr(b)});out skel center qt;`;
+
+  // Firmen für das Fulfillment Center: Büros, Betriebe, Geschäfte, Praxen, Banken (mit Namen). Restaurants, Cafés, Bäckereien und Supermärkte sind schon Abholorte.
+  const qFirms = b => { const bb = bbStr(b); return `[out:json][timeout:90];(nwr["office"]["name"](${bb});nwr["craft"]["name"](${bb});nwr["shop"]["name"](${bb});nwr["amenity"~"^(pharmacy|doctors|dentist|clinic|veterinary|bank|post_office|coworking_space)$"]["name"](${bb});nwr["building"~"^(industrial|warehouse|commercial|office|retail)$"]["name"](${bb}););out center tags;`; };
 
   // ---------- Umwandlung ins Kompaktformat ----------
   function convertRoads(osm, b) {
@@ -131,6 +134,25 @@ const LM = (function () {
     const cap = 900, step = Math.max(1, all.length / cap), out = [];
     for (let i = 0; i < all.length; i += step) out.push(all[Math.floor(i)]);
     return out;
+  }
+
+  // Firmenkunden als [Art, Breite·1e5, Länge·1e5, Name]; Art: 0 Büro, 1 Betrieb, 2 Geschäft, 3 Praxis, 4 Bank oder Dienst. Die nächsten 400 zum Ortsmittelpunkt.
+  function convertFirms(osm, ref, b) {
+    const out = [], seen = new Set();
+    for (const el of osm.elements || []) {
+      const t = el.tags; if (!t || !t.name) continue;
+      const lat = el.lat !== undefined ? el.lat : el.center && el.center.lat, lon = el.lon !== undefined ? el.lon : el.center && el.center.lon;
+      if (lat === undefined || lat < b.s || lat > b.n || lon < b.w || lon > b.e) continue;
+      if (t.shop === 'bakery' || t.shop === 'supermarket' || /^(restaurant|fast_food|cafe)$/.test(t.amenity || '')) continue;
+      const a = t.amenity || '';
+      const kind = t.office || a === 'coworking_space' ? 0 : t.craft || /^(industrial|warehouse)$/.test(t.building || '') ? 1 : t.shop || t.building === 'retail' ? 2
+        : /^(pharmacy|doctors|dentist|clinic|veterinary)$/.test(a) ? 3 : 4;
+      const key = t.name + Math.round(lat * 4000) + Math.round(lon * 4000);
+      if (seen.has(key)) continue; seen.add(key);
+      out.push({ d: (lat - ref.lat) ** 2 + ((lon - ref.lon) * 0.62) ** 2, v: [kind, Math.round(lat * 1e5), Math.round(lon * 1e5), String(t.name).slice(0, 60)] });
+    }
+    out.sort((p, q) => p.d - q.d);
+    return out.slice(0, 400).map(p => p.v);
   }
 
   // ---------- Höhenraster (Open-Meteo, 16 x 16 Punkte) ----------
@@ -212,7 +234,20 @@ const LM = (function () {
   const getCached = async place => { const r = await tx('readonly', s => s.get(idOf(place))); return r && r.data && r.data.v === FORMAT ? r.data : null; };
   const listCached = async () => ((await tx('readonly', s => s.getAll())) || []).filter(r => r.data && r.data.v === FORMAT)
     .sort((a, b) => b.savedAt - a.savedAt).map(r => ({ name: r.data.name, sub: r.data.sub, lat: r.data.ref.lat, lon: r.data.ref.lon, savedAt: r.savedAt }));
-  const removeCached = place => tx('readwrite', s => s.delete(idOf(place)));
+  const removeCached = place => tx('readwrite', s => { s.delete(idOf(place)); s.delete(idOf(place) + '#f'); });
 
-  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz };
+  // Firmen einer Stadt: aus dem Zwischenspeicher oder von Overpass (Hintergrund, ohne Fehlermeldung). null: nicht erreichbar, dann gibt es nur Privatkunden.
+  const FIRMS_V = 'f1';
+  async function loadFirms(place, bbox) {
+    const c = await tx('readonly', s => s.get(idOf(place) + '#f'));
+    if (c && c.data && c.data.v === FIRMS_V && Array.isArray(c.data.firms)) return c.data.firms;
+    try {
+      const b = { s: bbox[0], w: bbox[1], n: bbox[2], e: bbox[3] };
+      const firms = convertFirms(await overpass(qFirms(b), null, 1), place, b);
+      await tx('readwrite', s => s.put({ id: idOf(place) + '#f', savedAt: Date.now(), data: { v: FIRMS_V, firms } }));
+      return firms;
+    } catch (e) { return null; }
+  }
+
+  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms };
 })();
