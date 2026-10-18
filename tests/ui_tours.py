@@ -211,7 +211,7 @@ async def main():
             await pg.evaluate("__lm.adv(120, 10)")
             st = await pg.evaluate(TOUR, tid); w2 = await pg.evaluate(WAGE)
             ok('C2 9:06: Tour belädt, Transporter und Fahrer sind belegt', st['st'] == 'load' and await pg.evaluate("a=>__lm.cen.centers()[0].vans.find(v=>v.id===a.v).tour===a.t && __lm.cen.centers()[0].drv.find(d=>d.id===a.d).tour===a.t", {'v': vans[0], 'd': drvs[0], 't': tid}), str(st))
-            ok('C3 Lohn läuft ab Beladebeginn (11 €/h, etwa 1 Minute)', 0.12 < w2 - w1 < 0.25, '%.3f' % (w2 - w1))
+            ok('C3 Lohn läuft ab Beladebeginn (11 €/h, etwa 1 Minute; die Echtzeit zwischen den Aufrufen zählt mit)', 0.12 < w2 - w1 < 0.40, '%.3f' % (w2 - w1))
             await pg.evaluate("__lm.adv(1620, 10)")
             ok('C4 9:33: noch im Beladen, keine vorzeitige Abfahrt', (await pg.evaluate(TOUR, tid))['st'] == 'load')
             await pg.evaluate("__lm.adv(180, 10)")

@@ -434,7 +434,7 @@ const LMCity = (function () {
     const hits = await LM.search(name); if (!hits.length) throw new Error('Ort nicht gefunden');
     const pl = hits[0]; say('Gefunden: ' + pl.name + (pl.sub ? ', ' + pl.sub : '') + '. Suche die Stadtgrenze …');
     const city = await resolve(pl);
-    if (LM.dbBlocked && LM.dbBlocked()) say('Hinweis: Lastmile ist noch in einem anderen Tab oder Fenster in einer älteren Version geöffnet. Der Kartenspeicher ist deshalb blockiert, alles wird neu geladen (langsamer). Bitte die anderen Tabs schließen und diese Seite neu laden.');
+    if (LM.dbBlocked && LM.dbBlocked()) say('Hinweis: Der Kartenspeicher antwortet nicht, vermutlich ist Lastmile noch in einem anderen Tab oder Fenster geöffnet (ältere Version). Alles wird neu geladen (langsamer). Bitte die anderen Tabs schließen und diese Seite neu laden.');
     let pts = 0; for (const r of city.rings) pts += r.length / 2;
     say(city.name + ': ' + (city.approx ? 'keine Grenzdaten, Näherungskreis' : 'Stadtgrenze mit ' + city.rings.length + ' Ringen und ' + pts + ' Punkten') + ', Fläche ' + city.area.toFixed(1) + ' km²');
     const tiles = tilesOf(city, TILE_ROADS), sorted = tiles.slice().sort((a, b) => dist(city.lat, city.lon, (a.s + a.n) / 2, (a.w + a.e) / 2) - dist(city.lat, city.lon, (b.s + b.n) / 2, (b.w + b.e) / 2));

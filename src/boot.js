@@ -7,6 +7,7 @@
   const ckOf = (lat, lon) => LMO.world.ckOf(lat, lon);
   const key = p => p.lat.toFixed(3) + ',' + p.lon.toFixed(3);
   const errMsg = e => (typeof LMMod !== 'undefined' && LMMod.errText) ? LMMod.errText(e) : String((e && e.message) || e);
+  const PROBE = new URLSearchParams(location.search).get('probe');
   let cachedList = [], started = false, live = false, routeKey = null, seq = 0, chosen = null, retryFn = null, backFn = null;
 
   // Was gerade zu sehen ist: 'auth' | 'pick' | 'confirm' | 'busy' (Statusanzeige mit Fortschritt oder Fehler)
@@ -198,6 +199,7 @@
 
   // ---------- Start ----------
   async function start() {
+    if (PROBE) { view(''); return; }   // Stadt-Test (?probe=Name): nur der Test, kein Anmelden und kein automatischer Start des Spielstands
     if (location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } // alte Links mit #c=… führen nirgends mehr hin
     LMO.init();
     if (LMO.state().signedIn) status('Konto wird geprüft …', 10);
@@ -207,12 +209,13 @@
   }
   // ---------- Stadt-Test (versteckt): ?probe=Bochum lädt Stichproben einer ganzen Stadt und schreibt Zahlen zum Weitergeben ----------
   function probeUi() {
-    const name = new URLSearchParams(location.search).get('probe'), host = document.querySelector('#start .card'); if (!name || !host) return;
+    const name = PROBE, host = document.querySelector('#start .card'); if (!name || !host) return;
     const box = document.createElement('section'); box.className = 'authbox'; box.id = 'probeBox';
     box.innerHTML = '<h2>Stadt-Test</h2><p class="note" style="margin-bottom:8px">Prüft, wie gut Straßen und Firmen einer ganzen Stadt geladen werden. Das dauert ein bis zwei Minuten und lädt einige MB.</p>';
     const go = document.createElement('button'); go.type = 'button'; go.className = 'btn primary'; go.id = 'probeGo'; go.textContent = '„' + name + '“ testen';
     const out = document.createElement('pre'); out.id = 'probeOut'; out.style.cssText = 'white-space:pre-wrap;font-size:12px;margin-top:10px;max-height:260px;overflow:auto';
-    box.appendChild(go); box.appendChild(out); host.insertBefore(box, host.querySelector('.foot'));
+    const back = document.createElement('a'); back.href = location.pathname; back.textContent = 'Zum Spiel'; back.id = 'probeBack'; back.style.cssText = 'display:inline-block;margin-left:14px';
+    box.appendChild(go); box.appendChild(back); box.appendChild(out); host.insertBefore(box, host.querySelector('.foot'));
     go.onclick = async () => {
       go.disabled = true; out.textContent = '';
       try { await LMCity.probe(name, t => { out.textContent += t + '\n'; }); } catch (e) { out.textContent += 'Fehler: ' + (e && e.message || e) + '\n'; }
@@ -224,7 +227,7 @@
     LM.onBlocked(() => {
       const host = document.querySelector('#start .card'); if (!host || document.getElementById('dbNote')) return;
       const p = document.createElement('p'); p.className = 'note'; p.id = 'dbNote';
-      p.textContent = 'Lastmile ist noch in einem anderen Tab oder Fenster in einer älteren Version geöffnet. Schließe es und lade diese Seite neu, sonst werden Karten nicht zwischengespeichert.';
+      p.textContent = 'Der Kartenspeicher antwortet nicht. Vermutlich ist Lastmile noch in einem anderen Tab oder Fenster geöffnet (ältere Version). Schließe es und lade diese Seite neu, sonst werden Karten nicht zwischengespeichert.';
       host.insertBefore(p, host.querySelector('.foot'));
     });
   }

@@ -66,6 +66,8 @@ async def main():
             await pg.goto(URL); await pg.wait_for_timeout(1500)
             check('P1 Test-Knopf sichtbar', await pg.evaluate("!!document.getElementById('probeGo') && document.getElementById('probeGo').offsetParent!==null"))
             check('P2 Knopf trägt den Namen', 'Teststadt' in await pg.inner_text('#probeGo'))
+            check('P2b Im Stadt-Test-Modus keine Anmeldung und kein Startort-Auswahlfenster (Spielstand startet nicht von selbst)', await pg.evaluate("document.getElementById('authBox').hidden && document.getElementById('pickBox').hidden && document.getElementById('app').hidden"))
+            check('P2c Link "Zum Spiel" führt auf die Seite ohne ?probe=', await pg.evaluate("(()=>{const a=document.getElementById('probeBack'); return !!a && !a.search && a.pathname===location.pathname})()"))
             await pg.click('#probeGo')
             for _ in range(80):
                 t = await pg.inner_text('#probeOut')

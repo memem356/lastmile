@@ -231,19 +231,20 @@ const LM = (function () {
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
       try {
-        const rq = indexedDB.open('lastmile', 2); let late = false, tm = null;
+        const rq = indexedDB.open('lastmile', 2); let late = false, tm = null, told = false;
+        const tell = () => { dbBlocked = true; if (!told && dbCb) { told = true; try { dbCb(); } catch (e) { /* Anzeige ist nur ein Hinweis */ } } };
+        // Hält ein anderer Tab noch die ältere Version des Spiels offen (oder steht noch dessen wartende Anfrage davor), kommt keine Antwort:
+        // nach kurzer Zeit ohne Zwischenspeicher weitermachen (alles wird dann neu geladen) und später erneut versuchen
+        const giveUp = () => { if (late) return; late = true; tell(); rej(new Error('Zwischenspeicher blockiert')); setTimeout(() => { if (late) dbp = null; }, 20000); };
+        tm = setTimeout(giveUp, 4000);
         rq.onupgradeneeded = () => { const d = rq.result; for (const n of ['cities', 'packs']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); };   // packs: Stadtgebiete, Kacheln, Firmen
-        // Hält ein anderer Tab noch die ältere Version des Spiels offen, wartet das Öffnen ewig: nach kurzer Zeit ohne Zwischenspeicher weitermachen (alles wird dann neu geladen)
-        rq.onblocked = () => {
-          dbBlocked = true; if (dbCb) { try { dbCb(); } catch (e) { /* Anzeige ist nur ein Hinweis */ } }
-          if (!tm) tm = setTimeout(() => { late = true; rej(new Error('Zwischenspeicher blockiert')); setTimeout(() => { if (late) dbp = null; }, 20000); }, 2500);   // später erneut versuchen
-        };
+        rq.onblocked = () => { tell(); clearTimeout(tm); tm = setTimeout(giveUp, 1500); };
         rq.onsuccess = () => {
           const d = rq.result; clearTimeout(tm); dbBlocked = false;
           d.onversionchange = () => { d.close(); dbp = null; };                       // eine spätere Version darf übernehmen
           if (late) { late = false; dbp = Promise.resolve(d); } else res(d);
         };
-        rq.onerror = () => { clearTimeout(tm); rej(rq.error); };
+        rq.onerror = () => { clearTimeout(tm); if (!late) rej(rq.error); };
       } catch (e) { rej(e); }
     });
     return dbp;
