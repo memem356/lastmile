@@ -121,7 +121,7 @@
       if (my !== seq) return;
       if (pre.raw) {
         let o = null; try { o = JSON.parse(pre.raw); } catch (e) {}
-        if (o && o.v > 2) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
+        if (o && o.v > 3) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
         if (!o || !(o.v >= 1) || !Array.isArray(o.drivers) || !o.drivers.length) throw new LMO.OErr('CORRUPT');
       }
     } catch (e) { if (my !== seq) return; console.error(e); failed(errMsg(e), again, back[0], back[1], e && e.code === 'CORRUPT'); return; }

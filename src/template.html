@@ -157,7 +157,10 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 /* Hauptquartiere (aufklappbar) mit ihren Fahrern */
 .hubs { display: flex; flex-direction: column; gap: 8px; }
 .hubbox { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.hubtop { display: flex; align-items: center; gap: 6px; padding-right: 8px; }
+.hubup { flex: 0 0 auto; padding: 5px 10px; font-size: 12px; white-space: nowrap; }
 .hubhead { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 9px 10px; cursor: pointer; }
+.hubtop .hubhead { width: auto; flex: 1 1 auto; min-width: 0; }
 .hubhead:focus-visible { outline: 2px solid var(--route); outline-offset: -2px; }
 .hubhead:hover .hname { color: var(--route); }
 .hubhead .chev { width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s ease; justify-self: center; }
@@ -236,12 +239,23 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .start .foot { font-size: 12px; color: var(--muted); margin: 0; }
 .start .foot a { color: inherit; }
 
-.upg { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
-.upg:first-of-type { border-top: 0; }
+.upg { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.upg:first-child { border-top: 0; }
+.upg .u-top { grid-column: 1; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .upg strong { font-weight: 600; font-size: 13px; }
+.upg .u-lv { font: 500 11px var(--font-mono); color: var(--muted); white-space: nowrap; }
 .upg small { grid-column: 1; color: var(--muted); font-size: 12px; }
-.upg button { grid-row: 1 / span 2; grid-column: 2; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.upg small[hidden] { display: none; }
+.upg button { grid-row: 1 / span 4; grid-column: 2; align-self: center; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
 .upg.own strong::after { content: " ✓"; color: var(--ok); }
+.lvbar { grid-column: 1; display: flex; gap: 3px; height: 8px; }
+.lvbar i { flex: 1 1 0; min-width: 0; border-radius: 2px; background: var(--line); box-sizing: border-box; }
+.lvbar i.on { background: var(--route); }
+.lvbar.max i.on { background: var(--ok); }
+.lvbar i.next { background: transparent; border: 1px dashed var(--muted); }
+.hqhub { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.hqhub strong { font-size: 15px; }
+.hqhub small { color: var(--muted); font-size: 12px; }
 .ddetail { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 5px; padding: 10px; font-size: 13px; }
 .ddetail .xp { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .ddetail .xp i { display: block; height: 100%; background: var(--route); }
@@ -266,8 +280,8 @@ canvas.placing { cursor: crosshair; }
 .whead .btn { padding: 5px 10px; font-size: 12px; }
 .wclose { width: 30px; height: 30px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 4px; font: 500 18px var(--font-mono); cursor: pointer; line-height: 1; }
 .wclose:hover { border-color: var(--muted); }
-.wtabs { display: flex; gap: 6px; padding: 10px 14px 0; }
-.wtabs button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 4px 4px 0 0; padding: 7px 14px; font: 500 13px var(--font-ui); cursor: pointer; }
+.wtabs { display: flex; gap: 6px; padding: 10px 14px 0; overflow-x: auto; }
+.wtabs button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 4px 4px 0 0; padding: 7px 12px; font: 500 13px var(--font-ui); cursor: pointer; }
 .wtabs button[aria-selected="true"] { background: var(--panel); color: var(--ink); border-bottom-color: var(--panel); }
 .wbody { padding: 10px 14px 12px; display: grid; gap: 10px; align-content: start; }
 .wbody h3 { margin: 6px 0 0; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
@@ -473,7 +487,6 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <button type="button" data-s="60" aria-pressed="false">60×</button>
       </div>
       <button type="button" class="chip" id="onChip" hidden title="Rangliste öffnen"><i class="dot" id="onDot"></i><span id="onT">Online</span></button>
-      <button type="button" class="btn" id="hqBtn">Hauptquartier</button>
       <button type="button" class="btn" id="pauseBtn" aria-pressed="false">Pause</button>
       <button type="button" class="btn" id="menuBtn">Menü</button>
     </div>
@@ -516,7 +529,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <div class="block">
         <h2>Hauptquartiere <span class="count" id="dcount" title="Fahrer / Plätze">1 / 4</span></h2>
         <div class="hubs" id="dlist"></div>
-        <p class="note">Klappe ein Hauptquartier auf, um seine Fahrer zu sehen. Klicke einen Fahrer an, um Details, Schulung, Pause und Kündigung zu öffnen.</p>
+        <p class="note">Klappe ein Hauptquartier auf, um seine Fahrer zu sehen. „Ausbau“ öffnet die Verbesserungen dieses Hubs. Klicke einen Fahrer an, um Details, Schulung, Pause und Kündigung zu öffnen.</p>
       </div>
 
       <div class="block hire">
@@ -555,17 +568,19 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <button type="button" class="wclose" id="winClose" aria-label="Fenster schließen">×</button>
     </header>
     <div id="winHQ">
-      <div class="wtabs" role="tablist" id="hqTabs">
-        <button type="button" role="tab" data-tab="up" aria-selected="true">Ausbau</button>
-        <button type="button" role="tab" data-tab="pa" aria-selected="false">Partner</button>
-        <button type="button" role="tab" data-tab="hu" aria-selected="false">Standorte</button>
+      <div class="wtabs" role="tablist" id="hqTabs" aria-label="Verbesserungen"></div>
+      <div class="wbody" id="tab-up">
+        <div class="hqhub"><strong id="huName"></strong><small id="huInfo"></small></div>
+        <div id="ulist"></div>
       </div>
-      <div class="wbody" id="tab-up"><div id="ulist"></div></div>
+      <div class="wbody" id="tab-gm" hidden>
+        <p class="note">Gilt für das ganze Spiel. Plätze, Liefergebiet und Ausstattung kaufst du je Hub im Reiter des Hubs; ein neuer Hub startet ohne Ausbauten.</p>
+        <div id="glist"></div>
+      </div>
       <div class="wbody" id="tab-pa" hidden>
         <div class="head2"><p id="pnote"></p><span class="count" id="pcount">0</span></div>
         <div id="plist"></div>
       </div>
-      <div class="wbody" id="tab-hu" hidden><div id="hlist"></div></div>
     </div>
     <div id="winSt" hidden>
       <div class="wtabs" role="tablist" id="stTabs">
@@ -720,16 +735,20 @@ function startGame(DATA, MODEKEY, PRE) {
     spawnMean: 420, spawnMin: 40, maxOpen: 8, firstOrders: 2,
     xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l
   };
+  // Verbesserungen. UPG gilt für das ganze Spiel (Stand in owned), UPG_HUB je Hub (Stand in hubs[i].up).
+  // cost[l] kostet den Schritt von Stufe l auf l + 1. Bei base-Einträgen zählt Stufe 0 schon als erste Stufe des Balkens (Plätze, Liefergebiet).
   const UPG = [
-    { id: 'dispatch', name: 'Dispositions-Software', cost: 300, desc: 'Verteilt Bestellungen automatisch an den schnellsten freien Fahrer.' },
-    { id: 'ads', name: 'Werbekampagne', cost: 250, desc: '25 % mehr Bestellungen.' },
-    { id: 'boxes', name: 'Isolierte Boxen', cost: 200, desc: 'Essen bleibt warm: Trinkgeld bis 40 % statt 25 %.' },
-    { id: 'motor', name: 'E-Bike-Motoren', cost: 280, desc: 'Fahrräder sind 15 % schneller.' },
-    { id: 'quick', name: 'Schnellabholung', cost: 280, desc: 'Abholung dauert 30 % kürzer.' },
-    { id: 'service', name: 'Wartungsvertrag', cost: 250, desc: 'Fahrzeugkosten pro Kilometer −40 %.' },
-    { id: 'nav1', name: 'Verkehrsfunk', cost: 250, desc: 'Fahrer kennen die größten Staus und weichen ihnen teilweise aus.' },
-    { id: 'nav2', name: 'Live-Navigation', cost: 600, needs: 'nav1', desc: 'Fahrer sehen den Verkehr in Echtzeit und weichen auch unterwegs aus.' },
-    { id: 'nav3', name: 'Prognose-Navigation', cost: 1200, needs: 'nav2', desc: 'Fahrer umfahren fast jeden Stau, auch schon auf der Planung.' }
+    { id: 'dispatch', name: 'Dispositions-Software', cost: [300], desc: 'Verteilt Bestellungen automatisch an den schnellsten freien Fahrer.' },
+    { id: 'ads', name: 'Werbekampagne', cost: [250], desc: '25 % mehr Bestellungen.' }
+  ];
+  const UPG_HUB = [
+    { id: 'cap', name: 'Plätze im Hub', base: true, cost: CFG.hubCost.slice(1), eff: l => 'Platz für ' + CFG.hubCaps[l] + ' Fahrer' },
+    { id: 'zone', name: 'Liefergebiet', base: true, cost: CFG.zoneCost.slice(1), eff: l => 'Radius ' + Math.min(CFG.zones[l], MAXR) + ' m um diesen Hub' },
+    { id: 'nav', name: 'Navigation', cost: [250, 600, 1200], eff: l => ['Die Fahrer dieses Hubs kennen die Staus nicht.', 'Verkehrsfunk: Fahrer kennen die größten Staus und weichen ihnen teilweise aus.', 'Live-Navigation: Fahrer sehen den Verkehr in Echtzeit und weichen auch unterwegs aus.', 'Prognose-Navigation: Fahrer umfahren fast jeden Stau, auch schon auf der Planung.'][l] },
+    { id: 'motor', name: 'E-Bike-Motoren', cost: [280], desc: 'Fahrräder dieses Hubs sind 15 % schneller.' },
+    { id: 'quick', name: 'Schnellabholung', cost: [280], desc: 'Die Abholung dauert 30 % kürzer.' },
+    { id: 'boxes', name: 'Isolierte Boxen', cost: [200], desc: 'Essen bleibt warm: Trinkgeld bis 40 % statt 25 %.' },
+    { id: 'service', name: 'Wartungsvertrag', cost: [250], desc: 'Fahrzeugkosten pro Kilometer −40 % und halb so viele Pannen.' }
   ];
 
 
@@ -770,14 +789,19 @@ function startGame(DATA, MODEKEY, PRE) {
 
   // ---------- Spielzustand ----------
   let orders = [], drivers = [], orderSeq = 1001, driverSeq = 1, cash = CFG.startCash;
-  let rep = 3, hubLevel = 0, autoOn = false, heat = false; const owned = {};
+  let rep = 3, autoOn = false, heat = false; const owned = {};   // owned: gekaufte Verbesserungen für das ganze Spiel
   const MAXR = DATA.radius || 750;
-  let zoneLevel = 0, placing = false, ghost = null, zPois = [], zHomes = [];
+  let placing = false, ghost = null, zPois = [], zHomes = [];
   const partners = new Set();
-  const hubs = [{ x: HUB.x, y: HUB.y, n: { bike: nets.bike.depot, car: nets.car.depot } }];
+  const hubs = [{ x: HUB.x, y: HUB.y, n: { bike: nets.bike.depot, car: nets.car.depot }, up: {} }];   // up: Stufen der Ausbauten dieses Hubs
   const nodeFor = (h, vehKey) => VEHICLES[vehKey].net === 'bike' ? h.n.bike : h.n.car;
-  const zoneR = () => Math.min(CFG.zones[zoneLevel], MAXR);
-  const inZone = (x, y) => hubs.some(h => Math.hypot(h.x - x, h.y - y) <= zoneR());
+  const hl = (h, id) => (h && h.up && h.up[id]) || 0;                          // Stufe eines Hub-Ausbaus (0 = nicht gekauft)
+  const hubOf = d => hubs[Math.min(d.hub, hubs.length - 1)];
+  const dl = (d, id) => hl(hubOf(d), id);                                         // Stufe im Hub des Fahrers: nur dessen Hub zählt
+  const capOf = i => CFG.hubCaps[hl(hubs[i], 'cap')];                             // Plätze eines Hubs
+  const zr = h => Math.min(CFG.zones[hl(h, 'zone')], MAXR);                       // Liefergebiet eines Hubs (auch für den Platzhalter beim Bauen)
+  const ZMAX = (i => i < 0 ? CFG.zones.length - 1 : i)(CFG.zones.findIndex(z => z >= MAXR));   // höchste sinnvolle Gebietsstufe (die geladene Karte ist begrenzt)
+  const inZone = (x, y) => hubs.some(h => Math.hypot(h.x - x, h.y - y) <= zr(h));
   function rezone() { zPois = pois.filter(p => inZone(p.x, p.y)); zHomes = homes.filter(h => inZone(h.x, h.y)); }
   const slotsUsed = i => drivers.filter(d => d.hub === i).length;
   let simClock = 0, paused = false, speed = 10, lastSpawnT = -30, dirty = true;
@@ -837,8 +861,8 @@ function startGame(DATA, MODEKEY, PRE) {
   const unX = px => ((px - cw / 2) / cam.K + cam.u - cam.w - U0) / KU, unY = py => (RLAT - B.latOf((py - ch / 2) / cam.K + cam.v)) * E.MLAT;   // Bildpunkt -> Spielmeter
   function target(x, y, s) { return { u: U0 + x * KU + cam.w, v: yv(y), z: zOfS(s) }; }
   function fitTarget() {
-    const R = zoneR() * 1.12; let a = Infinity, b2 = -Infinity, c = Infinity, d = -Infinity;
-    for (const h of hubs) { a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
+    let a = Infinity, b2 = -Infinity, c = Infinity, d = -Infinity;
+    for (const h of hubs) { const R = zr(h) * 1.12; a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
     a = Math.max(a, bounds.minX); b2 = Math.min(b2, bounds.maxX); c = Math.max(c, bounds.minY); d = Math.min(d, bounds.maxY);
     const x = (a + b2) / 2, y = (c + d) / 2, ar = (E.MLON / E.MLAT) / Math.cos(B.latOf(yv(y)) * Math.PI / 180);   // Höhe und Breite eines Spielmeters unterscheiden sich um ca. 0,7 %
     return target(x, y, Math.max(0.05, Math.min(cw / ((b2 - a) * 1.04), ch / ((d - c) * 1.04 * ar))));
@@ -979,11 +1003,11 @@ function startGame(DATA, MODEKEY, PRE) {
       }
     }
   }
-  function zonePath(list, r) { ctx.beginPath(); for (const h of list) { const x = toX(h.x), y = toY(h.y); ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); } }
+  function zonePath(list, s) { ctx.beginPath(); for (const h of list) { const x = toX(h.x), y = toY(h.y), r = zr(h) * s; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); } }
   function drawZoneOutline() {
-    const r = zoneR() * cam.s, all = ghost && placing ? hubs.concat([ghost]) : hubs;
+    const all = ghost && placing ? hubs.concat([ghost]) : hubs;
     ctx.save(); ctx.setLineDash([7, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = T.signal; ctx.globalAlpha = 0.7;
-    for (const h of all) { ctx.beginPath(); ctx.arc(toX(h.x), toY(h.y), r, 0, 6.283); ctx.stroke(); }
+    for (const h of all) { ctx.beginPath(); ctx.arc(toX(h.x), toY(h.y), zr(h) * cam.s, 0, 6.283); ctx.stroke(); }
     ctx.restore();
   }
   function drawHub() {
@@ -1088,7 +1112,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function drawVeil() {
     const a = Math.min(1, Math.max(0, (cam.s - LOD) / 0.1)) * 0.45; if (a < 0.01) return;
     ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
-    ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s); ctx.fill(); ctx.restore();
+    ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, cam.s); ctx.fill(); ctx.restore();
   }
   function draw() {
     const sig = document.documentElement.getAttribute('data-theme') + '|' + mq.matches;
@@ -1100,7 +1124,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (cam.s < LOD) { drawWorldMark(); drawScale(); return; }
     const K = cam.K, ox = cw / 2, oy = ch / 2, cu = cam.u - cam.w, cvv = cam.v;
     for (let i = 0; i < N; i++) { sx[i] = (nu[i] - cu) * K + ox; sy[i] = (nv[i] - cvv) * K + oy; }
-    const zone = () => zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s);
+    const zone = () => zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, cam.s);
     if (own) {
       ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
       ctx.save(); zone(); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawTraffic(); drawLabels(); ctx.restore();
@@ -1227,7 +1251,7 @@ function startGame(DATA, MODEKEY, PRE) {
       if (d.sick) { d.sick.left -= adv; if (d.sick.left <= 0) { d.sick = null; log('Fahrer ' + d.id + ' ist wieder gesund'); driverStructDirty = true; plansDirty = true; orderStructDirty = true; } }
       if (d.stall) { d.stall.left -= adv; if (d.stall.left <= 0) { log('Fahrer ' + d.id + ': ' + d.stall.kind + ' behoben, weiter geht es'); d.stall = null; driverStructDirty = true; } continue; }
       if (d.trip && d.st && d.st.s.sp > 0) {
-        const b = BRK[d.veh] || BRK.bike, rate = b[0] / 3600 * WX[wx].risk * MODE.risk * (owned.service ? 0.5 : 1);
+        const b = BRK[d.veh] || BRK.bike, rate = b[0] / 3600 * WX[wx].risk * MODE.risk * (dl(d, 'service') ? 0.5 : 1);
         if (Math.random() < 1 - Math.exp(-rate * adv)) {
           d.stall = { left: (b[2] + Math.random() * (b[3] - b[2])) * 60, kind: b[1] };
           led.brk++; sfx('bad'); log('Panne bei Fahrer ' + d.id + ': ' + b[1] + ', ' + fmtMin(d.stall.left) + ' min Pause', true); driverStructDirty = true;
@@ -1394,9 +1418,9 @@ function startGame(DATA, MODEKEY, PRE) {
     dirty = true;
   }
   function rerouteAll() {
-    const q = avoidQ(); if (q <= 0 || simClock - lastRe.t < 45) return; lastRe.t = simClock;
+    if (simClock - lastRe.t < 45 || !drivers.some(d => avoidQ(d) > 0)) return; lastRe.t = simClock;
     for (const d of drivers) {
-      if (d.stall) continue;
+      const q = avoidQ(d); if (d.stall || q <= 0) continue;
       if (d.trip && d.st && (d.st.phase === 0 || d.st.phase === 2)) {
         const tr = d.trip, li = d.st.leg, tl = li === 0 ? tr.t : tr.t - tr.T1 - tr.D1, r = E.reroute(d.veh, tr.legs[li], tl, q, speedMult(d));
         if (r && r.gain > Math.max(25, 0.1 * r.cur)) {
@@ -1544,12 +1568,12 @@ function startGame(DATA, MODEKEY, PRE) {
     d.ret = null;
     let best = -1, bd = Infinity;
     hubs.forEach((h, i) => {
-      if (drivers.filter(x => x !== d && x.hub === i).length >= CFG.hubCaps[hubLevel]) return;
+      if (drivers.filter(x => x !== d && x.hub === i).length >= capOf(i)) return;
       const dd = Math.hypot(h.x - nx[d.node], h.y - ny[d.node]); if (dd < bd) { bd = dd; best = i; }
     });
     if (best < 0) best = d.hub; d.hub = best;
     const to = nodeFor(hubs[best], d.veh); if (to === d.node) return;
-    const leg = E.returnLeg(d.veh, d.node, to, avoidQ());
+    const leg = E.returnLeg(d.veh, d.node, to, avoidQ(d));
     if (leg) d.ret = { leg: tuneLeg(leg, d), t: 0, to };
   }
 
@@ -1586,13 +1610,13 @@ function startGame(DATA, MODEKEY, PRE) {
 
   // ---------- Effekte von Stufen und Ausbauten ----------
   const isFree = d => !d.trip && !d.train && !d.sick && !d.rest;       // rest: 'wait' = Pause vorgemerkt, 'on' = in Pause
-  const cap = () => CFG.hubCaps[hubLevel] * hubs.length;
-  const levelMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && owned.motor ? 1.15 : 1);
+  const cap = () => hubs.reduce((sum, h, i) => sum + capOf(i), 0);
+  const levelMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && dl(d, 'motor') ? 1.15 : 1);
   const envMult = d => d.veh !== 'bike' ? WX[wx].car : WX[wx].bike; // nur Wetter, der Verkehr wirkt je Straße
-  const avoidQ = () => owned.nav3 ? 0.9 : owned.nav2 ? 0.7 : owned.nav1 ? 0.4 : 0;
+  const avoidQ = d => { const l = dl(d, 'nav'); return l >= 3 ? 0.9 : l === 2 ? 0.7 : l === 1 ? 0.4 : 0; };
   const speedMult = d => levelMult(d) * envMult(d);
-  const tipMax = () => (owned.boxes ? 0.4 : CFG.tipMax) * MODE.tip;
-  const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
+  const tipMax = d => (dl(d, 'boxes') ? 0.4 : CFG.tipMax) * MODE.tip;
+  const kmCostOf = (k, d) => CFG.kmCost[k] * (dl(d, 'service') ? 0.6 : 1);
   const wageOf = d => CFG.wage[d.veh] * (1 + CFG.wageLevel * (d.lvl - 1));
   const payOf = d => d.rest === 'on' ? 0 : wageOf(d);                  // in Pause gibt es keinen Lohn
   // Anlaufphase: im Rush-Modus startet die Nachfrage niedrig und steigt über die ersten Spielstunden auf das volle Niveau
@@ -1602,13 +1626,13 @@ function startGame(DATA, MODEKEY, PRE) {
     if (!plan) return plan;
     const m = speedMult(d);
     if (m !== 1) for (const L of plan.legs) { L.t = L.t.map(v => v / m); L.time /= m; L.sp = L.sp.map(v => v * m); }
-    if (owned.quick) plan.D1 *= 0.7;
+    if (dl(d, 'quick')) plan.D1 *= 0.7;
     if (partners.has(plan.pick.i)) plan.D1 *= CFG.partnerDwell;
     plan.T1 = plan.legs[0].time; plan.T2 = plan.legs[1].time;
     plan.total = plan.T1 + plan.D1 + plan.T2 + plan.D2;
     return plan;
   }
-  const planFor = (d, o) => tune(E.planTrip(d.veh, curNode(d), o.pick.i, o.home.i, avoidQ()), d);
+  const planFor = (d, o) => tune(E.planTrip(d.veh, curNode(d), o.pick.i, o.home.i, avoidQ(d)), d);
 
   // ---------- Pläne für die Zuweisung ----------
   function ensurePlans() {
@@ -1617,7 +1641,7 @@ function startGame(DATA, MODEKEY, PRE) {
     const o = orderById(sel.order); if (!o || o.state !== 'open') return;
     for (const d of drivers) if (isFree(d)) plans[d.id] = planFor(d, o);
   }
-  function tripCost(plan) { return plan.len / 1000 * kmCostOf(plan.veh.key); }
+  function tripCost(plan, d) { return plan.len / 1000 * kmCostOf(plan.veh.key, d); }
   function fastestFree() {
     let best = null;
     for (const id in plans) { const p = plans[id]; if (p && (!best || p.total < plans[best].total)) best = id; }
@@ -1700,8 +1724,8 @@ function startGame(DATA, MODEKEY, PRE) {
     const trip = d.trip, o = trip.order;
     const age = simClock - o.createdAt;
     const pay = o.pay;
-    const tip = age <= o.target ? Math.round(pay * tipMax() * (1 - age / o.target) * 100) / 100 : 0;
-    const cost = Math.round(tripCost(trip) * 100) / 100;
+    const tip = age <= o.target ? Math.round(pay * tipMax(d) * (1 - age / o.target) * 100) / 100 : 0;
+    const cost = Math.round(tripCost(trip, d) * 100) / 100;
     cash += pay + tip; bill.veh += cost; histAdd(pay + tip, 0);
     if (age <= o.target) led.ontime++;
     d.earn = (d.earn || 0) + pay + tip; { const nm = o.pick.name || TYPE_LABEL[o.pick.type]; led.places[nm] = (led.places[nm] || 0) + 1; }
@@ -1728,10 +1752,10 @@ function startGame(DATA, MODEKEY, PRE) {
   const hireCost = () => CFG.hireFee + CFG.vehPrice[hireVeh.value];
   const hireHub = $('hireHub'); let hubSig = '';
   function syncHireHubs() {
-    const sig = hubs.length + '|' + hubLevel + '|' + drivers.map(d => d.hub).join(',');
+    const sig = hubs.map((h, i) => capOf(i)).join(',') + '|' + drivers.map(d => d.hub).join(',');
     if (sig === hubSig) return; hubSig = sig;
     const keep = hireHub.value; hireHub.textContent = '';
-    hubs.forEach((h, i) => { const o = document.createElement('option'); o.value = String(i); const free = CFG.hubCaps[hubLevel] - slotsUsed(i); o.textContent = 'Hub ' + (i + 1) + ' · ' + free + ' frei'; o.disabled = free <= 0; hireHub.appendChild(o); });
+    hubs.forEach((h, i) => { const o = document.createElement('option'); o.value = String(i); const free = capOf(i) - slotsUsed(i); o.textContent = 'Hub ' + (i + 1) + ' · ' + free + ' frei'; o.disabled = free <= 0; hireHub.appendChild(o); });
     const ok = Array.from(hireHub.options).find(o => o.value === keep && !o.disabled) || Array.from(hireHub.options).find(o => !o.disabled);
     if (ok) hireHub.value = ok.value;
     hireHub.hidden = $('hireHubL').hidden = hubs.length < 2;
@@ -1741,12 +1765,12 @@ function startGame(DATA, MODEKEY, PRE) {
     const cost = hireCost(), full = drivers.length >= cap(), poor = cash < cost;
     const b = $('hireBtn'); setText(b, full ? 'Alle Plätze belegt' : 'Einstellen für ' + eur(cost));
     b.disabled = full || poor;
-    setText($('hireNote'), full ? 'Alle Hubs sind voll. Baue einen Hub aus oder einen neuen Hub unter Ausbau.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im gewählten Hub.');
+    setText($('hireNote'), full ? 'Alle Hubs sind voll. Baue einen Hub aus (Knopf „Ausbau“) oder baue unter „Spiel“ einen neuen Hub.' : poor ? 'Es fehlen noch ' + eur(cost - cash) + '.' : 'Einstellung ' + eur(CFG.hireFee) + ' plus Fahrzeug. Der neue Fahrer startet im gewählten Hub.');
   }
   hireVeh.addEventListener('change', syncHire);
   $('hireBtn').onclick = () => {
     const cost = hireCost(), hi = Number(hireHub.value || 0);
-    if (drivers.length >= cap() || cash < cost || slotsUsed(hi) >= CFG.hubCaps[hubLevel]) return;
+    if (drivers.length >= cap() || cash < cost || slotsUsed(hi) >= capOf(hi)) return;
     spend('hire', cost); const d = addDriver(hireVeh.value, hi);
     log('Fahrer ' + d.id + ' eingestellt (' + VEHICLES[d.veh].label + ', Hub ' + (hi + 1) + '), ' + seur(-cost) + ', danach ' + eur(wageOf(d)) + ' pro Stunde');
     sel.driver = d.id; dirty = true;
@@ -1798,7 +1822,7 @@ function startGame(DATA, MODEKEY, PRE) {
       if (best === d.id && free.length > 1) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = 'schnellster'; l.appendChild(tg); }
       const n = document.createElement('span'); n.className = 'net';
       const sm = document.createElement('small');
-      if (plan) { const net = o.pay - tripCost(plan); n.textContent = seur(net); sm.textContent = 'Anfahrt ' + fmtMin(plan.T1) + ' min · beim Kunden nach ' + fmtMin(plan.total) + ' min · ab ' + driverStreet(d); }
+      if (plan) { const net = o.pay - tripCost(plan, d); n.textContent = seur(net); sm.textContent = 'Anfahrt ' + fmtMin(plan.T1) + ' min · beim Kunden nach ' + fmtMin(plan.total) + ' min · ab ' + driverStreet(d); }
       else { n.textContent = '–'; sm.textContent = 'Keine Route möglich'; b.disabled = true; }
       b.append(l, n, sm);
       b.onclick = () => assign(d.id);
@@ -1836,9 +1860,13 @@ function startGame(DATA, MODEKEY, PRE) {
     const chev = elt('span', 'chev'), name = elt('span', 'hname', 'Hub ' + (i + 1)), count = elt('span', 'hcount'), sum = elt('span', 'hsum');
     if (i === 0) name.appendChild(elt('em', null, 'Hauptquartier'));
     head.append(chev, name, count, sum);
+    const top = elt('div', 'hubtop'), upb = elt('button', 'btn hubup', 'Ausbau'); upb.type = 'button';
+    upb.title = 'Verbesserungen für Hub ' + (i + 1); upb.setAttribute('aria-label', 'Ausbau von Hub ' + (i + 1));
+    upb.onclick = () => (win.kind === 'hq' && !winEl.hidden && hq.tab === 'h' + i ? closeWin() : openHQ(i));
+    top.append(head, upb);
     const ul = elt('ul', 'dlist'), empty = elt('p', 'note', 'Noch keine Fahrer in diesem Hub.'), add = elt('button', 'btn hadd'); add.type = 'button';
     add.onclick = () => { syncHire(); hireHub.value = String(i); const v = $('hireVeh'); v.scrollIntoView({ block: 'nearest' }); v.focus({ preventScroll: true }); };
-    body.append(ul, empty, add); box.append(head, body); dlist.appendChild(box);
+    body.append(ul, empty, add); box.append(top, body); dlist.appendChild(box);
     head.onclick = () => setHubOpen(i, !hubIsOpen(i));
     const r = { box, head, body, ul, empty, add, count, sum }; hubRefs[i] = r; applyHubOpen(i);
     return r;
@@ -1878,7 +1906,7 @@ function startGame(DATA, MODEKEY, PRE) {
   const KIND_TXT = { free: 'frei', trip: 'unterwegs', train: 'in Schulung', pause: 'in Pause', sick: 'krank', stall: 'Panne' };
   function updateHubHeads() {
     for (let i = 0; i < hubRefs.length; i++) {
-      const h = hubRefs[i], mine = drivers.filter(d => Math.min(d.hub, hubs.length - 1) === i), capH = CFG.hubCaps[hubLevel], free = capH - mine.length;
+      const h = hubRefs[i], mine = drivers.filter(d => Math.min(d.hub, hubs.length - 1) === i), capH = capOf(i), free = capH - mine.length;
       setText(h.count, mine.length + ' / ' + capH);
       const n = {}; for (const d of mine) { const k = driverKind(d); n[k] = (n[k] || 0) + 1; }
       setText(h.sum, mine.length ? Object.keys(KIND_TXT).filter(k => n[k]).map(k => n[k] + ' ' + KIND_TXT[k]).join(' · ') : 'Keine Fahrer');
@@ -1944,7 +1972,7 @@ function startGame(DATA, MODEKEY, PRE) {
   const winEl = $('win'), win = { kind: null, id: null };
   let fireArm = null;                                       // Rückfrage beim Kündigen: { id, until }
   const trainDur = l => (10 + 10 * l) * 60;
-  function openHQ() { win.kind = 'hq'; win.id = null; $('winHQ').hidden = false; $('winDrv').hidden = true; $('winSt').hidden = true; setText($('winT'), 'Hauptquartier'); winEl.hidden = false; updateUpgrades(); updatePartners(); updateHubs(); }
+  function openHQ(tab) { if (tab !== undefined) hq.tab = typeof tab === 'number' ? 'h' + tab : tab; win.kind = 'hq'; win.id = null; $('winHQ').hidden = false; $('winDrv').hidden = true; $('winSt').hidden = true; setText($('winT'), 'Verbesserungen'); winEl.hidden = false; updateUpgrades(); updatePartners(); }
   function openDriverWin(id) { fireArm = null; { const dd = drivers.find(x => x.id === id); if (dd && !hubIsOpen(dd.hub)) setHubOpen(dd.hub, true); } win.kind = 'drv'; win.id = id; $('winHQ').hidden = true; $('winSt').hidden = true; $('winDrv').hidden = false; winEl.hidden = false; updateDriverWin(); }
   function openStat(tab) {
     win.kind = 'st'; win.id = null; $('winHQ').hidden = true; $('winDrv').hidden = true; $('winSt').hidden = false; setText($('winT'), 'Finanzen und Statistik'); winEl.hidden = false;
@@ -1959,13 +1987,9 @@ function startGame(DATA, MODEKEY, PRE) {
   $('chipWx').onclick = () => openStat('sx'); $('chipTr').onclick = () => openStat('sx');
   $('stAchBtn').onclick = () => openAch();
   function closeWin() { winEl.hidden = true; win.kind = null; fireArm = null; }
-  $('winClose').onclick = closeWin; $('hqBtn').onclick = () => (win.kind === 'hq' && !winEl.hidden ? closeWin() : openHQ());
+  $('winClose').onclick = closeWin;
   $('winPause').onclick = () => togglePause();
-  $('hqTabs').addEventListener('click', e => {
-    const b = e.target.closest('button[data-tab]'); if (!b) return;
-    for (const x of $('hqTabs').children) x.setAttribute('aria-selected', String(x === b));
-    for (const t of ['up', 'pa', 'hu']) $('tab-' + t).hidden = t !== b.dataset.tab;
-  });
+  $('hqTabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; hq.tab = b.dataset.tab; updateUpgrades(); updatePartners(); });
   function planTraining(d) {
     if (!d || d.train || d.lvl >= 5) return; const c = CFG.trainCost(d.lvl); if (cash < c) return;
     spend('train', c); d.train = { state: 'planned', cost: c, dur: trainDur(d.lvl), t: 0, to: d.lvl + 1 };
@@ -2048,68 +2072,83 @@ function startGame(DATA, MODEKEY, PRE) {
     setText($('dwFInfo'), ok ? 'Der Fahrer verlässt dein Unternehmen. Das Fahrzeug wird für ' + eur(sellPrice(d)) + ' verkauft (' + Math.round(CFG.sellRate * 100) + ' % vom Kaufpreis), der Platz im Hub wird frei. Seine Nummer wird nicht neu vergeben.' : d.trip ? 'Während einer Lieferung geht das nicht. Warte, bis sie abgeschlossen ist.' : d.train ? 'Während einer Schulung geht das nicht. Sage eine geplante Schulung ab oder warte, bis sie fertig ist.' : 'Dein letzter Fahrer kann nicht gekündigt werden.');
     setText(fb, armed ? 'Wirklich kündigen? Nochmal tippen.' : 'Fahrer kündigen (+' + eur(sellPrice(d)) + ')'); fb.disabled = !ok;
   }
-  let hSig = '';
-  function updateHubs() {
-    const sig = hubs.length + '|' + hubLevel + '|' + zoneLevel + '|' + drivers.map(d => d.hub).join(',');
-    if (sig === hSig) return; hSig = sig; const box = $('hlist'); box.textContent = '';
-    hubs.forEach((h, i) => {
-      const row = document.createElement('div'); row.className = 'hrow';
-      const n = document.createElement('strong'); n.textContent = 'Hub ' + (i + 1) + (i === 0 ? ' (Hauptquartier)' : '');
-      const sm = document.createElement('small'); sm.textContent = slotsUsed(i) + ' von ' + CFG.hubCaps[hubLevel] + ' Plätzen belegt · Liefergebiet ' + zoneR() + ' m';
-      const v = document.createElement('span'); v.className = 'note'; v.textContent = drivers.filter(d => d.hub === i).map(d => 'Fahrer ' + d.id).join(', ') || 'keine Fahrer';
-      row.append(n, v, sm); box.appendChild(row);
-    });
+  // ---------- Verbesserungen: Reiter Hub 1…3, Spiel, Partner ----------
+  const hq = { tab: 'h0' };
+  const NEWHUB = { id: 'newhub', name: 'Hubs', base: true, cost: CFG.hubBuild.slice(1), eff: l => (l + 1) + (l ? ' Hubs' : ' Hub (das Hauptquartier)') };
+  function umax(u) { return u.id === 'zone' ? Math.min(u.cost.length, ZMAX) : u.cost.length; }                       // höchste Stufe
+  const usegs = u => umax(u) + (u.base ? 1 : 0);                                                                     // Segmente des Balkens
+  const ulvl = (u, h) => u.id === 'newhub' ? hubs.length - 1 : h ? hl(h, u.id) : (owned[u.id] ? 1 : 0);             // aktuelle Stufe
+  const hubIdx = () => hq.tab[0] === 'h' ? Math.min(hubs.length - 1, Number(hq.tab.slice(1)) || 0) : 0;
+  function buyUp(u, hi) {                                                                                           // hi: Hub-Nummer, ohne Angabe eine Verbesserung für das Spiel
+    const h = hi === undefined ? null : hubs[hi]; if (hi !== undefined && !h) return;
+    const l = ulvl(u, h); if (l >= umax(u)) return; const c = u.cost[l];
+    if (u.id === 'newhub') { if (!placing && cash < c) return; placing = !placing; ghost = null; $('placeBan').hidden = !placing; cv.classList.toggle('placing', placing); if (placing) closeWin(); dirty = true; return; }
+    if (cash < c) return;
+    spend(u.id === 'cap' ? 'hub' : u.id === 'zone' ? 'zone' : 'upg', c);
+    if (h) h.up[u.id] = l + 1; else owned[u.id] = true;
+    const where = h ? ' (Hub ' + (hi + 1) + ')' : '';
+    if (u.id === 'cap') { log('Hub ' + (hi + 1) + ' ausgebaut: jetzt Platz für ' + CFG.hubCaps[l + 1] + ' Fahrer, ' + seur(-c), true); driverStructDirty = true; }
+    else if (u.id === 'zone') { rezone(); log('Liefergebiet von Hub ' + (hi + 1) + ' erweitert: jetzt ' + zr(h) + ' m, ' + seur(-c), true); dirty = true; }
+    else if (u.id === 'nav') { lastRe.t = -1e9; log('Navigation Stufe ' + (l + 1) + ' (' + ['Verkehrsfunk', 'Live-Navigation', 'Prognose-Navigation'][l] + ')' + where + ' gekauft, ' + seur(-c), true); }
+    else log(u.name + where + ' gekauft, ' + seur(-c), true);
+    if (u.id === 'dispatch') { autoOn = true; $('autoBtn').hidden = false; syncAuto(); }
+    if (u.id !== 'cap' && u.id !== 'zone') { plansDirty = true; orderStructDirty = true; } else plansDirty = true;
+    dirty = true;
   }
-  const ulist = $('ulist'), uRefs = [];
-  const UPG_ALL = UPG.concat([{ id: 'zone', name: '', desc: '' }, { id: 'hub', name: 'Hub ausbauen', desc: '' }, { id: 'newhub', name: 'Neuen Hub bauen', desc: '' }]);
-  for (const u of UPG_ALL) {
-    const row = document.createElement('div'); row.className = 'upg';
-    const n = document.createElement('strong'), sm = document.createElement('small'), b = document.createElement('button');
-    b.type = 'button'; b.className = 'btn'; row.append(n, sm, b); ulist.appendChild(row);
-    b.onclick = () => buyUpgrade(u.id);
-    uRefs.push({ u, row, n, sm, b });
+  // Für Tests: Kauf über die Kennung (Hub-Verbesserungen beziehen sich auf Hub hi, Standard Hub 1)
+  function buyUpgrade(id, hi) {
+    const g = UPG.find(x => x.id === id); if (g) return buyUp(g);
+    if (id === 'newhub') return buyUp(NEWHUB);
+    const u = UPG_HUB.find(x => x.id === id); if (u) buyUp(u, hi === undefined ? 0 : hi);
   }
-  function buyUpgrade(id) {
-    if (id === 'zone') {
-      const c = CFG.zoneCost[zoneLevel + 1]; if (c === undefined || CFG.zones[zoneLevel] >= MAXR || cash < c) return;
-      spend('zone', c); zoneLevel++; rezone(); log('Liefergebiet erweitert: jetzt ' + zoneR() + ' m um jeden Hub, ' + seur(-c), true); dirty = true; return;
+  function mkUpgRow(u) {
+    const row = elt('div', 'upg'), top = elt('div', 'u-top'), n = elt('strong', null, u.name), lv = elt('span', 'u-lv'), bar = elt('div', 'lvbar');
+    bar.setAttribute('role', 'meter'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', String(usegs(u)));
+    const segs = []; for (let i = 0; i < usegs(u); i++) { const sg = elt('i'); bar.appendChild(sg); segs.push(sg); }
+    const now = elt('small', 'u-now'), next = elt('small', 'u-next'), b = elt('button', 'btn'); b.type = 'button';
+    top.append(n, lv); row.append(top, bar, now, next, b);
+    b.onclick = () => buyUp(u, u.scope === 'hub' ? hubIdx() : undefined);
+    return { u, row, lv, bar, segs, now, next, b };
+  }
+  function setUpgRow(r, h) {                                                                                         // h: Hub, bei Verbesserungen für das Spiel null
+    const u = r.u, l = ulvl(u, h), max = umax(u), total = usegs(u), fill = l + (u.base ? 1 : 0), done = l >= max;
+    r.row.classList.toggle('own', done); r.bar.classList.toggle('max', done);
+    for (let i = 0; i < r.segs.length; i++) { const c = i < fill ? 'on' : i === fill ? 'next' : ''; if (r.segs[i].className !== c) r.segs[i].className = c; }
+    const lab = u.id === 'newhub' ? fill + ' von ' + total + ' Hubs' : !u.base && total === 1 ? (l ? 'Gekauft' : 'Nicht gekauft') : fill === 0 ? 'Nicht gekauft' : 'Stufe ' + fill + ' von ' + total + (done ? ' · Max.' : '');
+    setText(r.lv, lab); r.bar.setAttribute('aria-valuenow', String(fill)); r.bar.setAttribute('aria-label', u.name + ': ' + lab);
+    if (u.eff) {
+      setText(r.now, 'Jetzt: ' + u.eff(l));
+      setText(r.next, done ? (l < u.cost.length ? 'Weiter geht es nicht: Die geladene Karte reicht nicht weiter.' : 'Höchste Stufe erreicht.') : 'Nächste Stufe: ' + u.eff(l + 1));
+    } else { setText(r.now, u.desc); setText(r.next, ''); }
+    r.next.hidden = !r.next.textContent;
+    if (done) { setText(r.b, 'Fertig'); r.b.disabled = true; return; }
+    const c = u.cost[l];
+    if (u.id === 'newhub' && placing) { setText(r.b, 'Abbrechen'); r.b.disabled = false; return; }
+    setText(r.b, eur(c)); r.b.disabled = cash < c;
+  }
+  const hubRows = UPG_HUB.map(u => { u.scope = 'hub'; return mkUpgRow(u); }), gameRows = UPG.concat([NEWHUB]).map(mkUpgRow);
+  for (const r of hubRows) $('ulist').appendChild(r.row);
+  for (const r of gameRows) $('glist').appendChild(r.row);
+  let hqSig = '';
+  function syncHqTabs() {
+    if (hqSig !== String(hubs.length)) {
+      hqSig = String(hubs.length); const box = $('hqTabs'); box.textContent = '';
+      const add = (t, label) => { const b = elt('button', null, label); b.type = 'button'; b.setAttribute('role', 'tab'); b.dataset.tab = t; box.appendChild(b); };
+      hubs.forEach((h, i) => add('h' + i, 'Hub ' + (i + 1)));
+      add('gm', 'Spiel'); add('pa', 'Partner');
     }
-    if (id === 'newhub') {
-      if (hubs.length >= 3 || cash < CFG.hubBuild[hubs.length]) return;
-      placing = !placing; ghost = null; $('placeBan').hidden = !placing; cv.classList.toggle('placing', placing); if (placing) closeWin(); dirty = true; return;
-    }
-    if (id === 'hub') {
-      const c = CFG.hubCost[hubLevel + 1]; if (c === undefined || cash < c) return;
-      spend('hub', c); hubLevel++; log('Hubs ausgebaut: jetzt Platz für ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub, ' + seur(-c), true); driverStructDirty = true; return;
-    }
-    const u = UPG.find(x => x.id === id); if (!u || owned[id] || cash < u.cost || (u.needs && !owned[u.needs])) return;
-    spend('upg', u.cost); owned[id] = true; log(u.name + ' gekauft, ' + seur(-u.cost), true);
-    if (id === 'dispatch') { autoOn = true; $('autoBtn').hidden = false; syncAuto(); }
-    if (id.startsWith('nav')) lastRe.t = -1e9;
-    plansDirty = true; orderStructDirty = true; dirty = true;
+    if (hq.tab[0] === 'h' && Number(hq.tab.slice(1)) >= hubs.length) hq.tab = 'h0';
+    for (const b of $('hqTabs').children) { const on = String(b.dataset.tab === hq.tab); if (b.getAttribute('aria-selected') !== on) b.setAttribute('aria-selected', on); }
+    $('tab-up').hidden = hq.tab[0] !== 'h'; $('tab-gm').hidden = hq.tab !== 'gm'; $('tab-pa').hidden = hq.tab !== 'pa';
   }
   function updateUpgrades() {
-    for (const r of uRefs) {
-      if (r.u.id === 'zone') {
-        const c = CFG.zoneCost[zoneLevel + 1], max = c === undefined || CFG.zones[zoneLevel] >= MAXR;
-        setText(r.n, 'Liefergebiet erweitern'); r.row.classList.remove('own');
-        setText(r.sm, max ? 'Größtes Gebiet erreicht (' + zoneR() + ' m' + (CFG.zones[zoneLevel] >= MAXR && c !== undefined ? ', die geladene Karte reicht nicht weiter' : '') + ').' : 'Radius um jeden Hub: ' + CFG.zones[Math.min(zoneLevel + 1, CFG.zones.length - 1)] + ' statt ' + zoneR() + ' m.');
-        setText(r.b, max ? 'Fertig' : eur(c)); r.b.disabled = max || cash < c;
-      } else if (r.u.id === 'newhub') {
-        const c = CFG.hubBuild[hubs.length], max = hubs.length >= 3; r.row.classList.remove('own');
-        setText(r.n, 'Neuen Hub bauen'); setText(r.sm, max ? 'Mehr als 3 Hubs sind nicht möglich.' : 'Ein weiterer Standort bringt ein neues Liefergebiet und Platz für ' + CFG.hubCaps[hubLevel] + ' Fahrer.');
-        setText(r.b, max ? 'Fertig' : placing ? 'Abbrechen' : eur(c)); r.b.disabled = max || (!placing && cash < c);
-      } else if (r.u.id === 'hub') {
-        const c = CFG.hubCost[hubLevel + 1], max = c === undefined;
-        setText(r.n, 'Hubs ausbauen (Stufe ' + (hubLevel + 1) + ')'); r.row.classList.toggle('own', false);
-        setText(r.sm, max ? 'Größter Ausbau: ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub.' : CFG.hubCaps[hubLevel + 1] + ' statt ' + CFG.hubCaps[hubLevel] + ' Fahrer je Hub.');
-        setText(r.b, max ? 'Fertig' : eur(c)); r.b.disabled = max || cash < c;
-      } else {
-        const own = !!owned[r.u.id]; r.row.classList.toggle('own', own);
-        const locked = !!(r.u.needs && !owned[r.u.needs]);
-        setText(r.n, r.u.name); setText(r.sm, locked ? 'Zuerst nötig: ' + UPG.find(x => x.id === r.u.needs).name + '. ' + r.u.desc : r.u.desc);
-        setText(r.b, own ? 'Gekauft' : eur(r.u.cost)); r.b.disabled = own || locked || cash < r.u.cost;
-      }
+    syncHqTabs();
+    if (hq.tab === 'gm') { for (const r of gameRows) setUpgRow(r, null); }
+    else if (hq.tab[0] === 'h') {
+      const i = hubIdx(), h = hubs[i];
+      setText($('huName'), 'Hub ' + (i + 1) + (i === 0 ? ' · Hauptquartier' : ''));
+      setText($('huInfo'), slotsUsed(i) + ' von ' + capOf(i) + ' Plätzen belegt · Liefergebiet ' + zr(h) + ' m' + (E.nodeName[h.n.car] ? ' · ' + E.nodeName[h.n.car] : ''));
+      for (const r of hubRows) setUpgRow(r, h);
     }
   }
   // ---------- Partner-Restaurants ----------
@@ -2178,7 +2217,7 @@ function startGame(DATA, MODEKEY, PRE) {
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
     tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
-    tip.textContent = h.kind === 'event' ? TEV[h.e.kind].name + ' · ' + h.e.street + ' · noch ' + fmtMin(h.e.dur - (simClock - h.e.t0)) + ' min' : h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zoneR() + ' m · ' + slotsUsed(h.i) + ' / ' + CFG.hubCaps[hubLevel] + ' Fahrer'
+    tip.textContent = h.kind === 'event' ? TEV[h.e.kind].name + ' · ' + h.e.street + ' · noch ' + fmtMin(h.e.dur - (simClock - h.e.t0)) + ' min' : h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zr(hubs[h.i]) + ' m · ' + slotsUsed(h.i) + ' / ' + capOf(h.i) + ' Fahrer'
       : h.kind === 'order' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.pick.name || TYPE_LABEL[h.o.pick.type]) + ' · ' + eur(h.o.pay)
       : 'Fahrer ' + h.d.id + ' · ' + driverLabel(h.d);
   });
@@ -2191,7 +2230,7 @@ function startGame(DATA, MODEKEY, PRE) {
     const h = hit(px, py, e.pointerType === 'touch' ? 26 : 14); if (!h) return;
     if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
     else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; openDriverWin(h.d.id); }
-    else if (h.kind === 'hub') openHQ();
+    else if (h.kind === 'hub') openHQ(h.i);
     else if (h.kind === 'event') openEventInfo(h.e);
   });
   function endPlacing() { placing = false; ghost = null; $('placeBan').hidden = true; cv.classList.remove('placing'); dirty = true; }
@@ -2201,7 +2240,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (Math.hypot(nx[n] - x, ny[n] - y) > 150) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
     if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return flash('Das liegt außerhalb der geladenen Karte.');
     if (hubs.some(h => Math.hypot(h.x - nx[n], h.y - ny[n]) < CFG.hubGap)) return flash('Zu nah an einem anderen Hub (mindestens ' + CFG.hubGap + ' m Abstand).');
-    spend('hub', c); hubs.push({ x: nx[n], y: ny[n], n: { bike: b, car: n } }); rezone(); endPlacing();
+    spend('hub', c); hubs.push({ x: nx[n], y: ny[n], n: { bike: b, car: n }, up: {} }); rezone(); endPlacing();
     log('Neuer Hub ' + hubs.length + ' an ' + (E.nodeName[n] || 'einer Straße') + ', ' + seur(-c), true); plansDirty = true; driverStructDirty = true;
   }
   function flash(t) { const el = $('placeBan'); el.textContent = t; setTimeout(() => { el.innerHTML = 'Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.'; }, 2600); }
@@ -2288,7 +2327,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
     stepAnim(now);
-    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); updateHubs(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
@@ -2308,8 +2347,8 @@ function startGame(DATA, MODEKEY, PRE) {
     { id: 'team8', n: 'Große Mannschaft', d: '8 Fahrer gleichzeitig.', f: () => drivers.length >= 8 },
     { id: 'fleet', n: 'Fuhrpark', d: 'Fahrrad, Roller und Transporter im Einsatz.', f: () => ['bike', 'scooter', 'van'].every(k => drivers.some(d => d.veh === k)) },
     { id: 'hub2', n: 'Zweiter Standort', d: 'Baue einen zweiten Hub.', f: () => hubs.length >= 2 },
-    { id: 'zone', n: 'Ganze Stadt', d: 'Erweitere das Liefergebiet auf die höchste Stufe.', f: () => zoneLevel >= CFG.zones.length - 1 },
-    { id: 'upg', n: 'Voll ausgestattet', d: 'Kaufe alle Ausbauten im Hauptquartier.', f: () => UPG.every(u => owned[u.id]) },
+    { id: 'zone', n: 'Ganze Stadt', d: 'Erweitere das Liefergebiet auf die höchste Stufe.', f: () => hubs.some(h => hl(h, 'zone') >= ZMAX) },
+    { id: 'upg', n: 'Voll ausgestattet', d: 'Kaufe alle Verbesserungen des Spiels und die komplette Ausstattung eines Hubs (Navigation, Motoren, Schnellabholung, Boxen, Wartung).', f: () => UPG.every(u => owned[u.id]) && hubs.some(h => UPG_HUB.every(u => u.base || hl(h, u.id) >= umax(u))) },
     { id: 'lvl5', n: 'Profi', d: 'Bringe einen Fahrer auf Stufe 5.', f: () => drivers.some(d => d.lvl >= 5) },
     { id: 'star', n: 'Beliebt', d: 'Ruf von mindestens 4,5 Sternen.', f: () => rep >= 4.5 },
     { id: 'storm', n: 'Bei jedem Wetter', d: 'Liefere bei Starkregen oder Schnee aus.', f: () => prog.storm >= 1 },
@@ -2386,7 +2425,7 @@ function startGame(DATA, MODEKEY, PRE) {
     ['Willkommen bei Lastmile', 'Du führst einen Lieferdienst. Bestellungen erscheinen als orange Punkte an Restaurants, Cafés, Bäckereien und Supermärkten. Dein Fahrer holt das Essen ab und bringt es zum Kunden.'],
     ['Bestellung zuweisen', 'Wähle eine Bestellung (in der Liste oder auf der Karte). Dann weist du einen freien Fahrer zu. Die Taste A nimmt automatisch den schnellsten. Die Route siehst du vorher auf der Karte.'],
     ['Geld verdienen', 'Jede Lieferung bringt Lohn. Wer schnell liefert, bekommt Trinkgeld und einen besseren Ruf, und ein guter Ruf bringt mehr Bestellungen. Fahrer kosten Stundenlohn, Roller und Transporter auch Fahrzeugkosten.'],
-    ['Wachsen', 'Stelle rechts weitere Fahrer ein. Klicke auf das Hauptquartier (das schwarze Quadrat) für Ausbauten, Partner, neue Hubs und ein größeres Liefergebiet. Ein Klick auf einen Fahrer öffnet seine Schulungen, die Pause (ohne Lohn) und die Kündigung.'],
+    ['Wachsen', 'Stelle rechts weitere Fahrer ein. Klicke auf ein Hauptquartier (das schwarze Quadrat) oder rechts auf „Ausbau“: Dort gibt es Verbesserungen für den Hub, für das ganze Spiel, Partner und neue Hubs. Ein Klick auf einen Fahrer öffnet seine Schulungen, die Pause (ohne Lohn) und die Kündigung.'],
     ['Wetter und Verkehr', 'Tageszeit, Wetter, Stau und Ereignisse verändern Tempo und Nachfrage. Fahrzeuge können liegen bleiben. Die Taste H zeigt auf der Karte, wo gerade am meisten bestellt wird.'],
     ['Speichern', 'Dein Spiel wird automatisch in diesem Browser gespeichert. Mit der Dispositions-Software arbeitet dein Betrieb auch weiter, wenn du nicht da bist (bis zu 4 Stunden). Im Menü findest du Erfolge, Ton und dieses Tutorial.']
   ];
@@ -2474,7 +2513,7 @@ function startGame(DATA, MODEKEY, PRE) {
   // ---------- Speichern und Laden ----------
   // Online liegt der maßgebliche Stand in der Cloud; auf dem Gerät bleibt nur eine Kopie (nie in der Liste „Weiter spielen“)
   const SAVEKEY = ONLINE ? 'lm.osave.' + (LMO.state().uid || 'x') + '.' + CK : 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
-  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 2, BUILD = '2026-10-17';
+  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 3, BUILD = '2026-10-18';
   let noSave = false, saveCount = 0;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsKeys = pre => { const r = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) r.push(k); } } catch (e) {} return r; };
@@ -2484,8 +2523,8 @@ function startGame(DATA, MODEKEY, PRE) {
       v: SAVE_V, app: BUILD, at: Date.now(), mode: MODEKEY, N, np: pois.length, nh: homes.length,
       srv: ONLINE ? Math.round(LMO.serverNow()) : 0, sess: ONLINE ? PRE.sess : null, rank: ONLINE ? Object.assign({}, rk) : null,
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
-      simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
-      hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
+      simClock, cash, rep, autoOn, owned: Object.assign({}, owned), partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
+      hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car, up: Object.assign({}, h.up) })),
       orderSeq, driverSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh },
       led: { exp: led.exp, hist: led.hist, ontime: led.ontime, base: led.base, brk: led.brk, ev: led.ev, places: Object.fromEntries(Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 40)), det: led.det, detSec: led.detSec }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
       seed: WORLD.seed, teScan, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, selDriver: sel.driver,
@@ -2520,6 +2559,14 @@ function startGame(DATA, MODEKEY, PRE) {
   // Prüft und repariert einen Spielstand: fehlende Felder bekommen Standardwerte, unmögliche Werte werden begrenzt.
   const num = (x, d, lo, hi) => (typeof x === 'number' && isFinite(x)) ? Math.min(hi === undefined ? Infinity : hi, Math.max(lo === undefined ? -Infinity : lo, x)) : d;
   const isObj = x => !!x && typeof x === 'object' && !Array.isArray(x), arr = x => Array.isArray(x) ? x : [];
+  function normUp(src) {
+    const up = {}; if (isObj(src)) for (const u of UPG_HUB) { const l = Math.round(num(src[u.id], 0, 0, umax(u))); if (l > 0) up[u.id] = l; }
+    return up;
+  }
+  function legacyUp(sv) {
+    const o = isObj(sv.owned) ? sv.owned : {};
+    return { cap: sv.hubLevel, zone: sv.zoneLevel, nav: o.nav3 ? 3 : o.nav2 ? 2 : o.nav1 ? 1 : 0, motor: o.motor ? 1 : 0, boxes: o.boxes ? 1 : 0, quick: o.quick ? 1 : 0, service: o.service ? 1 : 0 };
+  }
   function normalizeSave(sv) {
     if (!isObj(sv)) throw new Error('kein Spielstand');
     if (!(sv.v >= 1)) throw new Error('Version fehlt');
@@ -2536,11 +2583,12 @@ function startGame(DATA, MODEKEY, PRE) {
         trip: isObj(d.trip) && Number.isInteger(d.trip.o) ? { o: d.trip.o, f: num(d.trip.f, 0, 0, 1) } : null });
     }
     if (!n.drivers.length) throw new Error('keine Fahrer im Spielstand');
-    n.hubs = arr(sv.hubs).filter(h => isObj(h) && isFinite(h.x) && isFinite(h.y)).slice(0, 3).map(h => ({ x: h.x, y: h.y, nb: h.nb, nc: h.nc }));
+    // Bis Version 2 galten Plätze, Liefergebiet und Ausstattung für das ganze Unternehmen: Sie werden auf alle vorhandenen Hubs übertragen.
+    const lg = sv.v < 3 ? legacyUp(sv) : null;
+    n.hubs = arr(sv.hubs).filter(h => isObj(h) && isFinite(h.x) && isFinite(h.y)).slice(0, 3).map(h => ({ x: h.x, y: h.y, nb: h.nb, nc: h.nc, up: normUp(lg || h.up) }));
     if (!n.hubs.length) throw new Error('kein Hub im Spielstand');
     for (const d of n.drivers) d.hub = Math.min(d.hub, n.hubs.length - 1);
     n.simClock = num(sv.simClock, 0, 0); n.cash = num(sv.cash, CFG.startCash); n.rep = num(sv.rep, 3, 1, 5);
-    n.hubLevel = Math.round(num(sv.hubLevel, 0, 0, CFG.hubCaps.length - 1)); n.zoneLevel = Math.round(num(sv.zoneLevel, 0, 0, CFG.zones.length - 1));
     n.autoOn = !!sv.autoOn; n.owned = {}; for (const u of UPG) if (isObj(sv.owned) && sv.owned[u.id]) n.owned[u.id] = true;
     n.partners = arr(sv.partners).filter(Number.isInteger); n.partnerXY = arr(sv.partnerXY).filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1]));
     n.orderSeq = Math.round(num(sv.orderSeq, 1001, 1)); n.lastSpawnT = num(sv.lastSpawnT, 0);
@@ -2568,7 +2616,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function applySave(sv) {
     const notes = [], same = sv.N === N && sv.np === pois.length && sv.nh === homes.length;
     const near = (list, x, y, maxD) => { let best = -1, bd = maxD * maxD; for (const p of list) { const d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y); if (d < bd) { bd = d; best = p.i; } } return best; };
-    simClock = sv.simClock; realign(); cash = sv.cash; rep = sv.rep; hubLevel = sv.hubLevel; autoOn = sv.autoOn; zoneLevel = sv.zoneLevel;
+    simClock = sv.simClock; realign(); cash = sv.cash; rep = sv.rep; autoOn = sv.autoOn;
     for (const k in owned) delete owned[k]; Object.assign(owned, sv.owned);
     partners.clear();
     if (same) sv.partners.forEach(i => { if (i >= 0 && i < pois.length) partners.add(i); });
@@ -2580,7 +2628,7 @@ function startGame(DATA, MODEKEY, PRE) {
     hubs.length = 0;
     for (const h of sv.hubs) {
       const ok = same && Number.isInteger(h.nb) && Number.isInteger(h.nc) && h.nb >= 0 && h.nb < N && h.nc >= 0 && h.nc < N;
-      hubs.push({ x: h.x, y: h.y, n: ok ? { bike: h.nb, car: h.nc } : { bike: E.hubNode('bike', h.x, h.y), car: E.hubNode('scooter', h.x, h.y) } });
+      hubs.push({ x: h.x, y: h.y, n: ok ? { bike: h.nb, car: h.nc } : { bike: E.hubNode('bike', h.x, h.y), car: E.hubNode('scooter', h.x, h.y) }, up: h.up });
     }
     orderSeq = sv.orderSeq; driverSeq = sv.driverSeq; lastSpawnT = sv.lastSpawnT; bill.wage = sv.bill.wage; bill.veh = sv.bill.veh;
     Object.assign(led, sv.led); Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
@@ -2781,7 +2829,7 @@ function startGame(DATA, MODEKEY, PRE) {
         b.appendChild(mk('p', 'big', 'Deine Auto-Disposition hat in der Zeit ca. ' + r.n + ' Bestellungen ausgeliefert. Nach Abzug der Löhne (' + eur(r.wages) + ') bleiben ' + seur(r.net) + '.'));
       } else {
         b.appendChild(mk('p', 'big', 'Dein Betrieb hat geruht, es wurde nichts ausgeliefert und kein Lohn gezahlt.'));
-        b.appendChild(mk('p', null, 'Mit der Dispositions-Software (Hauptquartier) und eingeschalteter Auto-Disposition arbeitet dein Betrieb auch in deiner Abwesenheit weiter.'));
+        b.appendChild(mk('p', null, 'Mit der Dispositions-Software (Verbesserungen, Reiter „Spiel“) und eingeschalteter Auto-Disposition arbeitet dein Betrieb auch in deiner Abwesenheit weiter.'));
       }
       const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Weiter spielen'); ok.type = 'button'; ok.onclick = closeDlg; row.appendChild(ok); b.appendChild(row);
     }, { pause: true });
@@ -2794,9 +2842,8 @@ function startGame(DATA, MODEKEY, PRE) {
   function companyValue() {
     let v = cash;
     for (const d of drivers) v += CFG.vehPrice[d.veh] || 0;
-    for (const u of UPG) if (owned[u.id]) v += u.cost;
-    for (let i = 1; i <= zoneLevel; i++) v += CFG.zoneCost[i] || 0;
-    for (let i = 1; i <= hubLevel; i++) v += CFG.hubCost[i] || 0;
+    for (const u of UPG) if (owned[u.id]) v += u.cost[0];
+    for (const h of hubs) for (const u of UPG_HUB) for (let l = 0; l < hl(h, u.id); l++) v += u.cost[l];
     for (let i = 1; i < hubs.length; i++) v += CFG.hubBuild[i] || 0;
     return v + partners.size * CFG.partnerCost;
   }
@@ -2977,7 +3024,7 @@ function startGame(DATA, MODEKEY, PRE) {
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
+  window.__lm = { save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });
