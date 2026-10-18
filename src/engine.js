@@ -3,6 +3,7 @@ function createEngine(D) {
   const REF = D.ref;
   const MLAT = 110574, MLON = 111320 * Math.cos(REF.lat * Math.PI / 180);
   const proj = (lat, lon) => ({ x: (lon - REF.lon) * MLON, y: -(lat - REF.lat) * MLAT });
+  const unproj = (x, y) => ({ lat: REF.lat - y / MLAT, lon: REF.lon + x / MLON });   // Umkehrung von proj (für die Anzeige auf der Weltkarte)
 
   // ---- Knoten und Wege entschlüsseln ----
   const N = R.n.length / 2;
@@ -338,7 +339,7 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode, elevRange, nz,
+    nearest, planTrip, sample, tripState, proj, unproj, MLAT, MLON, returnLeg, hubNode, elevRange, nz,
     EN, eA, eB, eC, eDir, eMidX, eMidY, eBase, cong, updateTraffic, trafficMul, reroute
   };
 }

@@ -14,7 +14,7 @@
   --ink: #17202a;
   --muted: #566574;
   --line: #cbd3da;
-  --map-bg: #edf0f3;
+  --map-bg: #edf0f3; --base-fade: .7; --base-sat: .7;
   --road-casing: #c0c8d0;
   --road: #ffffff;
   --road-major: #fffaf0;
@@ -161,9 +161,13 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .log li.bad span { color: var(--warn); }
 
 .mapwrap { position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--map-bg); min-height: 360px; min-width: 0; }
-.mapwrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
-.mapwrap canvas.pointer { cursor: pointer; }
-.mapwrap canvas.dragging { cursor: grabbing; }
+.mapwrap canvas#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.mapwrap canvas#map.pointer { cursor: pointer; }
+.mapwrap canvas#map.dragging { cursor: grabbing; }
+/* Kartenbild unter dem Spiel: blass, damit Verkehr, Routen und Fahrer im Vordergrund stehen (Stärke über --base-fade) */
+#basemap { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s ease; filter: saturate(var(--base-sat, .7)); }
+#basemap.on { opacity: var(--base-fade); }
+#basemap .maplibregl-canvas { outline: none; }
 .mapctl { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; }
 .mapctl button { width: 34px; height: 34px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 4px; cursor: pointer; font: 500 16px var(--font-mono); display: grid; place-items: center; }
 .mapctl button:hover { border-color: var(--muted); }
@@ -341,7 +345,8 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
   .grid[data-tab="map"] > .mapwrap { display: block; order: 0; height: auto; min-height: 0; }
   .grid[data-tab="ops"] > .panel:last-child { display: flex; }
   .panel { overflow: auto; }
-  .keys, .attr { display: none; }
+  .keys { display: none; }
+  .attr { font-size: 10px; padding: 2px 6px; max-width: 70%; }
   .legend { font-size: 11px; gap: 4px 10px; }
   .tabbar { display: grid; grid-template-columns: repeat(3, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
   .tabbar button { border: 0; background: transparent; color: var(--muted); padding: 14px 0; font: 500 14px var(--font-ui); cursor: pointer; }
@@ -419,7 +424,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <div class="bar2" id="statusBar"><i id="statusI"></i></div>
       <div class="accrow" id="statusBtns" hidden><button type="button" class="btn primary" id="statusRetry">Erneut versuchen</button><button type="button" class="btn" id="statusBack">Zurück</button><button type="button" class="btn danger" id="statusExtra" hidden></button></div>
     </div>
-    <p class="foot">Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL). Orte werden über Nominatim gesucht und über die Overpass-API geladen. Geladene Karten bleiben in deinem Browser gespeichert.</p>
+    <p class="foot">Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL). Orte werden über Nominatim gesucht und über die Overpass-API geladen. Geladene Karten bleiben in deinem Browser gespeichert. Im Spiel kommt das Kartenbild von <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>.</p>
   </div>
 </div>
 
@@ -469,6 +474,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
     </aside>
 
     <section class="mapwrap" id="mapwrap">
+      <div id="basemap" aria-hidden="true"></div>
       <canvas id="map" role="img" aria-label="Straßenkarte mit Hub, Bestellungen und Fahrern"></canvas>
       <div class="legend">
         <span><i style="width:12px;height:12px;border-radius:3px;background:var(--hub);"></i>Hub</span>
@@ -480,9 +486,12 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <div class="mapctl">
         <button type="button" id="zin" aria-label="Vergrößern">+</button>
         <button type="button" id="zout" aria-label="Verkleinern">−</button>
-        <button type="button" id="zfit" aria-label="Ganze Karte zeigen" title="Ganze Karte zeigen (F)">⌖</button>
+        <button type="button" id="zfit" aria-label="Zur Stadt zurück" title="Zur Stadt zurück (F)">⌖</button>
+        <button type="button" id="zworld" aria-label="Ganze Erde zeigen" title="Ganze Erde zeigen (W)">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="7.6" fill="none" stroke="currentColor" stroke-width="1.5"/><ellipse cx="10" cy="10" rx="3.3" ry="7.6" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.6 10h14.8M4 6.2h12M4 13.8h12" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
       </div>
-      <div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a></div>
+      <div class="attr"><a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> · Daten von <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></div>
       <div class="tip" id="tip" hidden></div>
       <div class="placeban" id="placeBan" hidden>Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.</div>
     </section>
@@ -508,7 +517,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <h2>Protokoll</h2>
         <ol class="log" id="log"></ol>
       </div>
-      <p class="keys"><span><kbd>A</kbd> schnellsten Fahrer zuweisen</span><span><kbd>↑</kbd><kbd>↓</kbd> Bestellung wählen</span><span><kbd>Leertaste</kbd> Pause</span><span><kbd>F</kbd> Karte einpassen</span></p>
+      <p class="keys"><span><kbd>A</kbd> schnellsten Fahrer zuweisen</span><span><kbd>↑</kbd><kbd>↓</kbd> Bestellung wählen</span><span><kbd>Leertaste</kbd> Pause</span><span><kbd>F</kbd> Karte einpassen</span><span><kbd>W</kbd> ganze Erde</span></p>
     </aside>
   </main>
   <nav class="tabbar" id="tabbar" aria-label="Ansicht">
@@ -655,6 +664,7 @@ function createEngine(D) {
   const REF = D.ref;
   const MLAT = 110574, MLON = 111320 * Math.cos(REF.lat * Math.PI / 180);
   const proj = (lat, lon) => ({ x: (lon - REF.lon) * MLON, y: -(lat - REF.lat) * MLAT });
+  const unproj = (x, y) => ({ lat: REF.lat - y / MLAT, lon: REF.lon + x / MLON });   // Umkehrung von proj (für die Anzeige auf der Weltkarte)
 
   // ---- Knoten und Wege entschlüsseln ----
   const N = R.n.length / 2;
@@ -990,7 +1000,7 @@ function createEngine(D) {
 
   return {
     N, nx, ny, ways, inc, nodeName, bounds, pois, homes, TYPE_LABEL, DWELL, VEHICLES, nets, HUB,
-    nearest, planTrip, sample, tripState, proj, returnLeg, hubNode, elevRange, nz,
+    nearest, planTrip, sample, tripState, proj, unproj, MLAT, MLON, returnLeg, hubNode, elevRange, nz,
     EN, eA, eB, eC, eDir, eMidX, eMidY, eBase, cong, updateTraffic, trafficMul, reroute
   };
 }
@@ -2276,6 +2286,101 @@ const LMMod = (function () {
   return { flagBtn, reportForm, renameForm, adminPanel, errText };
 })();
 
+// Kartenbild unter dem Spiel: OpenFreeMap (OpenStreetMap-Vektorkacheln), gezeichnet mit MapLibre GL JS.
+// Das Spiel zeichnet seine eigene Schicht (Verkehr, Routen, Fahrer, Bestellungen, Ereignisse) auf einer durchsichtigen Fläche darüber.
+// Die Kamera gehört dem Spiel; die Karte folgt ihr nur. Die Bibliothek wird erst beim Spielstart nachgeladen.
+// Es werden ausschließlich Kacheln für das Kartenbild geladen. Von anderen Spielern kommt hier nichts an.
+const LMBase = (function () {
+  const TS = 512, MAXLAT = 85.0511287798, EARTH = 40075016.686, MAXZ = 18;
+  const STYLES = { light: 'https://tiles.openfreemap.org/styles/positron', dark: 'https://tiles.openfreemap.org/styles/dark' };
+  const LIB = { js: 'vendor/maplibre-gl.js', css: 'vendor/maplibre-gl.css', ver: '5.7.3' };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  // ---- Web-Mercator, normiert: u = 0 … 1 von West nach Ost, v = 0 … 1 von Nord nach Süd (wie in MapLibre bei Kachelgröße 512) ----
+  const mercU = lon => (lon + 180) / 360;
+  const mercV = lat => { const s = Math.sin(clamp(lat, -MAXLAT, MAXLAT) * Math.PI / 180); return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI); };
+  const lonOf = u => u * 360 - 180;
+  const latOf = v => Math.atan(Math.sinh(Math.PI * (1 - 2 * v))) * 180 / Math.PI;
+  const worldPx = z => TS * Math.pow(2, z);                                    // Breite der ganzen Erde in Bildpunkten bei Zoomstufe z
+  const metersPerPx = (lat, z) => EARTH * Math.cos(lat * Math.PI / 180) / worldPx(z);
+
+  let libP = null;
+  function loadLib() {
+    if (typeof window !== 'undefined' && window.maplibregl) return Promise.resolve(window.maplibregl);
+    if (libP) return libP;
+    libP = new Promise((resolve, reject) => {
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = LIB.css + '?v=' + LIB.ver; document.head.appendChild(l);
+      const s = document.createElement('script'); s.async = true; s.src = LIB.js + '?v=' + LIB.ver;
+      const t = setTimeout(() => reject(new Error('Kartenbibliothek: Zeitüberschreitung')), 25000);
+      s.onload = () => { clearTimeout(t); window.maplibregl ? resolve(window.maplibregl) : reject(new Error('Kartenbibliothek fehlt')); };
+      s.onerror = () => { clearTimeout(t); reject(new Error('Kartenbibliothek konnte nicht geladen werden')); };
+      document.head.appendChild(s);
+    });
+    libP.catch(() => { libP = null; });
+    return libP;
+  }
+
+  // host: leeres Element, das die Karte füllt. o.dark(): dunkles Farbschema? o.dpr(): Pixeldichte. o.onState(zustand): 'on' | 'off'.
+  function create(host, o) {
+    const inst = { why: 'lädt', lib: null };
+    let map = null, state = 'off', styleKey = null, styleLoaded = false, okTiles = 0, errs = 0, retries = 0, retryT = null, last = '', dead = false;
+    const setState = s => {
+      if (s === state || dead) return; state = s; host.classList.toggle('on', s === 'on');
+      if (s === 'on') { retries = 0; inst.why = ''; last = ''; }
+      try { o.onState && o.onState(s); } catch (e) { console.error(e); }
+    };
+    const fail = why => {
+      if (dead) return; inst.why = why; setState('off'); clearTimeout(retryT);
+      if (retries < 3) retryT = setTimeout(() => { retries++; styleKey = null; applyStyle(); }, 20000 * (retries + 1));
+    };
+    function applyStyle() {
+      if (!map || dead) return;
+      const key = o.dark() ? 'dark' : 'light'; if (key === styleKey) return;
+      styleKey = key; styleLoaded = false; okTiles = 0; errs = 0; last = '';
+      map.setStyle(STYLES[key], { diff: false });
+    }
+
+    loadLib().then(lib => {
+      if (dead) return; inst.lib = lib;
+      try {
+        const key = o.dark() ? 'dark' : 'light'; styleKey = key;
+        map = new lib.Map({
+          container: host, style: STYLES[key], center: [0, 0], zoom: 1, minZoom: 0, maxZoom: MAXZ + 1,
+          interactive: false, attributionControl: false, trackResize: false, fadeDuration: 0, maxPitch: 0, renderWorldCopies: true,
+          pixelRatio: o.dpr ? o.dpr() : 1, canvasContextAttributes: { antialias: true }
+        });
+      } catch (e) { console.warn('Kartenbild nicht verfügbar:', e && e.message); inst.why = 'WebGL fehlt'; map = null; return; }   // z. B. ohne WebGL: das Spiel zeichnet die Straßen selbst
+      map.on('style.load', () => { styleLoaded = true; });
+      map.on('sourcedata', e => { if (e && e.tile && e.sourceId !== undefined) okTiles++; });
+      map.on('error', e => {
+        if (dead) return;
+        if (!styleLoaded) { fail('Stil nicht erreichbar'); return; }
+        const st = e && e.error && e.error.status;
+        if (e && e.sourceId && st !== 404) { errs++; if (state !== 'on' && !okTiles && errs >= 3) fail('Kacheln nicht erreichbar'); }
+      });
+      map.on('idle', () => { if (state !== 'on' && styleLoaded && okTiles > 0) setState('on'); });
+      inst.map = map; last = ''; if (o.ready) o.ready();
+    }).catch(e => { console.warn('Kartenbild nicht verfügbar:', e && e.message); inst.why = 'Bibliothek fehlt'; });
+
+    // Kamera: u, v = Bildmitte (normiert), z = Zoomstufe; ruft das Spiel bei jeder Zeichnung auf, damit Bild und Spielschicht im selben Einzelbild stehen
+    inst.move = (u, v, z) => {
+      if (!map) return;
+      const key = u + '|' + v + '|' + z + '|' + host.clientWidth + 'x' + host.clientHeight; if (key === last) return; last = key;
+      map.jumpTo({ center: [lonOf(u), latOf(v)], zoom: z, bearing: 0, pitch: 0 });
+      if (state === 'on') map.redraw();
+    };
+    inst.resize = () => { if (map) { map.resize(); last = ''; } };
+    inst.setDpr = d => { if (map && map.setPixelRatio) map.setPixelRatio(d); last = ''; };
+    inst.restyle = () => applyStyle();
+    inst.state = () => state;
+    inst.destroy = () => { dead = true; clearTimeout(retryT); if (map) { try { map.remove(); } catch (e) {} map = null; } };
+    window.addEventListener('online', () => { if (!dead && state === 'off' && map && inst.why && inst.why !== 'WebGL fehlt') { styleKey = null; applyStyle(); } });
+    return inst;
+  }
+
+  return { TS, MAXZ, MAXLAT, STYLES, LIB, mercU, mercV, lonOf, latOf, worldPx, metersPerPx, create };
+})();
+
 
 const $ = id => document.getElementById(id);
 const MODES = {
@@ -2354,6 +2459,8 @@ function startGame(DATA, MODEKEY, PRE) {
     T = { mapbg: g('--map-bg'), casing: g('--road-casing'), road: g('--road'), roadMajor: g('--road-major'), casingMajor: g('--road-casing-major'),
       cycle: g('--cycle'), label: g('--label'), halo: g('--label-halo'), signal: g('--signal'), route: g('--route'), done: g('--done'),
       poi: g('--poi'), home: g('--home'), hub: g('--hub'), hubInk: g('--hub-ink'), ink: g('--ink'), ok: g('--ok') };
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(T.mapbg);
+    T.dark = m ? (parseInt(m[1], 16) * 0.3 + parseInt(m[2], 16) * 0.59 + parseInt(m[3], 16) * 0.11) < 110 : false;
   }
 
   // ---------- Spielzustand ----------
@@ -2373,11 +2480,18 @@ function startGame(DATA, MODEKEY, PRE) {
   const sel = { order: null, driver: 1, preview: null };
   let plans = {};           // Zuweisungsvorschläge für die gewählte Bestellung: Fahrer-ID -> Plan
   let plansDirty = true, orderStructDirty = true, driverStructDirty = true;
-  const cam = { x: 0, y: 0, s: 0.5 };
+  // Kamera: Die Bildmitte liegt in Web-Mercator-Koordinaten (u, v normiert auf 0 … 1) bei Zoomstufe z, so wie das Kartenbild sie versteht.
+  // K = Breite der ganzen Erde in Bildpunkten, w = Kopie der Erde, die der Stadt am nächsten liegt. Abgeleitet: x, y = Bildmitte in Spielmetern, s = Bildpunkte je Spielmeter.
+  const cam = { u: 0, v: 0.5, z: 14, K: 1, w: 0, x: 0, y: 0, s: 0.5 };
   let cw = 0, ch = 0, dpr = 1;
 
   const cv = $('map'), ctx = cv.getContext('2d'), wrap = $('mapwrap');
   const sx = new Float32Array(N), sy = new Float32Array(N);
+  // Spielmeter <-> Web-Mercator: u ist linear in x, v hängt (nichtlinear) nur von y ab. So liegt alles genau auf dem Kartenbild, auch bei der Erdansicht.
+  const B = LMBase, RLAT = DATA.ref.lat, U0 = B.mercU(DATA.ref.lon), KU = 1 / (360 * E.MLON);
+  const yv = y => B.mercV(RLAT - y / E.MLAT);
+  const nu = new Float64Array(N), nv = new Float64Array(N);
+  for (let i = 0; i < N; i++) { nu[i] = U0 + nx[i] * KU; nv[i] = yv(ny[i]); }
 
   // ---------- Straßenstil ----------
   const W = [16, 12, 10, 8, 6.5, 5, 4, 2.5];
@@ -2399,28 +2513,59 @@ function startGame(DATA, MODEKEY, PRE) {
   const textW = new Map();
 
   // ---------- Kamera ----------
-  function fit() {
+  const NOBASE = /[?&]nobase/.test(location.search);
+  const LOD = 0.05;                                          // darunter (ca. 40 km Breite) zeigt die Karte nur noch den Standort
+  const zOfS = s => Math.log2(s / KU / B.TS), sOfZ = z => B.worldPx(z) * KU;
+  let base = null;                                           // Kartenbild; fällt es aus, zeichnet das Spiel die Straßen selbst
+  const baseOn = () => !!base && base.state() === 'on';
+  const zRange = () => { const hi = B.MAXZ, lo = baseOn() ? Math.max(0, Math.log2(ch / B.TS) + 0.001) : zOfS(0.05); return [Math.min(lo, hi), hi]; };
+  function camSet(u, v, z) {
+    const r = zRange(); z = Math.min(r[1], Math.max(r[0], z));
+    const K = B.worldPx(z), hh = ch / 2 / K;
+    v = hh >= 0.5 ? 0.5 : Math.min(1 - hh, Math.max(hh, v));
+    u -= Math.floor(u);
+    cam.u = u; cam.v = v; cam.z = z; cam.K = K; cam.s = K * KU; cam.w = Math.round(u - U0);
+    cam.x = (u - cam.w - U0) / KU; cam.y = (RLAT - B.latOf(v)) * E.MLAT;
+    dirty = true;
+  }
+  const toX = x => (U0 + x * KU + cam.w - cam.u) * cam.K + cw / 2, toY = y => (yv(y) - cam.v) * cam.K + ch / 2;   // Spielmeter -> Bildpunkt
+  const unX = px => ((px - cw / 2) / cam.K + cam.u - cam.w - U0) / KU, unY = py => (RLAT - B.latOf((py - ch / 2) / cam.K + cam.v)) * E.MLAT;   // Bildpunkt -> Spielmeter
+  function target(x, y, s) { return { u: U0 + x * KU + cam.w, v: yv(y), z: zOfS(s) }; }
+  function fitTarget() {
     const R = zoneR() * 1.12; let a = Infinity, b2 = -Infinity, c = Infinity, d = -Infinity;
     for (const h of hubs) { a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
     a = Math.max(a, bounds.minX); b2 = Math.min(b2, bounds.maxX); c = Math.max(c, bounds.minY); d = Math.min(d, bounds.maxY);
-    cam.x = (a + b2) / 2; cam.y = (c + d) / 2;
-    cam.s = Math.max(0.05, Math.min(cw / ((b2 - a) * 1.04), ch / ((d - c) * 1.04)));
-    dirty = true;
+    const x = (a + b2) / 2, y = (c + d) / 2, ar = (E.MLON / E.MLAT) / Math.cos(B.latOf(yv(y)) * Math.PI / 180);   // Höhe und Breite eines Spielmeters unterscheiden sich um ca. 0,7 %
+    return target(x, y, Math.max(0.05, Math.min(cw / ((b2 - a) * 1.04), ch / ((d - c) * 1.04 * ar))));
+  }
+  function fit() { const t = fitTarget(); camSet(t.u, t.v, t.z); }
+  // sanfter Flug zu einer Ansicht (nimmt den kürzesten Weg um die Erde)
+  let anim = null;
+  function flyTo(t, ms) {
+    if (!ms || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { anim = null; camSet(t.u, t.v, t.z); return; }
+    let du = t.u - cam.u; du -= Math.round(du);
+    anim = { t0: performance.now(), ms, u0: cam.u, v0: cam.v, z0: cam.z, du, dv: t.v - cam.v, dz: t.z - cam.z }; dirty = true;
+  }
+  function stepAnim(now) {
+    if (!anim) return;
+    const k = Math.min(1, (now - anim.t0) / anim.ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    camSet(anim.u0 + anim.du * e, anim.v0 + anim.dv * e, anim.z0 + anim.dz * e); if (k >= 1) anim = null;
   }
   function zoomAt(px, py, k) {
-    const ns = Math.min(4, Math.max(0.08, cam.s * k));
-    const wx = (px - cw / 2) / cam.s + cam.x, wy = (py - ch / 2) / cam.s + cam.y;
-    cam.s = ns; cam.x = wx - (px - cw / 2) / cam.s; cam.y = wy - (py - ch / 2) / cam.s;
-    dirty = true;
+    anim = null;
+    const r = zRange(), nz = Math.min(r[1], Math.max(r[0], cam.z + Math.log2(k))); if (nz === cam.z) return;
+    const nK = B.worldPx(nz), qu = cam.u + (px - cw / 2) / cam.K, qv = cam.v + (py - ch / 2) / cam.K;
+    camSet(qu - (px - cw / 2) / nK, qv - (py - ch / 2) / nK, nz);
   }
+  function showWorld() { const z = zRange()[0]; flyTo({ u: U0 + cam.w, v: 0.5, z }, 1200); }
   function resize() {
-    const r = wrap.getBoundingClientRect(), first = cw === 0;
-    cw = Math.max(1, Math.round(r.width)); ch = Math.max(1, Math.round(r.height)); dpr = Math.min(2, window.devicePixelRatio || 1);
+    const first = cw <= 1;
+    cw = Math.max(1, wrap.clientWidth); ch = Math.max(1, wrap.clientHeight); dpr = Math.min(2, window.devicePixelRatio || 1);   // Innenmaß (ohne Rahmen): genau so groß wie Kartenbild und Zeichenfläche
     cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
-    if (first) fit();
+    if (base) { base.setDpr(dpr); base.resize(); }
+    if (first) fit(); else camSet(cam.u, cam.v, cam.z);
     dirty = true;
   }
-  const toX = x => (x - cam.x) * cam.s + cw / 2, toY = y => (y - cam.y) * cam.s + ch / 2;
 
   // ---------- Zeichnen ----------
   function roadPath(list) {
@@ -2576,10 +2721,10 @@ function startGame(DATA, MODEKEY, PRE) {
     }
   }
   function drawScale() {
-    const mpp = 1 / cam.s; let len = 20; for (const c of [20, 50, 100, 200, 500, 1000]) { len = c; if (c / mpp >= 60) break; }
+    const mpp = B.metersPerPx(B.latOf(cam.v), cam.z); let len = 20; for (const c of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000]) { len = c; if (c / mpp >= 60) break; }
     const px = len / mpp, x = 14, y = ch - 18;
     ctx.strokeStyle = T.ink; ctx.lineWidth = 2; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 5); ctx.stroke();
-    ctx.font = '500 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; halo(len >= 1000 ? (len / 1000) + ' km' : len + ' m', x + 3, y - 4, T.ink);
+    ctx.font = '500 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; halo(len >= 1000 ? (len / 1000).toLocaleString('de-DE') + ' km' : len + ' m', x + 3, y - 4, T.ink);
   }
   function drawBadge(x, y, kind, f) {
     const r = 11; ctx.save(); ctx.translate(x, y); ctx.globalAlpha = Math.max(0.4, Math.min(1, f * 2)); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg;
@@ -2624,15 +2769,40 @@ function startGame(DATA, MODEKEY, PRE) {
     }
     ctx.restore(); dirty = true;
   }
+  // Erdansicht: weit herausgezoomt zeigt die Karte nur noch den eigenen Standort (die Erde ist in allen Kopien sichtbar)
+  function drawWorldMark() {
+    const y = toY(HUB.y); ctx.font = '600 12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (const k of [-1, 0, 1]) {
+      const x = toX(HUB.x) + k * cam.K; if (x < -80 || x > cw + 80 || y < -20 || y > ch + 20) continue;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, 6.283); ctx.fillStyle = T.hub; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = T.mapbg; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 11, 0, 6.283); ctx.lineWidth = 1.5; ctx.strokeStyle = T.signal; ctx.stroke();
+      halo(DATA.name, x + 16, y, T.ink);
+    }
+  }
+  // Außerhalb des Liefergebiets wird das Kartenbild abgedunkelt (wie früher die blasseren Straßen)
+  function drawVeil() {
+    const a = Math.min(1, Math.max(0, (cam.s - LOD) / 0.1)) * 0.45; if (a < 0.01) return;
+    ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
+    ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s); ctx.fill(); ctx.restore();
+  }
   function draw() {
     const sig = document.documentElement.getAttribute('data-theme') + '|' + mq.matches;
-    if (sig !== themeSig || !T) { themeSig = sig; readTheme(); }
+    if (sig !== themeSig || !T) { themeSig = sig; readTheme(); if (base) base.restyle(); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
-    const s = cam.s, ox = cw / 2 - cam.x * s, oy = ch / 2 - cam.y * s;
-    for (let i = 0; i < N; i++) { sx[i] = nx[i] * s + ox; sy[i] = ny[i] * s + oy; }
-    ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
-    ctx.save(); zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawTraffic(); drawLabels(); ctx.restore();
+    const own = !baseOn();                                   // ohne Kartenbild zeichnet das Spiel die Straßen selbst
+    if (base) base.move(cam.u, cam.v, cam.z);
+    if (own) { ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); } else ctx.clearRect(0, 0, cw, ch);
+    if (cam.s < LOD) { drawWorldMark(); drawScale(); return; }
+    const K = cam.K, ox = cw / 2, oy = ch / 2, cu = cam.u - cam.w, cvv = cam.v;
+    for (let i = 0; i < N; i++) { sx[i] = (nu[i] - cu) * K + ox; sy[i] = (nv[i] - cvv) * K + oy; }
+    const zone = () => zonePath(ghost && placing ? hubs.concat([ghost]) : hubs, zoneR() * cam.s);
+    if (own) {
+      ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
+      ctx.save(); zone(); ctx.clip(); ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); drawRoads(); drawTraffic(); drawLabels(); ctx.restore();
+    } else {
+      drawVeil();
+      ctx.save(); zone(); ctx.clip(); drawTraffic(); ctx.restore();
+    }
     drawZoneOutline(); drawHeat();
     // Vorschau einer möglichen Zuweisung
     const pv = sel.preview !== null ? plans[sel.preview] : null;
@@ -2768,7 +2938,7 @@ function startGame(DATA, MODEKEY, PRE) {
       const v = (m.get(k) || 0) + w; m.set(k, v); if (v > mx) mx = v;
     }
     ctx.save(); ctx.fillStyle = T.signal;
-    for (const [k, v] of m) { const c = k.split(',').map(Number); ctx.globalAlpha = 0.07 + 0.5 * (v / mx); ctx.fillRect(toX(c[0] * cell), toY(c[1] * cell), cell * cam.s, cell * cam.s); }
+    for (const [k, v] of m) { const c = k.split(',').map(Number); ctx.globalAlpha = 0.07 + 0.5 * (v / mx); const y0 = toY(c[1] * cell); ctx.fillRect(toX(c[0] * cell), y0, cell * cam.s, toY((c[1] + 1) * cell) - y0); }
     ctx.restore();
   }
 
@@ -3590,16 +3760,16 @@ function startGame(DATA, MODEKEY, PRE) {
     return best;
   }
   const rel = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointerdown', e => { anim = null; drag = { x: e.clientX, y: e.clientY, u: cam.u, v: cam.v, K: cam.K, moved: false }; cv.setPointerCapture(e.pointerId); });
   cv.addEventListener('pointermove', e => {
     const [px, py] = rel(e);
     if (drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (Math.hypot(dx, dy) > 4) { drag.moved = true; cv.classList.add('dragging'); tip.hidden = true; }
-      if (drag.moved) { cam.x = drag.cx - dx / cam.s; cam.y = drag.cy - dy / cam.s; dirty = true; }
+      if (drag.moved) camSet(drag.u - dx / drag.K, drag.v - dy / drag.K, cam.z);
       return;
     }
-    if (placing) { ghost = { x: (px - cw / 2) / cam.s + cam.x, y: (py - ch / 2) / cam.s + cam.y }; dirty = true; tip.hidden = true; return; }
+    if (placing) { ghost = { x: unX(px), y: unY(py) }; dirty = true; tip.hidden = true; return; }
     const h = hit(px, py, 12);
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
@@ -3613,7 +3783,7 @@ function startGame(DATA, MODEKEY, PRE) {
     const wasClick = drag && !drag.moved; drag = null; cv.classList.remove('dragging');
     if (!wasClick) return;
     const [px, py] = rel(e);
-    if (placing) return placeHub((px - cw / 2) / cam.s + cam.x, (py - ch / 2) / cam.s + cam.y);
+    if (placing) return placeHub(unX(px), unY(py));
     const h = hit(px, py, e.pointerType === 'touch' ? 26 : 14); if (!h) return;
     if (h.kind === 'order') { if (h.o.state === 'open') selectOrder(h.o.id); else { sel.driver = h.o.driver; driverStructDirty = true; dirty = true; } }
     else if (h.kind === 'driver') { sel.driver = h.d.id; driverStructDirty = true; dirty = true; openDriverWin(h.d.id); }
@@ -3642,7 +3812,8 @@ function startGame(DATA, MODEKEY, PRE) {
   cv.addEventListener('wheel', e => { e.preventDefault(); const [px, py] = rel(e); zoomAt(px, py, Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
   $('zin').onclick = () => zoomAt(cw / 2, ch / 2, 1.4);
   $('zout').onclick = () => zoomAt(cw / 2, ch / 2, 1 / 1.4);
-  $('zfit').onclick = fit;
+  $('zfit').onclick = () => flyTo(fitTarget(), 700);
+  $('zworld').onclick = showWorld;
   $('heatBtn').onclick = () => { heat = !heat; $('heatBtn').setAttribute('aria-pressed', String(heat)); dirty = true; };
 
   // ---------- Steuerung ----------
@@ -3666,7 +3837,8 @@ function startGame(DATA, MODEKEY, PRE) {
     if (k === 'a' || k === 'A') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); }
     else if (k === 'ArrowDown') { e.preventDefault(); cycleOrder(1); }
     else if (k === 'ArrowUp') { e.preventDefault(); cycleOrder(-1); }
-    else if (k === 'f' || k === 'F') fit();
+    else if (k === 'f' || k === 'F') flyTo(fitTarget(), 700);
+    else if ((k === 'w' || k === 'W') && baseOn()) showWorld();
     else if (k === 'h' || k === 'H') $('heatBtn').click();
     else if (k === 't' || k === 'T') setTraffic(!showTraffic);
     else if (k === 'k' || k === 'K') $('cashBtn').click();
@@ -3711,6 +3883,7 @@ function startGame(DATA, MODEKEY, PRE) {
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
+    stepAnim(now);
     if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); updateHubs(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
@@ -3833,6 +4006,8 @@ function startGame(DATA, MODEKEY, PRE) {
       const snd = btn('Ton: ' + (sndOn ? 'an' : 'aus'), () => { sndOn = !sndOn; try { localStorage.setItem('lm-snd', sndOn ? '1' : '0'); } catch (e) {} snd.textContent = 'Ton: ' + (sndOn ? 'an' : 'aus'); if (sndOn) sfx('done'); });
       btn('Finanzen und Statistik', () => { closeDlg(); openStat(); });
       const trf = btn('Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'), () => { setTraffic(!showTraffic); trf.textContent = 'Verkehrsfarben: ' + (showTraffic ? 'an' : 'aus'); });
+      const LOOKS = { pale: 'blass', full: 'kräftig', off: 'nur eigene Straßen' };
+      const look = btn('Kartenbild: ' + LOOKS[baseLook], () => { setLook({ pale: 'full', full: 'off', off: 'pale' }[baseLook]); look.textContent = 'Kartenbild: ' + LOOKS[baseLook]; });
       btn('Erfolge (' + ACH.filter(a => prog.ach[a.id]).length + ' von ' + ACH.length + ')', () => { closeDlg(); openAch(); });
       btn('Tutorial', () => { closeDlg(); openTutorial(); });
       if (ONLINE) btn('Rangliste', () => { closeDlg(); openRank(); });
@@ -3857,7 +4032,7 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   function setTraffic(on) { showTraffic = on; try { localStorage.setItem('lm-traf', on ? '1' : '0'); } catch (e) {} $('trLeg').hidden = !on; dirty = true; }
   let evIdx = 0;
-  $('evFocus').onclick = () => { if (!tevents.length) return; const e = tevents[evIdx++ % tevents.length]; cam.x = e.x; cam.y = e.y; cam.s = Math.max(cam.s, 0.5); dirty = true; grid.dataset.tab !== undefined && $('tabbar').querySelector('[data-t="map"]').click(); };
+  $('evFocus').onclick = () => { if (!tevents.length) return; const e = tevents[evIdx++ % tevents.length]; flyTo(target(e.x, e.y, Math.max(cam.s, 0.5)), 600); grid.dataset.tab !== undefined && $('tabbar').querySelector('[data-t="map"]').click(); };
   $('menuBtn').onclick = openMenu;
 
   // ---------- Handy: Ansichten ----------
@@ -4329,6 +4504,25 @@ function startGame(DATA, MODEKEY, PRE) {
   };
 
   // ---------- Start ----------
+  // Kartenbild laden (erst nach dem Spielstart; bis es da ist oder falls es ausfällt, zeichnet das Spiel die Straßen selbst)
+  $('zworld').hidden = true;
+  let baseLook = 'pale'; try { const v = localStorage.getItem('lm-base'); if (v === 'full' || v === 'off') baseLook = v; } catch (e) {}   // Kartenbild: blass | kräftig | off (nur eigene Straßen)
+  const LOOK = { pale: [0.7, 0.7], full: [1, 1] };      // [Deckkraft, Sättigung]
+  function startBase() {
+    base = B.create($('basemap'), {
+      dark: () => { if (!T) readTheme(); return T.dark; }, dpr: () => dpr,
+      onState: s => { $('zworld').hidden = s !== 'on'; camSet(cam.u, cam.v, cam.z); dirty = true; },
+      ready: () => { if (base) base.resize(); dirty = true; }
+    });
+  }
+  function applyLook() {
+    const lk = LOOK[baseLook] || LOOK.pale; $('basemap').style.setProperty('--base-fade', String(lk[0])); $('basemap').style.setProperty('--base-sat', String(lk[1]));
+    if (baseLook === 'off' || NOBASE) { if (base) { base.destroy(); base = null; } $('basemap').classList.remove('on'); $('zworld').hidden = true; if (cw > 1) camSet(cam.u, cam.v, cam.z); }
+    else if (!base) startBase();
+    dirty = true;
+  }
+  function setLook(v) { baseLook = v; try { localStorage.setItem('lm-base', v); } catch (e) {} applyLook(); }
+  applyLook();
   new ResizeObserver(resize).observe(wrap);
   mq.addEventListener && mq.addEventListener('change', () => { dirty = true; });
   new MutationObserver(() => { dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
@@ -4355,7 +4549,7 @@ function startGame(DATA, MODEKEY, PRE) {
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
+  window.__lm = { view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });
@@ -4687,7 +4881,8 @@ function startGame(DATA, MODEKEY, PRE) {
       'Melden und Sperren: Wenn du einen Spieler oder Clan meldest, speichert die Datenbank deine Kontokennung, die Kennung und den Namen des Gemeldeten, den gewählten Grund (feste Auswahl, kein Freitext) und den Zeitpunkt. Meldungen sind nicht öffentlich; sie sieht nur der Betreiber. Je Konto sind höchstens 10 Meldungen innerhalb von 24 Stunden möglich. Der Betreiber löscht eine Meldung nach der Prüfung (verwerfen oder sperren). Es wird nichts automatisch gesperrt.',
       'Sperrliste: Sperrt der Betreiber einen Namen, steht dieser (nur der Name und der Zeitpunkt, ohne Bezug zu einem Konto) auf einer Sperrliste, die alle angemeldeten Spieler lesen können. Gesperrte Namen sind in Ranglisten und Clan-Listen nicht mehr sichtbar und können nicht mehr gewählt werden. Wer gesperrt wurde, behält Konto und Spielstände und wählt einen neuen Namen.',
       'Keine Werbung, keine Tracking-Cookies, keine Analyse-Dienste. Damit du angemeldet bleibst, speichert dein Browser eine Anmeldemarke im lokalen Speicher; „Abmelden“ löscht sie.',
-      'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
+      'Kartenbild: Das Bild unter dem Spiel kommt von OpenFreeMap (tiles.openfreemap.org, Daten von OpenStreetMap). Dein Browser holt dort Kartenkacheln für den Ausschnitt, den du gerade ansiehst; der Dienst bekommt dafür deine IP-Adresse und die Kachelnummern des Ausschnitts, aber weder Namen noch Konto noch Spielstand. Auf der Karte erscheint nichts von anderen Spielern. Unter Menü → „Kartenbild“ kannst du es auf „nur eigene Straßen“ stellen; dann wird nichts vom Kartenanbieter geladen.',
+      'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenFreeMap, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
       'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Unternehmen und Spielstand, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto selbst. „Neu anfangen“ löscht nur dein Unternehmen und seine Einträge in der Rangliste deiner Stadt; dein bester Wert in der Weltrangliste bleibt dabei erhalten. Eigene Meldungen werden mitgelöscht, soweit sie älter als 24 Stunden sind; jüngere bleiben bis zur Prüfung durch den Betreiber gespeichert. Als Leiter gibst du die Leitung dabei an das dienstälteste Mitglied ab; bist du allein im Clan, wird er aufgelöst.',
       'Kontakt zum Betreiber dieses Hobby-Projekts: über die Projektseite github.com/memem356/lastmile.'
     ];
