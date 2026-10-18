@@ -1547,7 +1547,7 @@ const LM = (function () {
 
   return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
     overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
-    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref };
+    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref, servers: () => OVERPASS.slice(), host };
 })();
 
 // Städte für das Fulfillment Center: Nachbarstädte finden, Stadtgrenze holen, Straßen und Firmen ganzer Städte kachelweise laden,
@@ -2005,6 +2005,36 @@ const LMCity = (function () {
     return { roads, cities, refs: nr, stats: { nodes: roads.lat.length, ways: roads.wc.length, kept: roads.kept, dropped: roads.dropped, links: g.links.length } };
   }
 
+  // Eine Abfrage an genau einen Server (ohne Ersatz): Antwort, Zeit, Größe oder Fehler. Bei einem Netzfehler wird geprüft, ob der Server überhaupt antwortet (dann fehlt nur die CORS-Freigabe im Browser).
+  async function askServer(url, query, ms) {
+    const body = 'data=' + encodeURIComponent(query), headers = { 'Content-Type': 'application/x-www-form-urlencoded' }, t0 = Date.now(), ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 40000);
+    const sec = () => ((Date.now() - t0) / 1000).toFixed(1) + ' s';
+    try {
+      const r = await fetch(url, { method: 'POST', body, headers, signal: ctl.signal }), txt = await r.text();
+      let n = ''; try { const j = JSON.parse(txt); n = ', ' + (j.elements || []).length + ' Elemente' + (j.remark ? ', Hinweis: ' + String(j.remark).slice(0, 60) : ''); } catch (e) { n = ', keine JSON-Antwort'; }
+      return 'Antwort ' + r.status + ' nach ' + sec() + ', ' + (txt.length / 1048576).toFixed(2) + ' MB' + n;
+    } catch (e) {
+      const why = e && e.name === 'AbortError' ? 'keine Antwort nach ' + sec() : ((e && e.message) || 'Fehler') + ' nach ' + sec();
+      if (e && e.name === 'AbortError') return why;
+      try { await fetch(url, { method: 'POST', body, headers, mode: 'no-cors', signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined }); return why + ' (der Server antwortet, aber der Browser darf die Antwort nicht lesen: Fehlerantwort ohne CORS-Freigabe)'; }
+      catch (e2) { return why + ' (Server gar nicht erreichbar oder vom Browser blockiert)'; }
+    } finally { clearTimeout(to); }
+  }
+  async function probeMore(city, sorted, pick, say, tries) {
+    const servers = LM.servers ? LM.servers() : [], t = pick[0];
+    say('— Zusatzmessung 1: dieselbe Straßen-Kachel (Kachel ' + t.k + ') bei jedem Server einzeln —');
+    for (const u of servers) say(LM.host(u) + ': ' + await askServer(u, LM.qRoads(t), 45000));
+    const big = LM.bboxOf(city.lat, city.lon, 2600), bq = LM.qRoads(big);
+    const b0 = LM.net.bytes, l0 = (LM.net.log || []).length, s0 = Date.now(), c = compactTile(await LM.overpass(bq, null, 1)), d = (Date.now() - s0) / 1000;
+    say('— Zusatzmessung 2: eine große Kachel (5,2 km, Stadtmitte): ' + c.ids.length + ' Knoten, ' + c.wc.length + ' Wege, ' + d.toFixed(1) + ' s, ' + ((LM.net.bytes - b0) / 1048576).toFixed(1) + ' MB' + tries(l0));
+    const rest = sorted.filter(x => !pick.includes(x)), par = [rest[0], rest[Math.floor(rest.length / 3)], rest[Math.floor(rest.length * 2 / 3)], rest[rest.length - 1]].filter((v, i, a) => v && a.indexOf(v) === i);
+    if (par.length > 1) {
+      const lp = (LM.net.log || []).length, sp = Date.now();
+      const res = await Promise.all(par.map(x => LM.overpass(LM.qRoads(x), null, 1).then(o => compactTile(o).ids.length, () => -1)));
+      say('— Zusatzmessung 3: ' + par.length + ' Kacheln gleichzeitig: ' + ((Date.now() - sp) / 1000).toFixed(1) + ' s insgesamt, Knoten ' + res.join('/') + tries(lp));
+    }
+  }
+
   // ---------- Stadt-Test: lädt Stichproben einer echten Stadt und schätzt Dauer und Datenmenge für die ganze Stadt ----------
   async function probe(name, log) {
     const say = t => log && log(t), t0 = Date.now(), tries = i => { const l = ((LM.net && LM.net.log) || []).slice(i); return l.length ? ' [' + l.join('; ') + ']' : ''; }; say('Suche „' + name + '“ …');
@@ -2028,6 +2058,8 @@ const LMCity = (function () {
     say('Schätzung für die ganze Stadt (Straßen): ' + est.nodes + ' Knoten, ' + est.ways + ' Wege, ca. ' + est.mb + ' MB Download, ca. ' + est.seconds + ' s bei zwei Abfragen gleichzeitig');
     const ft = sorted[0], fs0 = Date.now(), fl0 = (LM.net.log || []).length, fr = firmsOf(await LM.overpass(LM.qFirms(ft), null, 2), city, new Set());
     say('Firmen in einer Kachel (' + (TILE_FIRMS / 1000) + ' km, zentral): ' + fr.length + ' in ' + ((Date.now() - fs0) / 1000).toFixed(1) + ' s' + tries(fl0));
+    // Weitere Messungen: Wie schnell antwortet jeder Server auf diese Straßenabfrage? Hilft eine größere Kachel? Verträgt der Server mehrere Abfragen gleichzeitig?
+    try { await probeMore(city, sorted, pick, say, tries); } catch (e) { say('Zusatzmessung abgebrochen: ' + ((e && e.message) || e)); }
     say('Fertig nach ' + Math.round((Date.now() - t0) / 1000) + ' s. Zahlen bitte weitergeben.');
     return { city: city.name, area: city.area, approx: city.approx, est, firmsSample: fr.length };
   }

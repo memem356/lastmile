@@ -308,5 +308,5 @@ const LM = (function () {
 
   return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
     overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
-    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref };
+    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref, servers: () => OVERPASS.slice(), host };
 })();

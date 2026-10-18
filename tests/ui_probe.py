@@ -59,7 +59,7 @@ async def main():
             b = await p.chromium.launch(); ctx = await b.new_context(viewport={'width': 1000, 'height': 900})
             await ctx.route(re.compile(r'https://(identitytoolkit|securetoken)\.googleapis\.com/.*|https://lastmile-c6976-.*'), lambda r, q: r.abort())
             await ctx.route(re.compile(r'https://nominatim\.openstreetmap\.org/.*'), nominatim)
-            await ctx.route(re.compile(r'https://[^/]*overpass[^/]*/.*'), overpass)
+            await ctx.route(re.compile(r'https://([^/]*overpass[^/]*|maps\.mail\.ru)/.*'), overpass)
             pg = await ctx.new_page(); errs = []
             pg.on('pageerror', lambda e: errs.append(str(e)))
             await pg.add_init_script("localStorage.setItem('lm-tut','1');localStorage.setItem('lm-snd','0');")
