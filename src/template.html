@@ -154,6 +154,22 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .d-veh { font: 400 12px var(--font-mono); color: var(--muted); }
 .d-line { font-size: 12px; color: var(--muted); min-height: 18px; }
 .hire { display: grid; gap: 8px; }
+/* Hauptquartiere (aufklappbar) mit ihren Fahrern */
+.hubs { display: flex; flex-direction: column; gap: 8px; }
+.hubbox { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.hubhead { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 9px 10px; cursor: pointer; }
+.hubhead:focus-visible { outline: 2px solid var(--route); outline-offset: -2px; }
+.hubhead:hover .hname { color: var(--route); }
+.hubhead .chev { width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s ease; justify-self: center; }
+.hubhead[aria-expanded="true"] .chev { transform: rotate(45deg); }
+.hubhead .hname { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hubhead .hname em { font: 400 11px var(--font-mono); font-style: normal; color: var(--muted); margin-left: 6px; text-transform: uppercase; letter-spacing: .08em; }
+.hubhead .hcount { font: 500 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.hubhead .hsum { grid-column: 2 / -1; font-size: 12px; color: var(--muted); min-height: 17px; }
+.hubbody { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 8px; }
+.hubbody[hidden] { display: none; }
+.hubbody .note { margin: 0; }
+.hubbody .hadd { align-self: stretch; }
 
 .logwrap { display: flex; flex-direction: column; gap: 10px; min-height: 150px; flex: 1; }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; min-height: 0; }
@@ -498,9 +514,9 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
     <aside class="panel" aria-label="Betrieb und Fahrer">
       <div class="block">
-        <h2>Fahrer <span class="count" id="dcount">1 / 4</span></h2>
-        <ul class="dlist" id="dlist"></ul>
-        <p class="note">Klicke einen Fahrer an, um Details, Schulung, Pause und Kündigung zu öffnen.</p>
+        <h2>Hauptquartiere <span class="count" id="dcount" title="Fahrer / Plätze">1 / 4</span></h2>
+        <div class="hubs" id="dlist"></div>
+        <p class="note">Klappe ein Hauptquartier auf, um seine Fahrer zu sehen. Klicke einen Fahrer an, um Details, Schulung, Pause und Kündigung zu öffnen.</p>
       </div>
 
       <div class="block hire">
@@ -1273,10 +1289,10 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   function drawTraffic() {
     if (!showTraffic || cam.s < 0.1) return;
-    const s = cam.s; ctx.save(); ctx.lineCap = 'round';
+    const s = cam.s; ctx.save(); ctx.lineCap = 'round'; ctx.globalAlpha = 0.92;
     for (let k = 0; k < 4; k++) {
       const list = traffic.buckets[k]; if (!list.length) continue;
-      ctx.beginPath(); ctx.strokeStyle = TCOL[k]; ctx.lineWidth = Math.max(1.6, Math.min(4.5, 16 * s * 0.22));
+      ctx.beginPath(); ctx.strokeStyle = TCOL[k]; ctx.lineWidth = Math.max(2.4, Math.min(6, 24 * s * 0.22));
       for (const id of list) {
         const a = E.eA[id], b = E.eB[id], ax = sx[a], ay = sy[a], bx = sx[b], by = sy[b];
         if ((ax < 0 && bx < 0) || (ay < 0 && by < 0) || (ax > cw && bx > cw) || (ay > ch && by > ch)) continue;
@@ -1802,28 +1818,73 @@ function startGame(DATA, MODEKEY, PRE) {
   }
 
   // ---------- Oberfläche: Fahrer ----------
-  const dlist = $('dlist'); const dRefs = new Map();
+  // Rechte Spalte: je Hauptquartier eine aufklappbare Gruppe mit allen Fahrern dieses Hubs
+  const dlist = $('dlist'); const dRefs = new Map(), hubRefs = [];
+  let lastSelDrv;                                         // zuletzt gewählter Fahrer (undefined = noch nichts gerendert)
+  const HUBOPEN = {}; try { Object.assign(HUBOPEN, JSON.parse(localStorage.getItem('lm-hubopen') || '{}')); } catch (e) {}
+  const hubIsOpen = i => HUBOPEN[i] === undefined ? i === 0 || !drivers.some(d => d.hub === i) || drivers.some(d => d.hub === i && d.id === sel.driver) : !!HUBOPEN[i];   // ohne eigene Wahl offen: Hauptquartier, leere Hubs und der Hub des gewählten Fahrers
+  function applyHubOpen(i) {
+    const h = hubRefs[i]; if (!h) return; const on = hubIsOpen(i);
+    h.head.setAttribute('aria-expanded', String(on)); h.body.hidden = !on;
+  }
+  function setHubOpen(i, on) { HUBOPEN[i] = !!on; try { localStorage.setItem('lm-hubopen', JSON.stringify(HUBOPEN)); } catch (e) {} applyHubOpen(i); }
+  const elt = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  function ensureHubBox(i) {
+    if (hubRefs[i]) return hubRefs[i];
+    const box = elt('section', 'hubbox'), head = elt('button', 'hubhead'), body = elt('div', 'hubbody');
+    head.type = 'button'; body.id = 'hubbody' + i; head.setAttribute('aria-controls', body.id);
+    const chev = elt('span', 'chev'), name = elt('span', 'hname', 'Hub ' + (i + 1)), count = elt('span', 'hcount'), sum = elt('span', 'hsum');
+    if (i === 0) name.appendChild(elt('em', null, 'Hauptquartier'));
+    head.append(chev, name, count, sum);
+    const ul = elt('ul', 'dlist'), empty = elt('p', 'note', 'Noch keine Fahrer in diesem Hub.'), add = elt('button', 'btn hadd'); add.type = 'button';
+    add.onclick = () => { syncHire(); hireHub.value = String(i); const v = $('hireVeh'); v.scrollIntoView({ block: 'nearest' }); v.focus({ preventScroll: true }); };
+    body.append(ul, empty, add); box.append(head, body); dlist.appendChild(box);
+    head.onclick = () => setHubOpen(i, !hubIsOpen(i));
+    const r = { box, head, body, ul, empty, add, count, sum }; hubRefs[i] = r; applyHubOpen(i);
+    return r;
+  }
+  function createDriverEl(d) {
+    const li = document.createElement('li');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'dcard';
+    const top = document.createElement('span'); top.className = 'd-top';
+    const nm = document.createElement('strong'); nm.textContent = 'Fahrer ' + d.id;
+    const vh = document.createElement('span'); vh.className = 'd-veh'; vh.textContent = driverLabel(d);
+    top.append(nm, vh);
+    const pill = document.createElement('span');
+    const line = document.createElement('span'); line.className = 'd-line';
+    b.append(top, pill, line); li.appendChild(b);
+    b.onclick = () => { sel.driver = d.id; driverStructDirty = true; dirty = true; openDriverWin(d.id); };
+    return { li, btn: b, pill, line, vh };
+  }
   function renderDrivers() {
     setText($('dcount'), drivers.length + ' / ' + cap());
     for (const [id, r] of dRefs) if (!drivers.some(d => d.id === id)) { r.li.remove(); dRefs.delete(id); }          // gekündigte Fahrer
-    for (const d of drivers) {
-      let r = dRefs.get(d.id);
-      if (!r) {
-        const li = document.createElement('li');
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'dcard';
-        const top = document.createElement('span'); top.className = 'd-top';
-        const nm = document.createElement('strong'); nm.textContent = 'Fahrer ' + d.id;
-        const vh = document.createElement('span'); vh.className = 'd-veh'; vh.textContent = driverLabel(d);
-        top.append(nm, vh);
-        const pill = document.createElement('span');
-        const line = document.createElement('span'); line.className = 'd-line';
-        b.append(top, pill, line); li.appendChild(b); dlist.appendChild(li);
-        b.onclick = () => { sel.driver = d.id; driverStructDirty = true; dirty = true; openDriverWin(d.id); };
-        r = { li, btn: b, pill, line, vh }; dRefs.set(d.id, r);
-      }
-      r.li.className = 'driver' + (sel.driver === d.id ? ' sel' : ''); r.btn.setAttribute('aria-pressed', String(sel.driver === d.id));
+    for (let i = 0; i < hubs.length; i++) ensureHubBox(i);
+    while (hubRefs.length > hubs.length) hubRefs.pop().box.remove();
+    // Wird ein anderer Fahrer gewählt (Karte, Einstellen, Zuweisen), öffnet sich sein Hub
+    if (lastSelDrv === undefined) lastSelDrv = sel.driver;
+    else if (sel.driver !== lastSelDrv) { lastSelDrv = sel.driver; const sd = drivers.find(d => d.id === sel.driver); if (sd && sd.hub < hubs.length && !hubIsOpen(sd.hub)) setHubOpen(sd.hub, true); }
+    for (let i = 0; i < hubs.length; i++) {
+      const h = hubRefs[i], mine = drivers.filter(d => Math.min(d.hub, hubs.length - 1) === i).sort((a, b) => a.id - b.id);
+      mine.forEach((d, k) => {
+        let r = dRefs.get(d.id); if (!r) { r = createDriverEl(d); dRefs.set(d.id, r); }
+        if (h.ul.children[k] !== r.li) h.ul.insertBefore(r.li, h.ul.children[k] || null);
+        r.li.className = 'driver' + (sel.driver === d.id ? ' sel' : ''); r.btn.setAttribute('aria-pressed', String(sel.driver === d.id));
+      });
     }
     updateDriverTexts();
+  }
+  function driverKind(d) { return d.rest === 'on' ? 'pause' : d.stall ? 'stall' : d.sick ? 'sick' : d.trip ? 'trip' : d.train ? 'train' : 'free'; }
+  const KIND_TXT = { free: 'frei', trip: 'unterwegs', train: 'in Schulung', pause: 'in Pause', sick: 'krank', stall: 'Panne' };
+  function updateHubHeads() {
+    for (let i = 0; i < hubRefs.length; i++) {
+      const h = hubRefs[i], mine = drivers.filter(d => Math.min(d.hub, hubs.length - 1) === i), capH = CFG.hubCaps[hubLevel], free = capH - mine.length;
+      setText(h.count, mine.length + ' / ' + capH);
+      const n = {}; for (const d of mine) { const k = driverKind(d); n[k] = (n[k] || 0) + 1; }
+      setText(h.sum, mine.length ? Object.keys(KIND_TXT).filter(k => n[k]).map(k => n[k] + ' ' + KIND_TXT[k]).join(' · ') : 'Keine Fahrer');
+      h.empty.hidden = mine.length > 0;
+      h.add.hidden = free <= 0; setText(h.add, 'Hier Fahrer einstellen (' + free + (free === 1 ? ' Platz frei)' : ' Plätze frei)'));
+    }
   }
   function updateDriverTexts() {
     for (const d of drivers) {
@@ -1854,6 +1915,7 @@ function startGame(DATA, MODEKEY, PRE) {
         setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) + (d.rest ? ' · danach Pause' : '') : 'Wartet im Hub ' + (d.hub + 1));
       }
     }
+    updateHubHeads();
   }
   function updateStats() {
     setText($('cash'), eur(cash)); $('cash').classList.toggle('neg', cash < 0);
@@ -1883,7 +1945,7 @@ function startGame(DATA, MODEKEY, PRE) {
   let fireArm = null;                                       // Rückfrage beim Kündigen: { id, until }
   const trainDur = l => (10 + 10 * l) * 60;
   function openHQ() { win.kind = 'hq'; win.id = null; $('winHQ').hidden = false; $('winDrv').hidden = true; $('winSt').hidden = true; setText($('winT'), 'Hauptquartier'); winEl.hidden = false; updateUpgrades(); updatePartners(); updateHubs(); }
-  function openDriverWin(id) { fireArm = null; win.kind = 'drv'; win.id = id; $('winHQ').hidden = true; $('winSt').hidden = true; $('winDrv').hidden = false; winEl.hidden = false; updateDriverWin(); }
+  function openDriverWin(id) { fireArm = null; { const dd = drivers.find(x => x.id === id); if (dd && !hubIsOpen(dd.hub)) setHubOpen(dd.hub, true); } win.kind = 'drv'; win.id = id; $('winHQ').hidden = true; $('winSt').hidden = true; $('winDrv').hidden = false; winEl.hidden = false; updateDriverWin(); }
   function openStat(tab) {
     win.kind = 'st'; win.id = null; $('winHQ').hidden = true; $('winDrv').hidden = true; $('winSt').hidden = false; setText($('winT'), 'Finanzen und Statistik'); winEl.hidden = false;
     if (tab) selStTab(tab); updateStatWin();
@@ -2915,7 +2977,7 @@ function startGame(DATA, MODEKEY, PRE) {
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
+  window.__lm = { view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });

@@ -165,7 +165,7 @@ function createEngine(D) {
   const EN = eA.length;
   const eDir = new Int8Array(EN), eBase = new Float32Array(EN), eMidX = new Float32Array(EN), eMidY = new Float32Array(EN);
   const cong = new Float32Array(EN), mulCar = new Float32Array(EN).fill(1), mulBike = new Float32Array(EN).fill(1);
-  const LOAD_C = [1, 0.95, 0.8, 0.45, 0.12, 0.03, 0, 0];
+  const LOAD_C = [1, 0.95, 0.85, 0.65, 0.28, 0.03, 0, 0];
   const QUEUE_C = [0.1, 0.35, 0.45, 0.5, 1.0, 0.3, 0, 0];
   for (let id = 0; id < EN; id++) {
     const a = eA[id], b = eB[id], c = eC[id], len = Math.max(5, Math.hypot(nx[b] - nx[a], ny[b] - ny[a]));
@@ -181,13 +181,16 @@ function createEngine(D) {
     eBase[id] = (LOAD_C[c] + jq * QUEUE_C[c]) * central * noise * zone;
   }
   // load: Tageslast 0 bis 1, bias: +1 Richtung Zentrum (Morgen), -1 aus dem Zentrum (Abend), extra: Zuschlag durch Ereignisse
+  // Die Tageslast wirkt überproportional (Potenz): mittags und nachts bleibt es überwiegend grün, zur Stoßzeit laufen Hauptstraßen und Kreuzungen auch ohne Ereignis rot
+  const LOAD_EXP = 1.35, LOAD_GAIN = 0.55;
   function updateTraffic(load, bias, extra) {
     let sum = 0, cnt = 0;
+    const lf = Math.pow(Math.max(0, load), LOAD_EXP) * LOAD_GAIN;
     for (let id = 0; id < EN; id++) {
-      let v = load * eBase[id] * (1 + 0.42 * bias * eDir[id]) * 0.45;
+      let v = lf * eBase[id] * (1 + 0.42 * bias * eDir[id]);
       if (extra) v += extra[id];
       if (v > 1) v = 1;
-      cong[id] = v; mulCar[id] = 1 - 0.75 * v; mulBike[id] = 1 - 0.2 * v;
+      cong[id] = v; mulCar[id] = Math.max(0.15, 1 - v); mulBike[id] = 1 - 0.2 * v;
       if (eC[id] <= 2) { sum += v; cnt++; }
     }
     return cnt ? sum / cnt : 0;

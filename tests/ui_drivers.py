@@ -90,7 +90,7 @@ async def hire(pg, veh):
 
 
 async def open_drv(pg, nth):
-    await pg.click(f'#dlist li:nth-child({nth}) button'); await wait_vis(pg, '#winDrv'); await pg.wait_for_timeout(150)
+    await pg.click(f'#dlist .dcard >> nth={nth - 1}'); await wait_vis(pg, '#winDrv'); await pg.wait_for_timeout(150)
 
 
 async def wage_rate(pg, secs=3):
@@ -197,7 +197,7 @@ async def main():
             await pg.evaluate("__lm.auto(true)")
             rep = await pg.evaluate("__lm.absence(50)")
             ok('B11 Abwesenheitsmodell: Lohn nur für den Fahrer im Dienst (3,33 €)', rep['worked'] and abs(rep['wages'] - 8 * 1500 / 3600) < 0.05, json.dumps(rep))
-            await pg.click('#dlist li:nth-child(2) button'); await wait_vis(pg, '#winDrv')
+            await pg.click('#dlist .dcard >> nth=1'); await wait_vis(pg, '#winDrv')
             await pg.click('#dwPBtn'); await pg.wait_for_timeout(300)
             ds = await pg.evaluate(DRV)
             ok('B12 Einbestellen: Fahrer ist wieder im Dienst', ds[1]['rest'] is None)
@@ -208,7 +208,7 @@ async def main():
             await pg.keyboard.press('Escape')
             # beide in Pause: kein Lohn, Abwesenheit arbeitet nicht
             for i in (1, 2):
-                await pg.click(f'#dlist li:nth-child({i}) button'); await wait_vis(pg, '#winDrv'); await pg.wait_for_timeout(100)
+                await pg.click(f'#dlist .dcard >> nth={i - 1}'); await wait_vis(pg, '#winDrv'); await pg.wait_for_timeout(100)
                 if await txt(pg, '#dwPBtn') == 'Pause abbrechen': await pg.click('#dwPBtn'); await pg.wait_for_timeout(100)
                 await pg.click('#dwPBtn'); await pg.wait_for_timeout(200)
             await pg.keyboard.press('Escape')
@@ -277,7 +277,7 @@ async def main():
             await pg.evaluate("__lm.setCash(5000)")
             await pg.evaluate("()=>{const b=document.querySelector('#tabbar [data-t=\"drivers\"]')||[...document.querySelectorAll('#tabbar button')].find(x=>/Fahrer/.test(x.textContent)); if (b) b.click()}"); await pg.wait_for_timeout(500)
             await hire(pg, 'bike')
-            await pg.click('#dlist li:nth-child(2) button'); await wait_vis(pg, '#winDrv'); await pg.wait_for_timeout(400)
+            await pg.click('#dlist .dcard >> nth=1'); await wait_vis(pg, '#winDrv'); await pg.wait_for_timeout(400)
             await pg.evaluate("document.getElementById('dwFBtn').scrollIntoView()"); await pg.wait_for_timeout(200)
             await pg.screenshot(path=HERE + 'out/dr_mobile.png')
             ok('E1 Handy: Fahrerfenster ohne seitliches Scrollen', await pg.evaluate("document.documentElement.scrollWidth<=document.documentElement.clientWidth+1"))
