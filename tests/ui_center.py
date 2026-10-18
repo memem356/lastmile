@@ -201,15 +201,15 @@ async def main():
             tabs = await pg.evaluate(TABS)
             ok('C1 Reiter: Hub 1, Center 1 (gewählt), Spiel, Partner', tabs == ['Hub 1', 'Center 1*', 'Spiel', 'Partner'], str(tabs))
             rows = await pg.evaluate(ROWS, '#tab-ce')
-            ok('C2 Sechs Verbesserungen des Centers', [r['name'] for r in rows] == ['Stellplätze', 'Stopps je Transporter', 'Liefergebiet', 'Navigation', 'Wartungsvertrag', 'Schnellbeladung'], str([r['name'] for r in rows]))
-            ZMAX = await pg.evaluate("__lm.fx.ZMAXC")
-            sl, st, zn = by(rows, 'Stellplätze'), by(rows, 'Stopps'), by(rows, 'Liefergebiet')
+            ok('C2 Fünf Verbesserungen des Centers (das Liefergebiet ersetzen die Städte)', [r['name'] for r in rows] == ['Stellplätze', 'Stopps je Transporter', 'Navigation', 'Wartungsvertrag', 'Schnellbeladung'], str([r['name'] for r in rows]))
+            sl, st = by(rows, 'Stellplätze'), by(rows, 'Stopps')
             ok('C3 Stellplätze: 9 Segmente (4 bis 20), Stufe 1, 4 Plätze und 6 Fahrer', (sl['total'], sl['fill'], sl['label']) == (9, 1, 'Stufe 1 von 9') and '4 Stellplätze' in sl['now'] and 'bis zu 6 Fahrer' in sl['now'], str(sl))
             ok('C4 Stopps: 11 Segmente (10 bis 30), Stufe 1, bis zu 10 Stopps', (st['total'], st['fill'], st['label']) == (11, 1, 'Stufe 1 von 11') and 'bis zu 10 Stopps' in st['now'], str(st))
-            ok('C5 Liefergebiet: 3 Segmente (1200, 1500, 1800 m), nennt das Center und 1200 m', ZMAX == 2 and (zn['total'], zn['fill']) == (3, 1) and 'Center' in zn['now'] and '1200 m' in zn['now'], str(zn))
-            ok('C6 Kosten am Knopf: 800 €, 300 €, 400 € (Gebiet)', (sl['btn'], st['btn'], zn['btn']) == ('800,00 €', '300,00 €', '400,00 €'), '%s %s %s' % (sl['btn'], st['btn'], zn['btn']))
-            ok('C7 Kopf nennt Plätze, Fahrer, Gebiet', '0 von 4 Stellplätzen' in await txt(pg, '#ceInfo') and '0 von 6 Fahrern' in await txt(pg, '#ceInfo') and 'Liefergebiet' in await txt(pg, '#ceInfo'), await txt(pg, '#ceInfo'))
-            ok('C7b Liefergebiet des Centers startet bei 1200 m, doppelt so groß wie bei einem Hub (600 m)', await pg.evaluate("[__lm.fx.zr(__lm.cen.centers()[0]), __lm.fx.zr(__lm.hubs()[0])]") == [1200, 600], str(await pg.evaluate("[__lm.fx.zr(__lm.cen.centers()[0]), __lm.fx.zr(__lm.hubs()[0])]")))
+            cit = await pg.evaluate("({n: document.getElementById('ceCitN').textContent, li: [...document.querySelectorAll('#ceCitList li')].map(e => e.textContent), btn: document.getElementById('ceCitAdd').textContent, dis: document.getElementById('ceCitAdd').disabled})")
+            ok('C5 Städte-Block: 1 von 6, die Stadt der Karte mit Nachfrage, Knopf zum Hinzufügen (3.000 €)', cit['n'] == '1 von 6' and len(cit['li']) == 1 and 'Essen' in cit['li'][0] and 'Bestellungen/Tag' in cit['li'][0] and '3.000,00' in cit['btn'] and not cit['dis'], str(cit))
+            ok('C6 Kosten am Knopf: 800 € und 300 €', (sl['btn'], st['btn']) == ('800,00 €', '300,00 €'), '%s %s' % (sl['btn'], st['btn']))
+            ok('C7 Kopf nennt Plätze, Fahrer, Gebiet', '0 von 4 Stellplätzen' in await txt(pg, '#ceInfo') and '0 von 6 Fahrern' in await txt(pg, '#ceInfo') and 'Essen' in await txt(pg, '#ceInfo'), await txt(pg, '#ceInfo'))
+            ok('C7b Ein Center hat Städte statt eines Radius; der Hub behält sein Liefergebiet (600 m)', await pg.evaluate("[__lm.cen.centers()[0].cities.map(r => r.id).join(), __lm.fx.zr(__lm.hubs()[0]), __lm.cen.centers()[0].up.zone === undefined].join('|')") == 'demo|600|true')
             c0 = await pg.evaluate("__lm.cash()"); v0 = await pg.evaluate("__lm.value()")
             for k in range(8): await pg.evaluate("__lm.cen.upg('slots', 0)")
             await pg.wait_for_timeout(500)
@@ -222,12 +222,11 @@ async def main():
             st = by(await pg.evaluate(ROWS, '#tab-ce'), 'Stopps')
             ok('C10 Zehn Ausbauten: 30 Stopps, Max.', (st['fill'], st['max']) == (11, True) and await pg.evaluate("__lm.cen.cStops(__lm.cen.centers()[0])") == 30, str(st))
             ok('C11 Kosten 300 bis 1200 in 100er-Schritten = 7.500 €', abs(c0 - 7500 - await pg.evaluate("__lm.cash()")) < 8, str(c0 - await pg.evaluate("__lm.cash()")))
-            cz = await pg.evaluate("__lm.cash()")
-            await pg.evaluate("for (let i=0;i<4;i++) __lm.cen.upg('zone', 0)")
-            zr2 = await pg.evaluate("[__lm.fx.zr(__lm.cen.centers()[0]), __lm.cen.centers()[0].up.zone, __lm.fx.zr(__lm.hubs()[0])]")
-            ok('C11b Liefergebiet 1200 → 1500 → 1800 m (die Karte reicht nicht weiter), Kosten 400 + 900 €, Hub unverändert', zr2 == [1800, 2, 600] and abs(cz - 1300 - await pg.evaluate("__lm.cash()")) < 8, '%s %s' % (zr2, cz - await pg.evaluate("__lm.cash()")))
+            await pg.click('#ceCitAdd'); await pg.wait_for_timeout(300)
+            ok('C11b In der Demo-Karte gibt es keine weitere Stadt (Hinweis im Fenster)', 'Demo-Karte' in await txt(pg, '#dlg') and await vis(pg, '#dlg'), await txt(pg, '#dlg'))
+            await pg.keyboard.press('Escape'); await pg.evaluate("document.getElementById('dlgX').click()")
             await pg.evaluate("""()=>{ for (const id of ['nav','nav','nav','service','quick']) __lm.cen.upg(id, 0); }""")
-            ok('C12 Alle Ausbauten gekauft, nichts davon im ersten Hub', await pg.evaluate("JSON.stringify(Object.keys(__lm.hubs()[0].up).sort())") == '[]' and await pg.evaluate("Object.keys(__lm.cen.centers()[0].up).sort().join()") == 'nav,quick,service,slots,stops,zone', await pg.evaluate("Object.keys(__lm.cen.centers()[0].up).sort().join()"))
+            ok('C12 Alle Ausbauten gekauft, nichts davon im ersten Hub', await pg.evaluate("JSON.stringify(Object.keys(__lm.hubs()[0].up).sort())") == '[]' and await pg.evaluate("Object.keys(__lm.cen.centers()[0].up).sort().join()") == 'nav,quick,service,slots,stops', await pg.evaluate("Object.keys(__lm.cen.centers()[0].up).sort().join()"))
             await pg.screenshot(path=OUT + 'cen_upg.png')
             # Zurücksetzen für die weiteren Tests: neues Center zum Vergleich daneben
             ok('C13 Unternehmenswert zählt Bau, Ausbauten (Kasse sinkt, Wert bleibt)', abs(await pg.evaluate("__lm.value()") - v0) < 8, '%s %s' % (v0, await pg.evaluate("__lm.value()")))
@@ -317,12 +316,12 @@ async def main():
             ok('E6 Alle %d Bestellungen halten die Regeln (2/4 h, 7–22 Uhr, nie So, Firmen nur Mo–Fr, heute nur erreichbar)' % res['n'], res['nbad'] == 0 and res['n'] > 400, str(res))
             ok('E7 2-Stunden- und 4-Stunden-Fenster kommen beide vor', 0.3 < res['l2'] / res['n'] < 0.7, str(res))
             ok('E8 Es gibt Bestellungen für heute und für spätere Tage', 0.05 < res['today'] / res['n'] < 0.95, str(res))
-            chk = await pg.evaluate("""(FIRMS)=>{ const c=__lm.cen.centers()[1], r=__lm.fx.zr(c), o=__lm.cen.orders(), bad=[]; const F=new Set(FIRMS);
-              for (const x of o) { const d=Math.hypot(x.x-c.x, x.y-c.y); if (d>r+1||d<119) bad.push('Abstand '+Math.round(d)); if (x.firm&&!F.has(x.name)) bad.push('Firma '+x.name); if(!x.firm&&x.name!=='') bad.push('Privat mit Namen');
+            chk = await pg.evaluate("""(FIRMS)=>{ const c=__lm.cen.centers()[1], r=1800+80+150, o=__lm.cen.orders(), bad=[]; const F=new Set(FIRMS);
+              for (const x of o) { const d=Math.hypot(x.x-c.x, x.y-c.y); if (Math.hypot(x.x, x.y)>r||d<119) bad.push('Abstand '+Math.round(d)+' bei '+Math.round(x.x)+'/'+Math.round(x.y)+(x.firm?' Firma '+x.name:' privat')); if (x.firm&&!F.has(x.name)) bad.push('Firma '+x.name); if(!x.firm&&x.name!=='') bad.push('Privat mit Namen');
                 if (x.firm&&(x.n<2||x.n>12)) bad.push('Menge Firma '+x.n); if(!x.firm&&(x.n<1||x.n>4)) bad.push('Menge Privat '+x.n);
                 const exp=Math.round(LMC.pay(x.n,x.firm)*1.1*10)/10; if (Math.abs(x.pay-exp)>1e-9) bad.push('Lohn '+x.pay+' '+exp); if (!Number.isInteger(x.node)||x.node<0) bad.push('Knoten'); }
               return {bad:bad.slice(0,6), nbad:bad.length, firms:o.filter(x=>x.firm).length, priv:o.filter(x=>!x.firm).length, avgF:o.filter(x=>x.firm).reduce((a,x)=>a+x.pay,0)/Math.max(1,o.filter(x=>x.firm).length), avgP:o.filter(x=>!x.firm).reduce((a,x)=>a+x.pay,0)/Math.max(1,o.filter(x=>!x.firm).length)}}""", sorted(EXPECT_FIRMS))
-            ok('E9 Kunden liegen im Liefergebiet (120 m bis zum Radius), Firmen sind echte Firmen, Menge und Lohn stimmen', chk['nbad'] == 0, str(chk))
+            ok('E9 Kunden liegen in der Stadt der Karte (mindestens 120 m vom Center), Firmen sind echte Firmen, Menge und Lohn stimmen', chk['nbad'] == 0, str(chk))
             ok('E10 Firmen zahlen im Schnitt mehr als Privatkunden', chk['avgF'] > 1.5 * chk['avgP'], '%.1f vs %.1f' % (chk['avgF'], chk['avgP']))
             ok('E11 Hub-Bestellungen bleiben getrennt (keine Center-Bestellung im HQ-System)', await pg.evaluate("__lm.orders()") < 20 and await pg.evaluate("document.querySelectorAll('#olist li').length") == await pg.evaluate("__lm.orders()"))
             # Verfall
@@ -386,7 +385,8 @@ async def main():
             await pg.evaluate("__lm.cen.sel.order = null")
             tgt = [o for o in await pg.evaluate("__lm.cen.orders().map(o=>({id:o.id,x:o.x,y:o.y,firm:o.firm,name:o.name,street:o.street,n:o.n,wh:o.wh}))") if o['id'] == mk['D']][0]
             # zufällig entstandene Bestellungen derselben Firma am selben Ort würden den Treffer verdecken: weg damit
-            await pg.evaluate("a=>{const L=__lm.cen.orders(); for(let i=L.length-1;i>=0;i--) if(L[i].id!==a.id&&Math.hypot(L[i].x-a.x,L[i].y-a.y)<30) L.splice(i,1)}", tgt)
+            # die fünf festen Bestellungen A–E bleiben erhalten (sie werden weiter unten gebraucht): liegt eine zu nah, wird sie 400 m verschoben
+            await pg.evaluate("a=>{const L=__lm.cen.orders(), keep=new Set(Object.values(a.mk)); for(let i=L.length-1;i>=0;i--) if(L[i].id!==a.id&&Math.hypot(L[i].x-a.x,L[i].y-a.y)<30){ if(keep.has(L[i].id)) L[i].x+=400; else L.splice(i,1); }}", dict(tgt, mk={k: v for k, v in mk.items() if k != 't'}))
             await pg.evaluate("window.scrollTo(0,0)")
             await pg.evaluate("a=>{const c=__lm.view.cam; __lm.view.look(a.x,a.y,Math.max(c.z,1))}", tgt); await pg.wait_for_timeout(500)
             xy = await pg.evaluate("a=>{const r=document.getElementById('map').getBoundingClientRect(); return [r.left+__lm.view.toX(a.x), r.top+__lm.view.toY(a.y)]}", tgt)
@@ -404,7 +404,7 @@ async def main():
             xy = await pg.evaluate("a=>{const r=document.getElementById('map').getBoundingClientRect(); return [r.left+__lm.view.toX(a.x), r.top+__lm.view.toY(a.y)]}", cc)
             await pg.mouse.move(xy[0] + 50, xy[1] + 50); await pg.mouse.move(xy[0], xy[1]); await pg.wait_for_timeout(250)
             tip = await txt(pg, '#tip')
-            ok('F15 Zeigen auf ein Center: Name, Liefergebiet, Transporter, Fahrer', 'Center 2' in tip and 'Liefergebiet' in tip and '4 / 4 Transporter' in tip and 'Fahrer' in tip, tip)
+            ok('F15 Zeigen auf ein Center: Name, Liefergebiet, Transporter, Fahrer', 'Center 2' in tip and 'Essen' in tip and '4 / 4 Transporter' in tip and 'Fahrer' in tip, tip)
             await pg.mouse.click(xy[0], xy[1]); await wait_vis(pg, '#win'); await pg.wait_for_timeout(300)
             ok('F16 Klick auf das Center öffnet dessen Verbesserungen (Reiter "Center 2")', (await pg.evaluate(TABS))[2] == 'Center 2*', str(await pg.evaluate(TABS)))
             await pg.keyboard.press('Escape'); await pg.wait_for_timeout(200)
@@ -451,13 +451,13 @@ async def main():
             ok('G4 Unternehmenswert unverändert', abs(bj['v'] - aj['v']) < 20, '%s %s' % (bj['v'], aj['v']))
             ok('G5 Ansicht und Umschalter nach dem Laden: Umschalter da', not await pg.evaluate("document.getElementById('viewSeg').hidden"))
             s5 = await pg.evaluate("(()=>{const s=__lm.save.snapshot(); return {v:s.v, c:s.centers.length, keys:Object.keys(s.centers[1]).sort().join(','), ko:s.corders.length, st:s.cstats}})()")
-            ok('G6 Spielstand hat Version 4 mit Centern, Center-Bestellungen und Zählern', s5['v'] == 4 and s5['c'] == 2 and s5['ko'] == 7 and s5['st']['n'] == 11, str(s5))
+            ok('G6 Spielstand hat Version 5 mit Centern (samt Städten), Center-Bestellungen und Zählern', s5['v'] == 5 and 'cities' in s5['keys'] and s5['c'] == 2 and s5['ko'] == 7 and s5['st']['n'] == 11, str(s5))
             # Alter Stand (v3) ohne Center
             mig = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=3; delete sv.centers; delete sv.corders; delete sv.vanSeq; delete sv.cstats;
               const n=__lm.save.normalizeSave(JSON.parse(JSON.stringify(sv))); return {v:n.v, from:n.from, c:n.centers.length, o:n.corders.length, vs:n.vanSeq, st:n.cstats, hubs:n.hubs.length, drivers:n.drivers.length} }""")
-            ok('G7 Alter Stand v3: wird zu v4 mit null Centern, Hubs und Fahrer bleiben', mig['v'] == 4 and mig['from'] == 3 and mig['c'] == 0 and mig['o'] == 0 and mig['vs'] == 1 and mig['st'] == {'n': 0, 'ontime': 0, 'late': 0, 'expired': 0, 'pay': 0} and mig['hubs'] >= 1 and mig['drivers'] >= 1, str(mig))
-            fut = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=5; try { __lm.save.normalizeSave(sv); return 'angenommen'; } catch(e) { return e.future ? 'future' : 'fehler'; } }""")
-            ok('G8 Version 5 wird als zu neu abgelehnt', fut == 'future', fut)
+            ok('G7 Alter Stand v3: wird zu v5 mit null Centern, Hubs und Fahrer bleiben', mig['v'] == 5 and mig['from'] == 3 and mig['c'] == 0 and mig['o'] == 0 and mig['vs'] == 1 and mig['st'] == {'n': 0, 'ontime': 0, 'late': 0, 'expired': 0, 'pay': 0} and mig['hubs'] >= 1 and mig['drivers'] >= 1, str(mig))
+            fut = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=6; try { __lm.save.normalizeSave(sv); return 'angenommen'; } catch(e) { return e.future ? 'future' : 'fehler'; } }""")
+            ok('G8 Version 6 wird als zu neu abgelehnt', fut == 'future', fut)
             # Beschädigte Center-Daten
             bad = await pg.evaluate("""()=>{ const sv=JSON.parse(JSON.stringify(__lm.save.snapshot())), hd=sv.drivers.map(d=>d.id);
               const c1=sv.centers[1]; c1.up={slots:99, stops:-4, zone:'x', nav:2.7, junk:5}; c1.rep=99;
@@ -537,7 +537,7 @@ async def main():
             await pg5.screenshot(path=OUT + 'cen_mobile_side.png')
             await pg5.click('#clist .cbox .hubup'); await wait_vis(pg5, '#win'); await pg5.wait_for_timeout(300)
             geo = await pg5.evaluate("""()=>{const w=document.getElementById('win').getBoundingClientRect(); const rows=[...document.querySelectorAll('#tab-ce .upg')].map(r=>{const b=r.querySelector('button').getBoundingClientRect(); return b.right<=w.right+1 && r.scrollWidth<=r.clientWidth+1}); return {docW:document.documentElement.scrollWidth, vw:innerWidth, winL:w.left, winR:w.right, rows}}""")
-            ok('I5 Ausbau-Fenster des Centers liegt am Handy im Bild, sechs Zeilen laufen nicht über', geo['docW'] <= geo['vw'] and geo['winL'] >= 0 and geo['winR'] <= geo['vw'] and len(geo['rows']) == 6 and all(geo['rows']), str(geo))
+            ok('I5 Ausbau-Fenster des Centers liegt am Handy im Bild, fünf Zeilen laufen nicht über', geo['docW'] <= geo['vw'] and geo['winL'] >= 0 and geo['winR'] <= geo['vw'] and len(geo['rows']) == 5 and all(geo['rows']), str(geo))
             ok('I6 Reiter erreichbar: Hub 1, Center 1, Spiel, Partner', len(await pg5.evaluate(TABS)) == 4, str(await pg5.evaluate(TABS)))
             await pg5.screenshot(path=OUT + 'cen_mobile_upg.png')
             ok('I7 Keine Skriptfehler am Handy', not errs5, str(errs5[:3]))

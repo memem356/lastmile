@@ -7,11 +7,12 @@ d.update({'v': 1, 'name': 'Essen', 'sub': 'Innenstadt (kleine Karte), Deutschlan
 rd = lambda p: open(p, encoding='utf-8').read()
 esc = lambda s: s.replace('</', '<\\/')
 t = rd('src/template.html')
-for k in ('/*DATA*/null', '/*ENGINE*/', '/*LOADER*/', '/*CENTER*/', '/*ONLINE*/', '/*CLAN*/', '/*MOD*/', '/*BASEMAP*/', '/*BOOT*/', '/*ACCOUNT*/'):
+for k in ('/*DATA*/null', '/*ENGINE*/', '/*LOADER*/', '/*CITIES*/', '/*CENTER*/', '/*ONLINE*/', '/*CLAN*/', '/*MOD*/', '/*BASEMAP*/', '/*BOOT*/', '/*ACCOUNT*/'):
     assert k in t, k
 out = (t.replace('/*DATA*/null', esc(json.dumps(d, ensure_ascii=False, separators=(',', ':'))))
         .replace('/*ENGINE*/', esc(rd('src/engine.js')))
         .replace('/*LOADER*/', esc(rd('src/loader.js')))
+        .replace('/*CITIES*/', esc(rd('src/cities.js')))
         .replace('/*CENTER*/', esc(rd('src/center.js')))
         .replace('/*ONLINE*/', esc(rd('src/online.js')))
         .replace('/*CLAN*/', esc(rd('src/clan.js')))

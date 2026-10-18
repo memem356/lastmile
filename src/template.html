@@ -271,6 +271,8 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .rlist button:hover { background: var(--bg); }
 .rlist .sub { color: var(--muted); font-weight: 400; font-size: 13px; }
 .rlist .tag { font: 500 11px var(--font-mono); color: var(--ok); white-space: nowrap; }
+.citrow { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; }
+.citrow small { color: var(--muted); font-size: 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 99px; padding: 6px 13px; font: 500 13px var(--font-ui); cursor: pointer; }
 .chips button:hover { border-color: var(--muted); }
@@ -667,6 +669,12 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       </div>
       <div class="wbody" id="tab-ce" hidden>
         <div class="hqhub"><strong id="ceName"></strong><small id="ceInfo"></small></div>
+        <div class="cupg" id="ceCit" style="display:block">
+          <div class="u-top"><strong>Städte</strong><span class="u-lv" id="ceCitN"></span></div>
+          <ul class="rlist" id="ceCitList" style="margin:6px 0"></ul>
+          <small id="ceCitNote" style="display:block;margin-bottom:6px"></small>
+          <button type="button" class="btn" id="ceCitAdd" style="grid-row:auto"></button>
+        </div>
         <div id="celist"></div>
       </div>
       <div class="wbody" id="tab-gm" hidden>
@@ -806,6 +814,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 const ESSEN = /*DATA*/null;
 /*ENGINE*/
 /*LOADER*/
+/*CITIES*/
 /*CENTER*/
 /*ONLINE*/
 /*CLAN*/
@@ -846,7 +855,7 @@ function startGame(DATA, MODEKEY, PRE) {
     xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l,
     // Fulfillment Center: Bau, Transporter, Fahrerpool (Stellplätze + pool), Bestellungen je Transporter und Tag, Anteil Firmenkunden, Mindestabstand zum Kunden (m)
     cen: { build: 5000, gap: 250, van: 600, vanSell: 0.5, hire: 40, pool: 2, perVan: 14, firmShare: 0.3, minDist: 120, presP: 0.5, presF: 0.7, capVan: 40, capAll: 700,
-      zones: [1200, 1500, 1800, 2250, 2700], zoneCost: [0, 400, 900, 1800, 3300],     // Liefergebiet eines Centers: Start deutlich größer als bei einem Hub (600 m)
+      maxCities: 6, cityCost: [3000, 6000, 10000, 15000, 22000], nearKm: 45, nearShow: 9, maxNodes: 1200000,     // Städte eines Centers: die erste gehört zum Bau, jede weitere kostet nach Reihenfolge
       slots: [4, 6, 8, 10, 12, 14, 16, 18, 20], slotCost: [800, 1100, 1500, 2000, 2600, 3300, 4100, 5000],
       stops: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], stopCost: [300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200], xp: [0, 10, 25, 50, 85] }
   };
@@ -869,7 +878,6 @@ function startGame(DATA, MODEKEY, PRE) {
   const UPG_CEN = [
     { id: 'slots', name: 'Stellplätze', base: true, cost: CFG.cen.slotCost, eff: l => CFG.cen.slots[l] + ' Stellplätze für Transporter, bis zu ' + (CFG.cen.slots[l] + CFG.cen.pool) + ' Fahrer' },
     { id: 'stops', name: 'Stopps je Transporter', base: true, cost: CFG.cen.stopCost, eff: l => 'Jeder Transporter dieses Centers fährt bis zu ' + CFG.cen.stops[l] + ' Stopps pro Tour' },
-    { id: 'zone', name: 'Liefergebiet', base: true, cen: true, cost: CFG.cen.zoneCost.slice(1), eff: l => 'Radius ' + Math.min(CFG.cen.zones[l], MAXR) + ' m um dieses Center' },
     { id: 'nav', name: 'Navigation', cost: [250, 600, 1200], eff: l => ['Die Fahrer dieses Centers kennen die Staus nicht.', 'Verkehrsfunk: Fahrer kennen die größten Staus und weichen ihnen teilweise aus.', 'Live-Navigation: Fahrer sehen den Verkehr in Echtzeit und weichen auch unterwegs aus.', 'Prognose-Navigation: Fahrer umfahren fast jeden Stau, auch schon auf der Planung.'][l] },
     { id: 'service', name: 'Wartungsvertrag', cost: [250], desc: 'Fahrzeugkosten pro Kilometer −40 % und halb so viele Pannen.' },
     { id: 'quick', name: 'Schnellbeladung', cost: [280], desc: 'Das Beladen vor der Abfahrt dauert 30 % kürzer.' }
@@ -915,10 +923,11 @@ function startGame(DATA, MODEKEY, PRE) {
   let orders = [], drivers = [], orderSeq = 1001, driverSeq = 1, cash = CFG.startCash;
   let rep = 3, autoOn = false, heat = false; const owned = {};   // owned: gekaufte Verbesserungen für das ganze Spiel
   const MAXR = DATA.radius || 750;
+  const DEMO = DATA === ESSEN;                      // die mitgelieferte Demo-Karte (ohne Nachladen von Städten)
   let placing = false, ghost = null, zPois = [], zHomes = [];
   const partners = new Set();
   // Fulfillment Center: eigene Bestellungen, Transporter und Fahrer. Fahrer sind nicht an Transporter gebunden (Zuordnung je Tour).
-  const centers = [];                                // { x, y, node, up, rep, vans: [{ id }], drv: [{ id, lvl, done, earn, sick, train }], zk, zh, zf }
+  const centers = [];                                // { x, y, node, up, rep, cities: [Verweis], vans: [{ id }], drv: [{ id, lvl, done, earn, sick, train }], zk, zc, zh, zf }
   let corders = [], firms = [], firmState = 'idle', firmTries = 0, firmRetryAt = 0, uiView = 'hq', vanSeq = 1;
   const csel = { order: null }, cstats = { n: 0, ontime: 0, late: 0, expired: 0, pay: 0 };
   const tp = { open: false, ci: 0, day: 0, k: 0, van: 0, drv: 0, stops: [], edit: 0, err: '', info: '', calc: null, path: null, pathSig: '' };   // Tourenplaner
@@ -929,13 +938,17 @@ function startGame(DATA, MODEKEY, PRE) {
   const hubOf = d => hubs[Math.min(d.hub, hubs.length - 1)];
   const dl = (d, id) => hl(hubOf(d), id);                                         // Stufe im Hub des Fahrers: nur dessen Hub zählt
   const capOf = i => CFG.hubCaps[hl(hubs[i], 'cap')];                             // Plätze eines Hubs
-  const isCen = h => !!h && (!!h.vans || (h === ghost && placing === 'cen'));    // Center (auch der Platzhalter beim Platzieren) haben ein größeres Liefergebiet als Hubs
-  const zr = h => Math.min((isCen(h) ? CFG.cen.zones : CFG.zones)[hl(h, 'zone')], MAXR);   // Liefergebiet eines Hubs oder Centers
+  const zr = h => Math.min(CFG.zones[hl(h, 'zone')], MAXR);                       // Liefergebiet eines Hubs (Center haben keinen Radius, sondern Städte)
   const zmaxOf = zs => (i => i < 0 ? zs.length - 1 : i)(zs.findIndex(z => z >= MAXR));      // höchste sinnvolle Gebietsstufe (die geladene Karte ist begrenzt)
-  const ZMAX = zmaxOf(CFG.zones), ZMAXC = zmaxOf(CFG.cen.zones);
+  const ZMAX = zmaxOf(CFG.zones);
   const inZone = (x, y) => hubs.some(h => Math.hypot(h.x - x, h.y - y) <= zr(h));
   // Kreise des Liefergebiets, die gerade auf der Karte gelten: Hubs, in der Fulfillment-Ansicht (und beim Platzieren eines Centers) die Center; dazu die Vorschau beim Platzieren
-  const zoneList = () => { const b = placing === 'cen' ? centers : placing === 'hub' ? hubs : uiView === 'cen' ? centers : hubs; return ghost && placing ? b.concat([ghost]) : b; };
+  const zoneList = () => {
+    if (placing === 'hub') return ghost ? hubs.concat([ghost]) : hubs;
+    if (placing === 'cen' || uiView === 'cen') { const z = cityZones(); if (z.length) return z; }       // Center: Stadtgrenzen (noch keine Stadt geladen: das Kerngebiet der Hubs)
+    return hubs;
+  };
+  const inAnyZone = (x, y) => inZone(x, y) || cityZones().some(z => inCityXY(z.ct, x, y));
   function rezone() { zPois = pois.filter(p => inZone(p.x, p.y)); zHomes = homes.filter(h => inZone(h.x, h.y)); }
   const slotsUsed = i => drivers.filter(d => d.hub === i).length;
   let simClock = 0, paused = false, speed = 10, lastSpawnT = -30, dirty = true;
@@ -996,7 +1009,9 @@ function startGame(DATA, MODEKEY, PRE) {
   function target(x, y, s) { return { u: U0 + x * KU + cam.w, v: yv(y), z: zOfS(s) }; }
   function fitTarget() {
     let a = Infinity, b2 = -Infinity, c = Infinity, d = -Infinity;
-    for (const h of hubs) { const R = zr(h) * 1.12; a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
+    const cz = uiView === 'cen' ? cityZones() : [];
+    if (cz.length) for (const z of cz) { const k = z.ct.mask; a = Math.min(a, k.x0); b2 = Math.max(b2, k.x1); c = Math.min(c, k.y0); d = Math.max(d, k.y1); }
+    else for (const h of hubs) { const R = zr(h) * 1.12; a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
     a = Math.max(a, bounds.minX); b2 = Math.min(b2, bounds.maxX); c = Math.max(c, bounds.minY); d = Math.min(d, bounds.maxY);
     const x = (a + b2) / 2, y = (c + d) / 2, ar = (E.MLON / E.MLAT) / Math.cos(B.latOf(yv(y)) * Math.PI / 180);   // Höhe und Breite eines Spielmeters unterscheiden sich um ca. 0,7 %
     return target(x, y, Math.max(0.05, Math.min(cw / ((b2 - a) * 1.04), ch / ((d - c) * 1.04 * ar))));
@@ -1137,11 +1152,17 @@ function startGame(DATA, MODEKEY, PRE) {
       }
     }
   }
-  function zonePath(list, s) { ctx.beginPath(); for (const h of list) { const x = toX(h.x), y = toY(h.y), r = zr(h) * s; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); } }
+  function zonePath(list, s) {
+    ctx.beginPath();
+    for (const h of list) {
+      if (h.poly) { for (const P of h.ct.P) { ctx.moveTo(toX(P[0]), toY(P[1])); for (let i = 2; i < P.length; i += 2) ctx.lineTo(toX(P[i]), toY(P[i + 1])); ctx.closePath(); } continue; }
+      const x = toX(h.x), y = toY(h.y), r = zr(h) * s; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283);
+    }
+  }
   function drawZoneOutline() {
     const all = zoneList();
     ctx.save(); ctx.setLineDash([7, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = uiView === 'cen' || placing === 'cen' ? T.ok : T.signal; ctx.globalAlpha = 0.7;
-    for (const h of all) { ctx.beginPath(); ctx.arc(toX(h.x), toY(h.y), zr(h) * cam.s, 0, 6.283); ctx.stroke(); }
+    for (const h of all) { if (h.poly) { zonePath([h], cam.s); ctx.stroke(); continue; } ctx.beginPath(); ctx.arc(toX(h.x), toY(h.y), zr(h) * cam.s, 0, 6.283); ctx.stroke(); }
     ctx.restore();
   }
   function drawHub() {
@@ -1279,6 +1300,7 @@ function startGame(DATA, MODEKEY, PRE) {
     ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch);
     ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; zonePath(zoneList(), cam.s); ctx.fill(); ctx.restore();
   }
+  const sxk = [NaN, 0, 0, 0, 0];
   function draw() {
     const sig = document.documentElement.getAttribute('data-theme') + '|' + mq.matches;
     if (sig !== themeSig || !T) { themeSig = sig; readTheme(); if (base) base.restyle(); }
@@ -1288,7 +1310,10 @@ function startGame(DATA, MODEKEY, PRE) {
     if (own) { ctx.fillStyle = T.mapbg; ctx.fillRect(0, 0, cw, ch); } else ctx.clearRect(0, 0, cw, ch);
     if (cam.s < LOD) { drawWorldMark(); drawScale(); return; }
     const K = cam.K, ox = cw / 2, oy = ch / 2, cu = cam.u - cam.w, cvv = cam.v;
-    for (let i = 0; i < N; i++) { sx[i] = (nu[i] - cu) * K + ox; sy[i] = (nv[i] - cvv) * K + oy; }
+    if (sxk[0] !== K || sxk[1] !== cu || sxk[2] !== cvv || sxk[3] !== ox || sxk[4] !== oy) {            // Bildschirmkoordinaten aller Knoten nur neu rechnen, wenn sich die Ansicht geändert hat (große Karten haben viele Knoten)
+      for (let i = 0; i < N; i++) { sx[i] = (nu[i] - cu) * K + ox; sy[i] = (nv[i] - cvv) * K + oy; }
+      sxk[0] = K; sxk[1] = cu; sxk[2] = cvv; sxk[3] = ox; sxk[4] = oy;
+    }
     const zone = () => zonePath(zoneList(), cam.s);
     if (own) {
       ctx.save(); ctx.globalAlpha = 0.4; drawRoads(); ctx.restore();
@@ -1505,7 +1530,7 @@ function startGame(DATA, MODEKEY, PRE) {
     let tot = 0; const w = new Float32Array(E.EN);
     for (let id = 0; id < E.EN; id++) {
       const c = E.eC[id]; if (c < minC || c > maxC) continue;
-      w[id] = E.eBase[id] * (inZone(E.eMidX[id], E.eMidY[id]) ? 1 : 0.15); tot += w[id];
+      w[id] = E.eBase[id] * (inAnyZone(E.eMidX[id], E.eMidY[id]) ? 1 : 0.15); tot += w[id];
     }
     if (tot <= 0) return -1;
     let r = (u === undefined ? Math.random() : u) * tot; for (let id = 0; id < E.EN; id++) { r -= w[id]; if (r <= 0 && w[id] > 0) return id; }
@@ -2270,16 +2295,22 @@ function startGame(DATA, MODEKEY, PRE) {
     placing = kind; ghost = null; $('placeBan').innerHTML = placeText(); $('placeBan').hidden = false; cv.classList.add('placing');
     setView(kind === 'cen' ? 'cen' : 'hq'); closeWin(); dirty = true;
   }
+  const newCenter = (n, cities) => ({ x: nx[n], y: ny[n], node: n, up: {}, rep: 3, cities, vans: [], drv: [], tours: [], zk: '', zc: [], zh: [], zf: [] });
   function placeCenter(x, y) {
     if (cash < CFG.cen.build) return endPlacing();
     const n = E.hubNode('van', x, y);
     if (Math.hypot(nx[n] - x, ny[n] - y) > 150) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
     if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return flash('Das liegt außerhalb der geladenen Karte.');
     if (centers.some(c => Math.hypot(c.x - nx[n], c.y - ny[n]) < CFG.cen.gap)) return flash('Zu nah an einem anderen Center (mindestens ' + CFG.cen.gap + ' m Abstand).');
+    const ct = cityAtXY(nx[n], ny[n]);
+    if (!ct) {
+      if (!cityRT.size && !DEMO) return openHomeCity(n);            // erstes Center auf einer echten Karte: die Stadt wird erst bestimmt und geladen
+      return flash('Dort liegt keine deiner Städte. Baue das Center in einer Stadt, die schon zu einem deiner Center gehört, oder schalte die Stadt zuerst bei einem Center frei.');
+    }
     spend('cen', CFG.cen.build);
-    centers.push({ x: nx[n], y: ny[n], node: n, up: {}, rep: 3, vans: [], drv: [], tours: [], zk: '', zh: [], zf: [] });
-    endPlacing(); syncCenUi(); setView('cen'); startFirms();
-    log('Neues Fulfillment Center ' + centers.length + ' an ' + (E.nodeName[n] || 'einer Straße') + ', ' + seur(-CFG.cen.build), true);
+    centers.push(newCenter(n, [cityRef(ct)]));
+    endPlacing(); syncCenUi(); setView('cen'); if (DEMO) startFirms();
+    log('Neues Fulfillment Center ' + centers.length + ' in ' + ct.name + ' an ' + (E.nodeName[n] || 'einer Straße') + ', ' + seur(-CFG.cen.build), true);
     cenStruct = cenOrdersDirty = true; dirty = true;
   }
 
@@ -2295,24 +2326,98 @@ function startGame(DATA, MODEKEY, PRE) {
       cenStruct = true; dirty = true;
     }, () => { firmState = 'none'; cenStruct = true; });
   }
-  // Kunden im Liefergebiet des Centers (zwischengespeichert, bis sich das Gebiet oder die Datenlage ändert)
+  // ---------- Städte der Fulfillment Center ----------
+  // Ein Center bedient Städte mit ihren Grenzen statt eines Radius. Jede Stadt hat Firmen, Privatkunden (aus Wohnstraßen erzeugt) und eine Nachfrage (Bestellungen pro Tag).
+  // Geladen werden die Städte beim Start (boot.js); die Demo-Karte hat eine einzige „Stadt“ (die ganze Karte) ohne Nachladen.
+  const cityRT = new Map();                                // Kennung -> Stadt im Spiel
+  let cityVer = 0, cityZoneCache = null;
+  const MASKC = 150;                                       // Zellgröße der Stadtmaske in Metern
+  function ringXY(r) { const o = new Float64Array(r.length); for (let i = 0; i < r.length; i += 2) { const q = E.proj(r[i] / 1e5, r[i + 1] / 1e5); o[i] = q.x; o[i + 1] = q.y; } return o; }
+  function areaXY(P) { let a = 0; for (let i = 0, j = P.length - 2; i < P.length; j = i, i += 2) a += P[j] * P[i + 1] - P[i] * P[j + 1]; return a / 2; }
+  // Maske: ob der Mittelpunkt einer Zelle in der Stadt liegt (Zeilen-Füllung, gerade/ungerade Regel: Löcher bleiben leer)
+  function buildMask(ct) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const P of ct.P) for (let i = 0; i < P.length; i += 2) { if (P[i] < x0) x0 = P[i]; if (P[i] > x1) x1 = P[i]; if (P[i + 1] < y0) y0 = P[i + 1]; if (P[i + 1] > y1) y1 = P[i + 1]; }
+    const gw = Math.max(1, Math.ceil((x1 - x0) / MASKC)), gh = Math.max(1, Math.ceil((y1 - y0) / MASKC)), m = new Uint8Array(gw * gh);
+    for (let r = 0; r < gh; r++) {
+      const yc = y0 + (r + 0.5) * MASKC, xs = [];
+      for (const P of ct.P) for (let i = 0, j = P.length - 2; i < P.length; j = i, i += 2) {
+        const ya = P[j + 1], yb = P[i + 1]; if ((ya > yc) === (yb > yc)) continue;
+        xs.push(P[j] + (yc - ya) / (yb - ya) * (P[i] - P[j]));
+      }
+      xs.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        const c0 = Math.max(0, Math.ceil((xs[k] - x0) / MASKC - 0.5)), c1 = Math.min(gw - 1, Math.floor((xs[k + 1] - x0) / MASKC - 0.5));
+        for (let c = c0; c <= c1; c++) m[r * gw + c] = 1;
+      }
+    }
+    ct.mask = { x0, y0, gw, gh, m, x1, y1 };
+  }
+  const inCityXY = (ct, x, y) => { const k = ct.mask; if (x < k.x0 || y < k.y0 || x >= k.x1 || y >= k.y1) return false; return k.m[Math.floor((y - k.y0) / MASKC) * k.gw + Math.floor((x - k.x0) / MASKC)] === 1; };
+  function addCity(src) {
+    if (cityRT.has(src.id)) return cityRT.get(src.id);
+    const ct = { id: src.id, name: src.name, lat: src.lat, lon: src.lon, rel: src.rel || 0, place: src.place || '', pop: src.pop || 0, approx: !!src.approx, area: src.area || 0, dem: src.dem || 28, core: !!src.core,
+      firmsRaw: src.firms || [], homesRaw: src.homes || [], firmsFailed: !!src.firmsFailed, unlinked: !!src.unlinked, nodes: src.nodes || 0, P: [], mask: null, h: null, f: null, fk: -1, outline: null };
+    for (const r of src.rings) { const P = ringXY(r); if (areaXY(P) < 0) { for (let a = 0, b = P.length - 2; a < b; a += 2, b -= 2) { let t = P[a]; P[a] = P[b]; P[b] = t; t = P[a + 1]; P[a + 1] = P[b + 1]; P[b + 1] = t; } } ct.P.push(P); }
+    buildMask(ct); cityRT.set(ct.id, ct); cityVer++; cityZoneCache = null;
+    return ct;
+  }
+  const cityRef = ct => ({ id: ct.id, name: ct.name, lat: ct.lat, lon: ct.lon, rel: ct.rel, place: ct.place, pop: ct.pop, ap: ct.approx ? 1 : 0 });
+  // Die Stadt an einem Punkt unter den Städten der Center (ohne Center: unter allen geladenen, das ist die Demo-Stadt)
+  const cityAtXY = (x, y) => {
+    if (!centers.length) { for (const ct of cityRT.values()) if (inCityXY(ct, x, y)) return ct; return null; }
+    for (const c of centers) for (const r of c.cities) { const ct = cityRT.get(r.id); if (ct && inCityXY(ct, x, y)) return ct; }
+    return null;
+  };
+  // Privatkunden und Firmen einer Stadt (einmal berechnet). Die Demo-Stadt ist die Kernkarte: ihre Kunden sind die Häuser und die nachgeladenen Firmen der Karte.
+  function cityHomes(ct) {
+    if (!ct.h) { ct.h = []; for (const h of homes) if (inCityXY(ct, h.x, h.y)) ct.h.push(h); if (!ct.core) for (const h of E.addHomes(ct.homesRaw)) { const n = E.nearest(h.x, h.y, nets.car.ok); if (n >= 0 && Math.hypot(nx[n] - h.x, ny[n] - h.y) <= 120) { h.node = n; ct.h.push(h); } } }       // Häuser ohne befahrbare Straße in der Nähe (getrennte Netzteile) zählen nicht
+    return ct.h;
+  }
+  const cityAlive = ct => cityHomes(ct).length > 0 || cityFirms(ct).length > 0;          // eine Stadt ohne erreichbare Kunden (keine Straßenverbindung) bringt keine Bestellungen
+  function cityFirms(ct) {
+    if (ct.core) { if (ct.fk !== firms.length) { ct.fk = firms.length; ct.f = firms.filter(f => inCityXY(ct, f.x, f.y)); } }
+    else if (!ct.f) ct.f = E.addFirms(ct.firmsRaw);
+    return ct.f;
+  }
+  // Nachfrage eines Centers (Bestellungen pro Tag): Summe der Städte; teilen sich mehrere Center eine Stadt, teilen sie sich auch deren Nachfrage
+  function cenDemand(c) {
+    let d = 0; for (const r of c.cities) { const ct = cityRT.get(r.id); if (ct && cityAlive(ct)) d += ct.dem / Math.max(1, centers.filter(k => k.cities.some(q => q.id === r.id)).length); }
+    return d;
+  }
+  // Umrisse aller Städte der Center (für Karte und Maske beim Platzieren)
+  function cityZones() {
+    if (cityZoneCache) return cityZoneCache;
+    const seen = new Set(), out = [];
+    for (const c of centers) for (const r of c.cities) { const ct = cityRT.get(r.id); if (ct && !seen.has(ct.id)) { seen.add(ct.id); out.push({ poly: true, ct }); } }
+    return cityZoneCache = out;
+  }
+  // Kunden im Gebiet des Centers: alle Städte zusammen (zwischengespeichert, bis sich Städte oder Datenlage ändern). zc: je Stadt die Listen für die Auswahl nach Nachfrage.
   function cenZone(c) {
-    const r = zr(c), key = r + '|' + firms.length + '|' + homes.length;
+    const key = c.cities.map(r => r.id).join(',') + '|' + firms.length + '|' + homes.length + '|' + cityVer;
     if (c.zk !== key) {
-      c.zk = key;
-      const ok = (x, y) => { const d = Math.hypot(x - c.x, y - c.y); return d <= r && d >= CFG.cen.minDist; };
-      c.zh = homes.filter(h => ok(h.x, h.y)); c.zf = firms.filter(f => ok(f.x, f.y));
+      c.zk = key; c.zc = []; c.zh = []; c.zf = [];
+      const ok = p => Math.hypot(p.x - c.x, p.y - c.y) >= CFG.cen.minDist;
+      for (const r of c.cities) {
+        const ct = cityRT.get(r.id); if (!ct) continue;
+        const h = cityHomes(ct).filter(ok), f = cityFirms(ct).filter(ok);
+        c.zc.push({ ct, h, f }); for (const p of h) c.zh.push(p); for (const p of f) c.zf.push(p);
+      }
     }
     return c;
   }
   // Neue Bestellung: Privatperson oder Firma, Menge, Lohn, Wunschfenster (2 oder 4 Stunden zwischen 7 und 22 Uhr, an einem Liefertag)
   function spawnCenterOrder(ci, want) {                              // want: 'firm' oder 'private' (für Tests)
     const c = centers[ci]; if (!c) return null; cenZone(c);
-    let firm = c.zf.length > 0 && (want ? want === 'firm' : Math.random() < CFG.cen.firmShare);
-    if (!firm && !c.zh.length) { if (!c.zf.length || want === 'private') return null; firm = true; }
+    const pool = c.zc.filter(q => want === 'firm' ? q.f.length : want === 'private' ? q.h.length : q.f.length || q.h.length);
+    if (!pool.length) return null;
+    let r = Math.random() * pool.reduce((a, q) => a + q.ct.dem, 0), z = pool[pool.length - 1];             // Stadt nach Nachfrage
+    for (const q of pool) { r -= q.ct.dem; if (r <= 0) { z = q; break; } }
+    let firm = z.f.length > 0 && (want ? want === 'firm' : Math.random() < CFG.cen.firmShare);
+    if (!firm && !z.h.length) firm = true;
     let cu;
-    if (firm) { const f = c.zf[Math.floor(Math.random() * c.zf.length)]; cu = { x: f.x, y: f.y, node: f.node, name: f.name, street: f.street || '', kind: f.kind }; }
-    else { const hm = c.zh[Math.floor(Math.random() * c.zh.length)]; cu = { x: hm.x, y: hm.y, node: homeNode(hm), name: '', street: hm.street || '', kind: -1 }; }
+    if (firm) { const f = z.f[Math.floor(Math.random() * z.f.length)]; cu = { x: f.x, y: f.y, node: f.node, name: f.name, street: f.street || '', kind: f.kind }; }
+    else { const hm = z.h[Math.floor(Math.random() * z.h.length)]; cu = { x: hm.x, y: hm.y, node: homeNode(hm), name: '', street: hm.street || '', kind: -1 }; }
     const w = LMC.planWindow(Math.random, absT(), firm), n = LMC.parcels(Math.random, firm);
     const o = { id: orderSeq++, c: ci, firm, kind: cu.kind, name: cu.name, street: cu.street, x: cu.x, y: cu.y, node: cu.node, n,
       pay: Math.round(LMC.pay(n, firm) * MODE.pay * 10) / 10, created: absT(), pres: Math.random() < (firm ? CFG.cen.presF : CFG.cen.presP), day: w.day, wh: [w.ws, w.we], ws: simOf(w.day, w.ws), we: simOf(w.day, w.we), state: 'open' };
@@ -2345,7 +2450,7 @@ function startGame(DATA, MODEKEY, PRE) {
         }
       }
       tickTours(c, i, adv);
-      if (cenAuto && cenReady(c) && Math.random() < 1 - Math.exp(-adv * LMC.ratePerSec(CFG.cen.perVan * c.vans.length * (0.5 + 0.17 * c.rep) * MODE.demand, h)) && !cenFull(i)) spawnCenterOrder(i);
+      if (cenAuto && cenReady(c) && Math.random() < 1 - Math.exp(-adv * LMC.ratePerSec(Math.min(CFG.cen.perVan * c.vans.length * (0.5 + 0.17 * c.rep), cenDemand(c)) * MODE.demand, h)) && !cenFull(i)) spawnCenterOrder(i);
     });
     expireCenter();
   }
@@ -2989,14 +3094,15 @@ function startGame(DATA, MODEKEY, PRE) {
     setText($('cnote'), centers.length ? 'Ein Center braucht mindestens einen Transporter und einen Fahrer, sonst kommen keine Bestellungen. Fahrer sind nicht an einen Transporter gebunden; beim Planen einer Tour wählst du beides. Lohn gibt es nur während einer Tour. „Ausbau“ öffnet die Verbesserungen dieses Centers.' : 'Noch kein Center gebaut. Unter „Verbesserungen“, Reiter „Spiel“, kannst du ein Fulfillment Center bauen.');
     updateCenterTexts();
   }
+  const citiesLabel = c => c.cities.length === 1 ? c.cities[0].name : c.cities.length + ' Städte (' + c.cities.map(r => r.name).join(', ') + ')';
   const cenKind = d => d.sick ? 'sick' : d.tour ? 'tour' : d.train ? 'train' : 'free';
   function updateCenterTexts() {
     for (const R of cRefs) {
       const c = R.c, i = centers.indexOf(c), nOpen = corders.filter(o => o.c === i && (o.state === 'open' || o.state === 'tour')).length;
       setText(R.cnt, c.vans.length + ' / ' + cSlots(c));
       setText(R.sum, c.vans.length + (c.vans.length === 1 ? ' Transporter' : ' Transporter') + ' · ' + c.drv.length + (c.drv.length === 1 ? ' Fahrer' : ' Fahrer') + ' · ' + nOpen + ' offen · ★ ' + nf(1).format(c.rep));
-      const nf2 = cenZone(c).zf.length, fs = firmState === 'loading' ? 'Firmenkunden werden geladen …' : firmState === 'ok' ? nf2 + (nf2 === 1 ? ' Firma' : ' Firmen') + ' im Gebiet' : 'keine Firmendaten, nur Privatkunden';
-      setText(R.info, 'Liefergebiet ' + zr(c) + ' m · bis zu ' + cStops(c) + ' Stopps je Transporter · Ruf ★ ' + nf(1).format(c.rep) + ' · ' + fs + (cenReady(c) ? '' : ' · ohne Transporter oder Fahrer kommen keine Bestellungen'));
+      const nf2 = cenZone(c).zf.length, fs = DEMO && firmState === 'loading' ? 'Firmenkunden werden geladen …' : nf2 ? nf2 + (nf2 === 1 ? ' Firma' : ' Firmen') + ' im Gebiet' : 'keine Firmendaten, nur Privatkunden';
+      setText(R.info, citiesLabel(c) + ' · bis zu ' + cStops(c) + ' Stopps je Transporter · Ruf ★ ' + nf(1).format(c.rep) + ' · ' + fs + (cenReady(c) ? '' : ' · ohne Transporter oder Fahrer kommen keine Bestellungen'));
       setText(R.vcnt, c.vans.length + ' von ' + cSlots(c) + ' Stellplätzen');
       setText(R.dcnt, c.drv.length + ' von ' + cPool(c));
       for (const r of R.vans) { setText(r.st, r.v.tour ? 'unterwegs' : vanReserved(c, r.v.id) ? 'für Tour eingeplant' : 'frei im Center'); setText(r.sb, 'Verkaufen +' + eur(CFG.cen.van * CFG.cen.vanSell)); r.sb.disabled = !!r.v.tour || vanReserved(c, r.v.id); }
@@ -3025,10 +3131,127 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   $('cbBtn').onclick = () => { if (placing === 'cen') return endPlacing(); if (cash < CFG.cen.build) return; startPlacing('cen'); };
 
+  // ---------- Städte hinzufügen und laden ----------
+  // Eine Stadt wird ganz geladen (Straßen und Firmen, im Browser gespeichert). Die Karte des Spiels entsteht beim Start aus Kernkarte und allen Städten der Center;
+  // darum wird nach dem Kauf gespeichert und das Spiel neu geladen.
+  const cityPrice = c => CFG.cen.cityCost[Math.min(CFG.cen.cityCost.length - 1, c.cities.length - 1)];
+  const cityFull = c => c.cities.length >= CFG.cen.maxCities;
+  const fmtPop = n => n >= 1e6 ? nf(1).format(n / 1e6) + ' Mio. Einwohner' : n >= 1000 ? Math.round(n / 1000) + ' 000 Einwohner' : n ? n + ' Einwohner' : '';
+  const driveMin = m => Math.max(5, Math.round(m * 1.35 / 1000 / 55 * 60));            // grobe Fahrzeit aus der Luftlinie (Landstraße und Autobahn gemischt)
+  function cityInfoText(city) {
+    const bits = [city.area ? nf(1).format(city.area) + ' km²' : '', fmtPop(city.pop), 'ca. ' + LMCity.demand(city) + ' Bestellungen pro Tag'].filter(Boolean);
+    return bits.join(' · ') + (city.approx ? ' · Für diesen Ort gibt es keine genaue Stadtgrenze, deshalb gilt ein Kreis um den Ortskern.' : '');
+  }
+  // Lädt die Stadt (Straßen und Firmen), prüft die Straßenverbindung zu den anderen Städten und zur Kernkarte (große Straßen dazwischen werden bei Bedarf mitgeladen)
+  // und zeigt den Fortschritt im Dialog. refs: alle Städte der Center nach dem Kauf, in der Reihenfolge des Spielstands.
+  async function loadAndApply(ui, city, price, apply, refs) {
+    ui.go.disabled = true; ui.cancel.textContent = 'Abbrechen'; ui.bar.hidden = false; ui.fill.style.width = '3%'; ui.msg.textContent = 'Straßen werden geprüft …';
+    let res;
+    try {
+      res = await LMCity.link(DATA, refs(city), p => {
+        if (!ui.alive || !p.total) return; ui.msg.textContent = p.text;
+        ui.fill.style.width = Math.round(3 + 97 * (p.phase === 'roads' ? 0.55 * p.done / p.total : p.phase === 'firms' ? 0.55 + 0.2 * p.done / p.total : 0.75 + 0.22 * p.done / p.total)) + '%';
+      }, roadsToTyped);
+    } catch (e) {
+      if (!ui.alive) return; console.error(e);
+      ui.msg.textContent = 'Das Laden ist nicht gelungen: ' + ((e && e.message) || e) + ' Bereits geladene Teile bleiben gespeichert, ein neuer Versuch geht schneller.';
+      ui.go.disabled = false; ui.go.textContent = 'Erneut versuchen'; ui.bar.hidden = true; return;
+    }
+    if (!ui.alive) return;
+    if (res.nodes > CFG.cen.maxNodes) { ui.msg.textContent = 'Mit dieser Stadt wäre die Karte zu groß für den Browser (' + nf(1).format(res.nodes / 1e6) + ' Mio. Straßenpunkte, erlaubt sind ' + nf(1).format(CFG.cen.maxNodes / 1e6) + ' Mio.). Sie kann nicht freigeschaltet werden, es wurde nichts abgebucht.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
+    if (res.unlinked.includes(city.id)) { ui.msg.textContent = city.name + ' ist über die Straßen nicht zu erreichen: In den Kartendaten fehlt die Verbindung zu deinen anderen Städten. Die Stadt kann nicht freigeschaltet werden, es wurde nichts abgebucht.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
+    if (cash < price) { ui.msg.textContent = 'Das Geld reicht nicht mehr (' + eur(price) + ' nötig). Die Stadt ist geladen und bleibt gespeichert.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
+    ui.fill.style.width = '100%'; ui.msg.textContent = 'Fertig. Der Spielstand wird gesichert und das Spiel startet neu …'; ui.cancel.disabled = true;
+    apply();
+    saveNow(true); let okk = true; try { okk = await cloudPush(true); } catch (e) { okk = false; }
+    if (ONLINE && !okk) { ui.msg.textContent = 'Der Spielstand konnte nicht in der Cloud gesichert werden. Bitte Verbindung prüfen; das Spiel versucht es weiter. Danach bitte die Seite neu laden (F5).'; ui.cancel.disabled = false; return; }
+    location.reload();
+  }
+  function cityDlg(title, intro, resolveCity, price, goLabel, apply, refs, afterResolve) {
+    const ui = { alive: true, city: null };
+    openDlg(title, b => {
+      b.appendChild(mk('p', null, intro));
+      ui.info = mk('p', 'note'); ui.msg = mk('p', 'note', 'Stadt wird gesucht …'); ui.bar = mk('div', 'bar2'); ui.fill = mk('i'); ui.bar.appendChild(ui.fill); ui.bar.hidden = true;
+      const row = mk('div', 'row'); ui.go = mk('button', 'btn primary', goLabel + ' (' + eur(price) + ')'); ui.go.type = 'button'; ui.go.disabled = true;
+      ui.cancel = mk('button', 'btn', 'Abbrechen'); ui.cancel.type = 'button'; ui.cancel.onclick = closeDlg;
+      row.append(ui.go, ui.cancel); b.append(ui.info, ui.msg, ui.bar, row);
+      ui.go.onclick = () => loadAndApply(ui, ui.city, price, () => apply(ui.city), refs);
+    }, { onClose: () => { ui.alive = false; } });
+    resolveCity().then(city => {
+      if (!ui.alive) return; ui.city = city; ui.info.textContent = city.name + ': ' + cityInfoText(city);
+      ui.msg.textContent = 'Beim Laden kommen alle Straßen und die Firmen der Stadt auf deinen Rechner (je nach Größe einige MB, ein bis drei Minuten). Danach startet das Spiel einmal neu.';
+      ui.go.disabled = cash < price; if (afterResolve) afterResolve(ui, city);
+    }, e => { if (!ui.alive) return; console.error(e); ui.msg.textContent = 'Die Stadt konnte nicht bestimmt werden: ' + ((e && e.message) || e) + ' Bitte später noch einmal versuchen.'; });
+    return ui;
+  }
+  // Erstes Center auf einer echten Karte: die Stadt unter dem Platz wird bestimmt und ganz geladen
+  function openHomeCity(n) {
+    endPlacing(); const where = E.unproj(nx[n], ny[n]);
+    cityDlg('Erstes Fulfillment Center',
+      'Das Center wird an ' + (E.nodeName[n] || 'dieser Straße') + ' gebaut und bedient zuerst die Stadt, in der es steht. Weitere Städte kannst du später dazukaufen.',
+      () => LMCity.resolve({ name: DATA.name, lat: where.lat, lon: where.lon, place: 'city' }), CFG.cen.build, 'Stadt laden und bauen',
+      city => {
+        spend('cen', CFG.cen.build); centers.push(newCenter(n, [cityRef(city)]));
+        log('Neues Fulfillment Center ' + centers.length + ' in ' + city.name + ', ' + seur(-CFG.cen.build), true); cenStruct = cenOrdersDirty = true; dirty = true;
+      }, city => [cityRef(city)]);
+  }
+  // Stadt zu einem Center hinzufügen: Liste der Städte in der Nähe, dann Bestätigung und Laden
+  function openAddCity(ci) {
+    const c = centers[ci]; if (!c || cityFull(c)) return;
+    if (DEMO) { openDlg('Stadt hinzufügen', b => { b.appendChild(mk('p', null, 'Die Demo-Karte kennt nur diese eine Stadt. Starte ein Unternehmen an einem echten Ort, um mehrere Städte zu bedienen.')); const r = mk('div', 'row'), ok = mk('button', 'btn primary', 'Schließen'); ok.type = 'button'; ok.onclick = closeDlg; r.appendChild(ok); b.appendChild(r); }); return; }
+    const price = cityPrice(c), where = E.unproj(c.x, c.y); let alive = true;
+    openDlg('Stadt zu ' + cenName(ci) + ' hinzufügen', b => {
+      b.appendChild(mk('p', null, 'Diese Städte liegen in der Nähe. Jede weitere Stadt bringt mehr Kunden und mehr Bestellungen pro Tag, die Wege werden aber länger. Die Stadt kostet ' + eur(price) + '.'));
+      const msg = mk('p', 'note', 'Städte in der Nähe werden gesucht …'), ul = mk('ul', 'rlist'); b.append(msg, ul);
+      LMCity.nearby(where.lat, where.lon, CFG.cen.nearKm).then(list => {
+        if (!alive) return;
+        const have = new Set(c.cities.map(r => r.name.toLowerCase())), mine = c.cities.map(r => cityRT.get(r.id)).filter(Boolean);
+        const here = p => { const q = E.proj(p.lat, p.lon); return mine.some(ct => inCityXY(ct, q.x, q.y)); };
+        const cand = list.filter(p => !have.has(p.name.toLowerCase()) && !here(p)).slice(0, CFG.cen.nearShow);
+        msg.textContent = cand.length ? '' : 'In der Nähe wurden keine weiteren Städte gefunden.';
+        for (const p of cand) {
+          const li = mk('li'), btn = mk('button'); btn.type = 'button';
+          const l = mk('span', null, p.name), sub = mk('span', 'sub', ' ' + [fmtPop(p.pop), Math.round(p.dist / 1000) + ' km, ca. ' + driveMin(p.dist) + ' min Fahrt'].filter(Boolean).join(' · ')); l.appendChild(sub);
+          btn.append(l, mk('span', 'tag', eur(price))); btn.disabled = cash < price;
+          btn.onclick = () => openCityConfirm(ci, p, price);
+          li.appendChild(btn); ul.appendChild(li);
+        }
+      }, e => { if (!alive) return; console.error(e); msg.textContent = 'Die Städte in der Nähe konnten nicht geladen werden. Bitte später noch einmal versuchen.'; });
+      if (cash < price) b.appendChild(mk('p', 'note', 'Dir fehlen noch ' + eur(price - cash) + '.'));
+    }, { onClose: () => { alive = false; } });
+  }
+  function openCityConfirm(ci, p, price) {
+    const c = centers[ci]; if (!c || cityFull(c)) return;
+    cityDlg(p.name + ' freischalten', 'Das Center ' + cenName(ci) + ' bedient dann auch ' + p.name + ' (' + Math.round(p.dist / 1000) + ' km entfernt, ca. ' + driveMin(p.dist) + ' min Fahrt).',
+      () => LMCity.resolve({ name: p.name, lat: p.lat, lon: p.lon, place: p.place, pop: p.pop }), price, 'Stadt laden und freischalten',
+      city => {
+        spend('cen', price); c.cities.push(cityRef(city));
+        log(cenName(ci) + ' bedient jetzt auch ' + city.name + ', ' + seur(-price), true); cenStruct = true; dirty = true;
+      }, city => { const out = []; centers.forEach((k, i) => { for (const r of k.cities) out.push(r); if (i === ci) out.push(cityRef(city)); }); return out; });
+  }
+  // Städte-Block im Reiter eines Centers
+  let citSig = '';
+  function updateCityBlock(ci) {
+    const c = centers[ci]; if (!c) return;
+    const sig = ci + '|' + c.cities.map(r => r.id).join(',') + '|' + cityVer + '|' + (cash >= cityPrice(c)) + '|' + cityFull(c);
+    setText($('ceCitN'), c.cities.length + ' von ' + CFG.cen.maxCities);
+    if (sig === citSig) return; citSig = sig;
+    const ul = $('ceCitList'); ul.textContent = '';
+    for (const r of c.cities) {
+      const ct = cityRT.get(r.id), li = mk('li'), row = mk('div', 'citrow');
+      row.append(mk('strong', null, r.name), mk('small', null, ct ? [ct.area ? nf(1).format(ct.area) + ' km²' : '', fmtPop(ct.pop), ct.dem + ' Bestellungen/Tag', ct.f ? ct.f.length + ' Firmen' : (cityFirms(ct), ct.f ? ct.f.length + ' Firmen' : '')].filter(Boolean).join(' · ') + (ct.firmsFailed ? ' · Firmendaten fehlen' : '') + (!cityAlive(ct) ? ' · Keine Straßenverbindung, keine Bestellungen' : '') : 'wird beim nächsten Start geladen'));
+      li.appendChild(row); ul.appendChild(li);
+    }
+    const full = cityFull(c), pr = full ? 0 : cityPrice(c);
+    setText($('ceCitAdd'), full ? 'Mehr Städte gehen nicht' : 'Stadt hinzufügen (' + eur(pr) + ')'); $('ceCitAdd').disabled = full || cash < pr;
+    setText($('ceCitNote'), 'Das Center bedient die Städte in ihren Grenzen. Die Nachfrage aller Städte zusammen begrenzt, wie viele Bestellungen pro Tag kommen (ca. ' + CFG.cen.perVan + ' je Transporter).');
+  }
+  $('ceCitAdd').onclick = () => openAddCity(cenIdx());
+
   // ---------- Verbesserungen: Reiter Hub 1…3, Center, Spiel, Partner ----------
   const hq = { tab: 'h0' };
   const NEWHUB = { id: 'newhub', name: 'Hubs', base: true, cost: CFG.hubBuild.slice(1), eff: l => (l + 1) + (l ? ' Hubs' : ' Hub (das Hauptquartier)') };
-  function umax(u) { return u.id === 'zone' ? Math.min(u.cost.length, u.cen ? ZMAXC : ZMAX) : u.cost.length; }                       // höchste Stufe
+  function umax(u) { return u.id === 'zone' ? Math.min(u.cost.length, ZMAX) : u.cost.length; }                       // höchste Stufe
   const usegs = u => umax(u) + (u.base ? 1 : 0);                                                                     // Segmente des Balkens
   const ulvl = (u, h) => u.id === 'newhub' ? hubs.length - 1 : h ? hl(h, u.id) : (owned[u.id] ? 1 : 0);             // aktuelle Stufe
   const hubIdx = () => hq.tab[0] === 'h' ? Math.min(hubs.length - 1, Number(hq.tab.slice(1)) || 0) : 0;
@@ -3053,11 +3276,10 @@ function startGame(DATA, MODEKEY, PRE) {
     const c = centers[ci]; if (!c) return;
     const l = hl(c, u.id); if (l >= umax(u)) return; const k = u.cost[l];
     if (cash < k) return;
-    spend(u.id === 'slots' || u.id === 'stops' ? 'cen' : u.id === 'zone' ? 'zone' : 'upg', k);
+    spend(u.id === 'slots' || u.id === 'stops' ? 'cen' : 'upg', k);
     c.up[u.id] = l + 1;
     if (u.id === 'slots') log(cenName(ci) + ' ausgebaut: jetzt ' + cSlots(c) + ' Stellplätze und bis zu ' + cPool(c) + ' Fahrer, ' + seur(-k), true);
     else if (u.id === 'stops') log(cenName(ci) + ': Transporter fahren jetzt bis zu ' + cStops(c) + ' Stopps pro Tour, ' + seur(-k), true);
-    else if (u.id === 'zone') { c.zk = ''; log('Liefergebiet von ' + cenName(ci) + ' erweitert: jetzt ' + zr(c) + ' m, ' + seur(-k), true); }
     else log(u.name + ' (' + cenName(ci) + ') gekauft, ' + seur(-k), true);
     cenStruct = true; dirty = true;
   }
@@ -3118,8 +3340,8 @@ function startGame(DATA, MODEKEY, PRE) {
     else if (hq.tab[0] === 'c') {
       const i = cenIdx(), c = centers[i];
       setText($('ceName'), cenName(i) + ' · Fulfillment');
-      setText($('ceInfo'), c.vans.length + ' von ' + cSlots(c) + ' Stellplätzen · ' + c.drv.length + ' von ' + cPool(c) + ' Fahrern · Liefergebiet ' + zr(c) + ' m' + (E.nodeName[c.node] ? ' · ' + E.nodeName[c.node] : ''));
-      for (const r of cenRows) setUpgRow(r, c);
+      setText($('ceInfo'), c.vans.length + ' von ' + cSlots(c) + ' Stellplätzen · ' + c.drv.length + ' von ' + cPool(c) + ' Fahrern · ' + citiesLabel(c) + (E.nodeName[c.node] ? ' · ' + E.nodeName[c.node] : ''));
+      for (const r of cenRows) setUpgRow(r, c); updateCityBlock(i);
     }
     else if (hq.tab[0] === 'h') {
       const i = hubIdx(), h = hubs[i];
@@ -3201,7 +3423,7 @@ function startGame(DATA, MODEKEY, PRE) {
     cv.classList.toggle('pointer', !!h);
     if (!h) { tip.hidden = true; return; }
     tip.hidden = false; tip.style.left = px + 'px'; tip.style.top = py + 'px';
-    tip.textContent = h.kind === 'center' ? cenName(h.i) + ' · Liefergebiet ' + zr(centers[h.i]) + ' m · ' + centers[h.i].vans.length + ' / ' + cSlots(centers[h.i]) + ' Transporter · ' + centers[h.i].drv.length + ' Fahrer'
+    tip.textContent = h.kind === 'center' ? cenName(h.i) + ' · ' + centers[h.i].cities.map(r => r.name).join(', ') + ' · ' + centers[h.i].vans.length + ' / ' + cSlots(centers[h.i]) + ' Transporter · ' + centers[h.i].drv.length + ' Fahrer'
       : h.kind === 'corder' ? 'Bestellung #' + h.o.id + ' · ' + (h.o.firm ? h.o.name : h.o.street || 'Privatkunde') + ' · ' + h.o.n + (h.o.n === 1 ? ' Paket' : ' Pakete') + ' · ' + LMC.winLabel(h.o.wh[0], h.o.wh[1]) + ' · ' + eur(h.o.pay)
       : h.kind === 'van' ? 'Transporter ' + h.Tr.van + ' · Tour ' + tourName(h.Tr) + ' · Fahrer ' + h.Tr.drv + ' · ' + tourStatus(h.c, h.Tr)
       : h.kind === 'event' ? TEV[h.e.kind].name + ' · ' + h.e.street + ' · noch ' + fmtMin(h.e.dur - (simClock - h.e.t0)) + ' min' : h.kind === 'hub' ? 'Hub ' + (h.i + 1) + ' · Liefergebiet ' + zr(hubs[h.i]) + ' m · ' + slotsUsed(h.i) + ' / ' + capOf(h.i) + ' Fahrer'
@@ -3320,7 +3542,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (uiView === 'cen') { if (cenStruct) renderCenters(); if (cenOrdersDirty || Math.floor(absT() / 86400) !== cenDaySig) renderCenOrders(); tourUi(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
     stepAnim(now);
-    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (uiView === 'cen') { updateCenterTexts(); updateCenOrderTexts(); } if (firmState === 'none' && firmRetryAt && Date.now() > firmRetryAt && centers.length) { firmRetryAt = 0; startFirms(); } if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
+    if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (uiView === 'cen') { updateCenterTexts(); updateCenOrderTexts(); } if (DEMO && firmState === 'none' && firmRetryAt && Date.now() > firmRetryAt && centers.length) { firmRetryAt = 0; startFirms(); } if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
@@ -3507,7 +3729,7 @@ function startGame(DATA, MODEKEY, PRE) {
   // ---------- Speichern und Laden ----------
   // Online liegt der maßgebliche Stand in der Cloud; auf dem Gerät bleibt nur eine Kopie (nie in der Liste „Weiter spielen“)
   const SAVEKEY = ONLINE ? 'lm.osave.' + (LMO.state().uid || 'x') + '.' + CK : 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
-  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 4, BUILD = '2026-10-18';
+  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 5, BUILD = '2026-10-18';
   let noSave = false, saveCount = 0;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsKeys = pre => { const r = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) r.push(k); } } catch (e) {} return r; };
@@ -3519,7 +3741,7 @@ function startGame(DATA, MODEKEY, PRE) {
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
       simClock, cash, rep, autoOn, owned: Object.assign({}, owned), partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car, up: Object.assign({}, h.up) })),
-      centers: centers.map(c => ({ x: c.x, y: c.y, nd: c.node, up: Object.assign({}, c.up), rep: c.rep, vans: c.vans.map(v => ({ id: v.id })),
+      centers: centers.map(c => ({ x: c.x, y: c.y, nd: c.node, up: Object.assign({}, c.up), rep: c.rep, cities: c.cities.map(r => Object.assign({}, r)), vans: c.vans.map(v => ({ id: v.id })),
         drv: c.drv.map(d => ({ id: d.id, lvl: d.lvl, done: d.done, earn: d.earn, sick: d.sick ? { left: d.sick.left } : null, train: d.train ? Object.assign({}, d.train) : null })),
         tours: c.tours.map(T => { const nd = tourNode(T); return { id: T.id, k: T.k, day: T.day, van: T.van, drv: T.drv, stops: T.stops.slice(), st: T.st, i: T.i, t0: T.t0, dep: T.dep, ld: T.ld, dw: T.dw, hs: T.hs, est: T.est, km: T.km, hold: T.hold, lost: T.lost || 0, stall: T.stall ? { left: T.stall.left, kind: T.stall.kind } : null, res: T.res.slice(-60), nd, x: rd(nx[nd]), y: rd(ny[nd]) }; }) })),
       corders: corders.filter(o => o.state === 'open' || o.state === 'tour').map(o => ({ id: o.id, c: o.c, firm: o.firm, kind: o.kind, name: o.name, street: o.street, x: rd(o.x), y: rd(o.y), nd: o.node, n: o.n, pay: o.pay, created: o.created, pres: !!o.pres, day: o.day, wh: o.wh, ws: o.ws, we: o.we, state: o.state })),
@@ -3562,6 +3784,18 @@ function startGame(DATA, MODEKEY, PRE) {
     const up = {}; if (isObj(src)) for (const u of list || UPG_HUB) { const l = Math.round(num(src[u.id], 0, 0, umax(u))); if (l > 0) up[u.id] = l; }
     return up;
   }
+  // Städte eines Centers im Spielstand (nur Verweise; Grenzen und Straßen liegen im Browser-Speicher oder kommen beim Start von den Servern)
+  function normCities(src) {
+    const out = [], seen = new Set();
+    for (const r of arr(src)) {
+      if (!isObj(r) || typeof r.id !== 'string' || !r.id || r.id.length > 40 || seen.has(r.id) || !isFinite(r.lat) || !isFinite(r.lon)) continue; seen.add(r.id);
+      out.push({ id: r.id, name: String(r.name || 'Stadt').slice(0, 60), lat: r.lat, lon: r.lon, rel: Math.round(num(r.rel, 0, 0)), place: String(r.place || '').slice(0, 12), pop: Math.round(num(r.pop, 0, 0)), ap: r.ap ? 1 : 0 });
+      if (out.length >= CFG.cen.maxCities) break;
+    }
+    return out;
+  }
+  // Stand ohne Städte (Version 4 und älter): das Center bedient die Stadt der Kernkarte (die Demo-Karte oder die beim Start geladene Heimatstadt)
+  const homeRefs = () => { const ct = [...cityRT.values()][0]; return ct ? [cityRef(ct)] : []; };
   function legacyUp(sv) {
     const o = isObj(sv.owned) ? sv.owned : {};
     return { cap: sv.hubLevel, zone: sv.zoneLevel, nav: o.nav3 ? 3 : o.nav2 ? 2 : o.nav1 ? 1 : 0, motor: o.motor ? 1 : 0, boxes: o.boxes ? 1 : 0, quick: o.quick ? 1 : 0, service: o.service ? 1 : 0 };
@@ -3598,7 +3832,7 @@ function startGame(DATA, MODEKEY, PRE) {
         drv.push({ id: d.id, lvl: Math.round(num(d.lvl, 1, 1, 5)), done: Math.round(num(d.done, 0, 0)), earn: num(d.earn, 0, 0), sick: isObj(d.sick) ? { left: num(d.sick.left, 0, 0) } : null,
           train: isObj(d.train) && isFinite(d.train.t) && isFinite(d.train.dur) && isFinite(d.train.to) ? { t: num(d.train.t, 0, 0), dur: num(d.train.dur, 60, 1), to: Math.round(num(d.train.to, 2, 2, 5)), cost: num(d.train.cost, 0, 0) } : null });
       }
-      return { x: c.x, y: c.y, nd: c.nd, up, rep: num(c.rep, 3, 1, 5), vans, drv, raw: c };
+      return { x: c.x, y: c.y, nd: c.nd, up, rep: num(c.rep, 3, 1, 5), cities: normCities(c.cities), vans, drv, raw: c };
     });
     n.corders = arr(sv.corders).filter(o => isObj(o) && Number.isInteger(o.id) && cmap.has(o.c) && isFinite(o.x) && isFinite(o.y) && Number.isInteger(o.day)
       && ['created', 'ws', 'we', 'pay'].every(k => isFinite(o[k])) && Array.isArray(o.wh) && o.wh.length === 2 && isFinite(o.wh[0]) && isFinite(o.wh[1]) && (o.state === 'open' || o.state === 'tour')).slice(0, 3000).map(o => ({
@@ -3675,7 +3909,7 @@ function startGame(DATA, MODEKEY, PRE) {
     tpClose(); tsel = 0; pathCache.clear(); centers.length = 0; corders = []; csel.order = null; vanSeq = sv.vanSeq; Object.assign(cstats, sv.cstats); cenStruct = cenOrdersDirty = true;
     for (const c of sv.centers) {
       const ok = same && Number.isInteger(c.nd) && c.nd >= 0 && c.nd < N;
-      centers.push({ x: c.x, y: c.y, node: ok ? c.nd : E.hubNode('van', c.x, c.y), up: c.up, rep: c.rep, vans: c.vans.map(v => ({ id: v.id })), zk: '', zh: [], zf: [],
+      centers.push({ x: c.x, y: c.y, node: ok ? c.nd : E.hubNode('van', c.x, c.y), up: c.up, rep: c.rep, cities: c.cities.length ? c.cities : homeRefs(), vans: c.vans.map(v => ({ id: v.id })), zk: '', zc: [], zh: [], zf: [],
         drv: c.drv.map(d => ({ id: d.id, lvl: d.lvl, done: d.done, earn: d.earn, sick: d.sick, train: d.train, tour: null })), tours: [] });
       const C = centers[centers.length - 1];
       for (const t of c.tours) {
@@ -4070,6 +4304,9 @@ function startGame(DATA, MODEKEY, PRE) {
   new MutationObserver(() => { dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { textW.clear(); dirty = true; });
 
+  // Städte: die Demo-Karte ist eine einzige Stadt (die ganze Karte); sonst die beim Start geladenen Städte der Center (boot.js)
+  if (DEMO) { const cc = LMCity.circle(DATA.ref.lat, DATA.ref.lon, MAXR + 80); addCity({ id: 'demo', name: DATA.name, lat: DATA.ref.lat, lon: DATA.ref.lon, area: cc.area, dem: 200, core: true, rings: cc.rings }); }
+  for (const c of DATA.cities || []) addCity(c);
   rezone();
   if (ONLINE) { WORLD.t0 = LMO.world.gameNow(); teScan = worldT() - LOOKBACK; } // neues Unternehmen: Spielzeit 0 = jetzt
   realign(); refreshTraffic(true);
@@ -4085,17 +4322,17 @@ function startGame(DATA, MODEKEY, PRE) {
     if (ONLINE) scanWorldEvents(worldT(), true);
   }
   realign(); refitCenterOrders(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
-  syncCenUi(); if (centers.length) startFirms();
+  syncCenUi(); if (centers.length && DEMO) startFirms();
   if (ONLINE) { $('speedSeg').hidden = $('pauseBtn').hidden = $('winPause').hidden = true; $('onChip').hidden = false; lastG = worldT(); syncOnChip(); if (!loaded.corrupt && !loaded.future) saveNow(false); }
   resize();
   requestAnimationFrame(frame);
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { adv: (sec, dt) => { dt = dt || 10; for (let t = 0; t < sec; t += dt) stepSim(Math.min(dt, sec - t), performance.now()); dirty = true; }, save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, ZMAXC, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; },
+  window.__lm = { adv: (sec, dt) => { dt = dt || 10; for (let t = 0; t < sec; t += dt) stepSim(Math.min(dt, sec - t), performance.now()); dirty = true; }, save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; },
     cen: { centers: () => centers, orders: () => corders, firms: () => firms, firmState: () => firmState, startPlacing, build: placeCenter, buyVan, sellVan, hire: hireCenDriver, fire: fireCenDriver, train: trainCenDriver, spawn: spawnCenterOrder, tick: tickCenters, expire: expireCenter,
       setView, view: () => uiView, upg: buyCenUpgrade, stats: cstats, startFirms, simOf, cSlots, cPool, cStops, zone: cenZone, sel: csel, absT, vanSeq: () => vanSeq, cenName,
-      auto: v => { cenAuto = v; }, refit: refitCenterOrders, full: cenFull, cap: cenCap, tour: { list: ci => centers[ci].tours, plan: planTour, cancel: cancelTour, calc: (ci, d, day, k, ids) => planCalc(centers[ci], d, day, k, ids), seq: () => tourSeq, slots: n => LMC.upcoming(absT(), n || 8), pos: tourPos, node: tourNode, reserved: vanReserved, begin: (ci, id) => { const c = centers[ci]; beginTour(c, ci, c.tours.find(t => t.id === id)); }, slowF, neutral: neutralLeg } } }; }
+      auto: v => { cenAuto = v; }, cities: () => [...cityRT.values()], demand: ci => cenDemand(centers[ci]), refit: refitCenterOrders, full: cenFull, cap: cenCap, tour: { list: ci => centers[ci].tours, plan: planTour, cancel: cancelTour, calc: (ci, d, day, k, ids) => planCalc(centers[ci], d, day, k, ids), seq: () => tourSeq, slots: n => LMC.upcoming(absT(), n || 8), pos: tourPos, node: tourNode, reserved: vanReserved, begin: (ci, id) => { const c = centers[ci]; beginTour(c, ci, c.tours.find(t => t.id === id)); }, slowF, neutral: neutralLeg } } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });

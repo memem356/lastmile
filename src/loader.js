@@ -10,6 +10,7 @@ const LM = (function () {
     tertiary: 3, tertiary_link: 3, unclassified: 4, residential: 4, living_street: 5, service: 6, cycleway: 7 };
   const HW_RE = Object.keys(HW).join('|');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const net = { bytes: 0, calls: 0 };                              // Zähler für den Stadt-Test: übertragene Zeichen und Abfragen
 
   // ---------- Suche ----------
   async function search(q) {
@@ -38,7 +39,12 @@ const LM = (function () {
           if (onTry) onTry(m, round);
           const r = await fetch(OVERPASS[m], { method: 'POST', body: 'data=' + encodeURIComponent(query),
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
-          if (r.ok) { const j = await r.json(); clearTimeout(to); return j; }
+          if (r.ok) {
+            const txt = await r.text(); net.bytes += txt.length; net.calls++; const j = JSON.parse(txt);
+            // Overpass antwortet bei Zeitüberschreitung oder Speichermangel mit 200 und einer unvollständigen Antwort samt Hinweis: das darf nicht als Ergebnis (und nicht in den Zwischenspeicher) gelten
+            if (j && typeof j.remark === 'string' && /runtime error/i.test(j.remark)) throw new Error('Kartenserver überlastet (' + j.remark.slice(0, 80) + ')');
+            clearTimeout(to); return j;
+          }
           lastErr = new Error('Kartenserver antwortet mit ' + r.status);
         } catch (e) { lastErr = e; }
         clearTimeout(to);
@@ -56,12 +62,28 @@ const LM = (function () {
   const bbStr = b => [b.s, b.w, b.n, b.e].map(v => v.toFixed(6)).join(',');
 
   const qRoads = b => `[out:json][timeout:60];way["highway"~"^(${HW_RE})$"](${bbStr(b)});out body;>;out skel qt;`;
+  // Nur die großen Straßen (Autobahn bis Kreisstraße): für die Verbindung zwischen Städten, die nicht aneinander liegen
+  const LINK_HW = 'motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link';
+  const qLink = b => `[out:json][timeout:60];way["highway"~"^(${LINK_HW})$"](${bbStr(b)});out body;>;out skel qt;`;
   const qPlaces = b => `[out:json][timeout:90];(nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${bbStr(b)});nwr["shop"~"^(bakery|supermarket)$"]["name"](${bbStr(b)}););out center tags;way["building"~"^(apartments|residential|house|detached|terraced|semidetached_house|dormitory|yes)$"](${bbStr(b)});out skel center qt;`;
 
   // Firmen für das Fulfillment Center: Büros, Betriebe, Geschäfte, Praxen, Banken (mit Namen). Restaurants, Cafés, Bäckereien und Supermärkte sind schon Abholorte.
   const qFirms = b => { const bb = bbStr(b); return `[out:json][timeout:90];(nwr["office"]["name"](${bb});nwr["craft"]["name"](${bb});nwr["shop"]["name"](${bb});nwr["amenity"~"^(pharmacy|doctors|dentist|clinic|veterinary|bank|post_office|coworking_space)$"]["name"](${bb});nwr["building"~"^(industrial|warehouse|commercial|office|retail)$"]["name"](${bb}););out center tags;`; };
 
   // ---------- Umwandlung ins Kompaktformat ----------
+  // Straßenklasse c, Merkmale f (1 Einbahn, 2 nur Rad, 4 nicht für Räder) und ob die Richtung umzudrehen ist; null: Weg zählt nicht
+  function wayInfo(t) {
+    const hw = t.highway; if (!(hw in HW)) return null;
+    if (t.access === 'private' || t.access === 'no' || t.area === 'yes') return null;
+    if (hw === 'service' && /^(parking_aisle|driveway|drive-through|emergency_access)$/.test(t.service || '')) return null;
+    const c = HW[hw]; let f = 0, rev = false;
+    const ow = t.oneway;
+    if (ow === '-1' || ow === 'reverse') { rev = true; f |= 1; }
+    else if (ow === 'yes' || ow === '1' || ow === 'true' || t.junction === 'roundabout' || t.junction === 'circular' || (c === 0 && ow !== 'no')) f |= 1;
+    if (c === 7) f |= 2;
+    if (c === 0 || t.bicycle === 'no') f |= 4;
+    return { c, f, rev };
+  }
   function convertRoads(osm, b) {
     const pad = 0.0006; // ca. 60 m Rand
     const inside = n => n.lat >= b.s - pad && n.lat <= b.n + pad && n.lon >= b.w - pad && n.lon <= b.e + pad;
@@ -77,15 +99,9 @@ const LM = (function () {
       return i;
     };
     for (const w of ways) {
-      const t = w.tags, hw = t.highway;
-      if (t.access === 'private' || t.access === 'no' || t.area === 'yes') continue;
-      if (hw === 'service' && /^(parking_aisle|driveway|drive-through|emergency_access)$/.test(t.service || '')) continue;
-      const c = HW[hw]; let f = 0, ids = w.nodes.slice();
-      const ow = t.oneway;
-      if (ow === '-1' || ow === 'reverse') { ids.reverse(); f |= 1; }
-      else if (ow === 'yes' || ow === '1' || ow === 'true' || t.junction === 'roundabout' || t.junction === 'circular' || (c === 0 && ow !== 'no')) f |= 1;
-      if (c === 7) f |= 2;
-      if (c === 0 || t.bicycle === 'no') f |= 4;
+      const t = w.tags, info = wayInfo(t); if (!info) continue;
+      const c = info.c, f = info.f; let ids = w.nodes.slice();
+      if (info.rev) ids.reverse();
       let nm = -1;
       if (t.name) { nm = nameIdx.get(t.name); if (nm === undefined) { nm = names.length; names.push(t.name); nameIdx.set(t.name, nm); } }
       let run = [];
@@ -136,6 +152,8 @@ const LM = (function () {
     return out;
   }
 
+  const firmKind = t => { const a = t.amenity || '';
+    return t.office || a === 'coworking_space' ? 0 : t.craft || /^(industrial|warehouse)$/.test(t.building || '') ? 1 : t.shop || t.building === 'retail' ? 2 : /^(pharmacy|doctors|dentist|clinic|veterinary)$/.test(a) ? 3 : 4; };
   // Firmenkunden als [Art, Breite·1e5, Länge·1e5, Name]; Art: 0 Büro, 1 Betrieb, 2 Geschäft, 3 Praxis, 4 Bank oder Dienst. Die nächsten 400 zum Ortsmittelpunkt.
   function convertFirms(osm, ref, b) {
     const out = [], seen = new Set();
@@ -144,9 +162,7 @@ const LM = (function () {
       const lat = el.lat !== undefined ? el.lat : el.center && el.center.lat, lon = el.lon !== undefined ? el.lon : el.center && el.center.lon;
       if (lat === undefined || lat < b.s || lat > b.n || lon < b.w || lon > b.e) continue;
       if (t.shop === 'bakery' || t.shop === 'supermarket' || /^(restaurant|fast_food|cafe)$/.test(t.amenity || '')) continue;
-      const a = t.amenity || '';
-      const kind = t.office || a === 'coworking_space' ? 0 : t.craft || /^(industrial|warehouse)$/.test(t.building || '') ? 1 : t.shop || t.building === 'retail' ? 2
-        : /^(pharmacy|doctors|dentist|clinic|veterinary)$/.test(a) ? 3 : 4;
+      const kind = firmKind(t);
       const key = t.name + Math.round(lat * 4000) + Math.round(lon * 4000);
       if (seen.has(key)) continue; seen.add(key);
       out.push({ d: (lat - ref.lat) ** 2 + ((lon - ref.lon) * 0.62) ** 2, v: [kind, Math.round(lat * 1e5), Math.round(lon * 1e5), String(t.name).slice(0, 60)] });
@@ -214,22 +230,26 @@ const LM = (function () {
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
       try {
-        const rq = indexedDB.open('lastmile', 1);
-        rq.onupgradeneeded = () => rq.result.createObjectStore('cities', { keyPath: 'id' });
+        const rq = indexedDB.open('lastmile', 2);
+        rq.onupgradeneeded = () => { const d = rq.result; for (const n of ['cities', 'packs']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); };   // packs: Stadtgebiete, Kacheln, Firmen
         rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
       } catch (e) { rej(e); }
     });
     return dbp;
   }
-  async function tx(mode, fn) {
+  async function tx(mode, fn, store) {
     try {
-      const d = await db();
+      const d = await db(), st = store || 'cities';
       return await new Promise((res, rej) => {
-        const t = d.transaction('cities', mode), r = fn(t.objectStore('cities'));
+        const t = d.transaction(st, mode), r = fn(t.objectStore(st));
         t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error);
       });
     } catch (e) { return null; }
   }
+  const dbGet = async id => { const r = await tx('readonly', s => s.get(id), 'packs'); return r ? r.data : null; };
+  const dbPut = (id, data) => tx('readwrite', s => s.put({ id, savedAt: Date.now(), data }), 'packs');
+  const dbDel = id => tx('readwrite', s => s.delete(id), 'packs');
+  const dbKeys = async prefix => ((await tx('readonly', s => s.getAllKeys(), 'packs')) || []).filter(k => k.startsWith(prefix));
   const saveCity = (place, data) => tx('readwrite', s => s.put({ id: idOf(place), savedAt: Date.now(), data }));
   const getCached = async place => { const r = await tx('readonly', s => s.get(idOf(place))); return r && r.data && r.data.v === FORMAT ? r.data : null; };
   const listCached = async () => ((await tx('readonly', s => s.getAll())) || []).filter(r => r.data && r.data.v === FORMAT)
@@ -249,5 +269,6 @@ const LM = (function () {
     } catch (e) { return null; }
   }
 
-  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms };
+  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
+    overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW };
 })();

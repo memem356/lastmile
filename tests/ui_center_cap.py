@@ -156,7 +156,7 @@ async def main():
             cap = await pg.evaluate("[0,1,2,3,4,5,6,7].map(ci=>__lm.cen.cap(ci))")
             ok('C3 Obergrenze je Center: 700 / 8 = 87 (kleiner als 40 je Transporter)', cap == [87] * 8, str(cap))
             # Montag 6:00: Bestellungen entstehen von allein; ohne Planung füllt sich der Vorrat bis zur Obergrenze
-            await pg.evaluate("__lm.world.setHour(6, 3); __lm.cen.refit(); __lm.cen.auto(true)")
+            await pg.evaluate("__lm.cen.cities().forEach(c => { c.dem = 4000; }); __lm.world.setHour(6, 3); __lm.cen.refit(); __lm.cen.auto(true)")
             CNT = "[0,1,2,3,4,5,6,7].map(ci=>__lm.cen.orders().filter(o=>o.c===ci&&(o.state==='open'||o.state==='tour')).length)"
             for _ in range(6):
                 await pg.evaluate("__lm.adv(4*3600, 30)")
