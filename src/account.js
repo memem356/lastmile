@@ -22,10 +22,10 @@
   // ---------- Leiste auf der Startseite ----------
   function updateBar() {
     const s = L.state(), dot = el('accDot'), txt = el('accTxt'), b = el('accBtn');
-    dot.className = 'dot' + (s.signedIn && s.hasProfile ? (s.verified ? ' on' : ' warn') : '');
+    dot.className = 'dot' + (s.signedIn && s.hasProfile ? (s.verified && !s.blocked ? ' on' : ' warn') : '');
     if (!s.signedIn) { txt.textContent = 'Nicht angemeldet · Solo spielen geht ohne Konto'; b.textContent = 'Anmelden'; }
     else if (!s.hasProfile) { txt.textContent = 'Angemeldet · Registrierung noch nicht abgeschlossen'; b.textContent = 'Fortsetzen'; }
-    else { txt.textContent = 'Angemeldet als ' + s.name + (s.verified ? '' : ' · E-Mail noch nicht bestätigt'); b.textContent = 'Konto'; }
+    else { txt.textContent = 'Angemeldet als ' + s.name + (s.blocked ? ' · Name gesperrt, bitte neuen wählen' : s.verified ? '' : ' · E-Mail noch nicht bestätigt'); b.textContent = 'Konto'; }
   }
 
   // ---------- Fenster ----------
@@ -39,7 +39,7 @@
   el('accWrap').addEventListener('mousedown', e => { if (e.target === el('accWrap')) closeWin(); });
   document.addEventListener('keydown', e => { if (open && e.key === 'Escape') { e.preventDefault(); if (view !== 'main') { view = 'main'; render(true); } else closeWin(); } });
 
-  const modeKey = () => { const s = L.state(); return !s.signedIn ? 'out' : s.hasProfile ? 'in' : 'noprof'; };
+  const modeKey = () => { const s = L.state(); return !s.signedIn ? 'out' : s.hasProfile ? (s.blocked ? 'inblk' : 'in') : 'noprof'; };
   function render(force) {
     if (!open) return;
     const k = view + '|' + modeKey() + '|' + tab;
@@ -133,9 +133,11 @@
       'Datenbank (Google Firebase Realtime Database): Spielername (für andere sichtbar), Kontokennung, Zeitpunkt der Registrierung, der benutzte Einladungscode und die Spielstände, die du selbst in die Cloud lädst. Die E-Mail-Adresse steht nicht in der Datenbank.',
       'Online-Modus: dein Online-Unternehmen (Spielstand), eine Sitzungskennung, Zeitstempel des Servers und Ranglisteneinträge mit Name, Stadt, Wachstum, Lieferungen, Ruf und Zeitraum. Die Ranglisten sind für alle angemeldeten Spieler sichtbar.',
       'Clans: Clan-Name, Leiter, Mitgliederliste (nur für Mitglieder sichtbar: Name und Beitrag zum Wachstum des Clans), geheimer Beitrittscode und die Clan-Wertung. Clan-Name und Clan-Wertung sind für alle angemeldeten Spieler sichtbar.',
+      'Melden und Sperren: Wenn du einen Spieler oder Clan meldest, speichert die Datenbank deine Kontokennung, die Kennung und den Namen des Gemeldeten, den gewählten Grund (feste Auswahl, kein Freitext) und den Zeitpunkt. Meldungen sind nicht öffentlich; sie sieht nur der Betreiber. Je Konto sind höchstens 10 Meldungen innerhalb von 24 Stunden möglich. Der Betreiber löscht eine Meldung nach der Prüfung (verwerfen oder sperren). Es wird nichts automatisch gesperrt.',
+      'Sperrliste: Sperrt der Betreiber einen Namen, steht dieser (nur der Name und der Zeitpunkt, ohne Bezug zu einem Konto) auf einer Sperrliste, die alle angemeldeten Spieler lesen können. Gesperrte Namen sind in Ranglisten und Clan-Listen nicht mehr sichtbar und können nicht mehr gewählt werden. Wer gesperrt wurde, behält Konto und Spielstände und wählt einen neuen Namen.',
       'Keine Werbung, keine Tracking-Cookies, keine Analyse-Dienste. Damit du angemeldet bleibst, speichert dein Browser eine Anmeldemarke im lokalen Speicher; „Abmelden“ löscht sie.',
       'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
-      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto selbst. Als Leiter gibst du die Leitung dabei an das dienstälteste Mitglied ab; bist du allein im Clan, wird er aufgelöst.',
+      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto selbst. Eigene Meldungen werden mitgelöscht, soweit sie älter als 24 Stunden sind; jüngere bleiben bis zur Prüfung durch den Betreiber gespeichert. Als Leiter gibst du die Leitung dabei an das dienstälteste Mitglied ab; bist du allein im Clan, wird er aufgelöst.',
       'Kontakt zum Betreiber dieses Hobby-Projekts: über die Projektseite github.com/memem356/lastmile.'
     ];
     for (const t of items) ul.appendChild(mk('li', '', t));
@@ -151,6 +153,7 @@
     if (note) { root.appendChild(mk('p', 'accmsg ok', note)); note = null; }
     const who = mk('div', ''); const nm = mk('p', '', ''); const b = mk('b', '', s.name); nm.appendChild(b); nm.appendChild(document.createTextNode('  ·  ' + s.email)); who.appendChild(nm);
     root.appendChild(who);
+    if (s.blocked) { const bh = mk('div', ''); root.appendChild(bh); LMMod.renameForm(bh, { onDone: name => { note = 'Dein neuer Name ist „' + name + '“.'; render(true); updateBar(); } }); }
     const vm = msgBox();
     if (!s.verified) {
       vm.set('Die E-Mail-Adresse ist noch nicht bestätigt. Öffne den Link in der E-Mail von Firebase (auch im Spam-Ordner nachsehen) und tippe dann auf „Ich habe bestätigt“.', 'err');
@@ -161,16 +164,26 @@
     } else root.appendChild(mk('p', 'accmsg ok', 'E-Mail-Adresse bestätigt.'));
 
     const cn = mk('section', ''); cn.appendChild(mk('h4', '', 'Clan')); const chost = mk('div', ''); cn.appendChild(chost); root.appendChild(cn);
-    LMClan.render(chost);
+    const hooks = { report: t => LMMod.reportForm(chost, t, { back: () => LMClan.render(chost, null, hooks) }) };
+    LMClan.render(chost, null, hooks);
 
     const cs = mk('section', ''); cs.appendChild(mk('h4', '', 'Cloud-Sicherung (nur für dich sichtbar)'));
     cs.appendChild(mk('p', 'note', 'Lade Solo-Spielstände hoch, um sie auf einem anderen Gerät weiterzuspielen. Beim Laden bleibt der bisherige Stand auf diesem Gerät als Sicherung erhalten.'));
     const box = mk('div', ''); box.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:10px'; cs.appendChild(box); root.appendChild(cs);
     loadCloud(box);
 
+    const adm = mk('section', ''), ah = mk('div', ''); adm.hidden = true; adm.append(mk('h4', '', 'Betreiber: Meldungen und Sperren'), ah); root.appendChild(adm);
+    L.mod.isAdmin().then(yes => { if (yes && adm.isConnected) { adm.hidden = false; LMMod.adminPanel(ah); } }).catch(() => {});
+
     const acts = mk('div', 'accrow'); acts.appendChild(btn('Abmelden', '', () => { L.logout(); view = 'main'; tab = 'login'; render(true); updateBar(); }));
     acts.appendChild(link('Datenschutz', () => { view = 'privacy'; render(true); }));
     root.appendChild(acts);
+
+    const tech = mk('details', ''); tech.appendChild(mk('summary', '', 'Technische Angaben'));
+    const cpy = btn('Kopieren', '', async () => { try { await navigator.clipboard.writeText(s.uid); cpy.textContent = 'Kopiert'; setTimeout(() => { cpy.textContent = 'Kopieren'; }, 1500); } catch (e) { tf.i.focus(); tf.i.select(); } });
+    const tf = field('Kontokennung', { name: 'uid', value: s.uid, extra: cpy }); tf.i.readOnly = true; tf.i.onfocus = () => tf.i.select();
+    const tw = mk('div', 'accform'); tw.style.marginTop = '10px'; tw.append(mk('p', 'note', 'Diese Kennung brauchst du nur, wenn dieses Konto in der Datenbank als Betreiber-Konto eingetragen werden soll (siehe README, Phase 8f). Sie gibt keinen Zugriff auf das Konto.'), tf.w);
+    tech.appendChild(tw); root.appendChild(tech);
 
     const del = mk('details', ''); del.appendChild(mk('summary', '', 'Konto löschen …'));
     const dm = msgBox(), dp = field('Passwort zur Bestätigung', { type: 'password', name: 'password', auto: 'current-password' });

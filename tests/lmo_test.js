@@ -137,9 +137,11 @@ const reg = (L, o) => L.register(Object.assign({ name: 'Tim Express', email: 'ti
       await rejects(zdb('PUT', 'users/' + uidZ, { name: 'Zoe', key: 'zoe', created: Date.now() }), 'PERMISSION_DENIED', 'created muss unverändert bleiben');
       await rejects(zdb('PUT', 'users/' + uidZ, { name: 'Zoe', key: 'zoe', created: Z.L.state().profile.created, extra: 1 }), 'PERMISSION_DENIED', 'Zusatzfelder im Profil abgelehnt');
       await rejects(zdb('PUT', 'users/' + uidZ + '/key', 'tim_express'), 'PERMISSION_DENIED', 'Schlüssel nicht allein änderbar');
-      // Umbenennen als ganzes Dokument bleibt möglich
+      // Umbenennen geht nur, wenn der bisherige Name gesperrt wurde (ab Phase 8f)
       const cr = Z.L.state().profile.created;
-      eq((await zdb('PUT', 'users/' + uidZ, { name: 'Zoe Neu', key: 'zoe_neu', created: cr })).name, 'Zoe Neu', 'Umbenennen als ganzes Dokument'); await zdb('PUT', 'names/zoe_neu', uidZ); await zdb('DELETE', 'names/zoe');
+      await rejects(zdb('PUT', 'users/' + uidZ, { name: 'Zoe Neu', key: 'zoe_neu', created: cr }), 'PERMISSION_DENIED', 'Umbenennen ohne Sperre abgelehnt');
+      await ctl('put', { path: 'blockednames/zoe', value: Date.now() });
+      eq((await zdb('PUT', 'users/' + uidZ, { name: 'Zoe Neu', key: 'zoe_neu', created: cr })).name, 'Zoe Neu', 'Umbenennen als ganzes Dokument bei gesperrtem Namen'); await zdb('PUT', 'names/zoe_neu', uidZ); await zdb('DELETE', 'names/zoe');
       eq((await stateOf()).DB.names, { tim_express: uidA, zoe_neu: uidZ }, 'Umbenennung: alter Anspruch frei, neuer da');
       await rejects(zdb('PUT', 'clock/' + uidA, { '.sv': 'timestamp' }), 'PERMISSION_DENIED', 'fremde Uhr nicht beschreibbar');
       await rejects(zdb('PUT', 'clock/' + uidZ, 12345), 'PERMISSION_DENIED', 'Uhr nur mit Serverzeit');

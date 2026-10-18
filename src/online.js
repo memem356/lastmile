@@ -55,7 +55,13 @@ const LMO = (function () {
     CLAN_FULL: 'Dieser Clan ist voll (höchstens 12 Mitglieder).',
     CLAN_OWNER_LEAVE: 'Als Leiter kannst du den Clan erst verlassen, wenn du die Leitung übergeben oder den Clan aufgelöst hast.',
     CLAN_NOT_OWNER: 'Das darf nur der Leiter des Clans.',
-    CLAN_GONE: 'Du bist in keinem Clan (mehr).'
+    CLAN_GONE: 'Du bist in keinem Clan (mehr).',
+    RULES_MOD: 'Meldungen und Sperren sind noch nicht eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.',
+    REPORT_DUP: 'Du hast das schon gemeldet. Die Meldung liegt dem Betreiber vor.',
+    REPORT_LIMIT: 'Du hast in den letzten 24 Stunden schon 10 Meldungen abgegeben. Bitte versuche es später noch einmal.',
+    REPORT_SELF: 'Dich selbst kannst du nicht melden.',
+    NOT_ADMIN: 'Dieses Konto ist kein Betreiber-Konto.',
+    RENAME_NOT_ALLOWED: 'Umbenennen ist nur möglich, wenn dein Name gesperrt wurde.'
   };
   class OErr extends Error {
     constructor(code, detail) { super(TEXT[code] || ('Unbekannter Fehler (' + code + ')')); this.code = code; this.detail = detail || ''; }
@@ -85,7 +91,7 @@ const LMO = (function () {
   }
 
   // ---------- Sitzung ----------
-  let sess = null, profile = null, offset = 0, clockAt = 0, base = null, refreshing = null, dead = false;
+  let sess = null, profile = null, blocked = false, adminMemo = false, offset = 0, clockAt = 0, base = null, refreshing = null, dead = false;
   const subs = new Set();
   const emit = () => { for (const f of subs) { try { f(state()); } catch (e) { console.error(e); } } };
   function persist() { if (sess) ls.set(LSK, JSON.stringify({ uid: sess.uid, email: sess.email, refreshToken: sess.refreshToken, idToken: sess.idToken, exp: sess.exp, verified: !!sess.verified, name: profile ? profile.name : (sess.name || null) })); else ls.del(LSK); }
@@ -94,9 +100,9 @@ const LMO = (function () {
       exp: Date.now() + (+(o.expiresIn || o.expires_in) || 3600) * 1000, verified: keep && sess ? sess.verified : false, name: keep && sess ? sess.name : null };
     persist();
   }
-  function clearSession() { sess = null; profile = null; ls.del(LSK); emit(); }
+  function clearSession() { sess = null; profile = null; blocked = false; adminMemo = false; blkAt = 0; ls.del(LSK); emit(); }
   function state() {
-    return { signedIn: !!sess, uid: sess && sess.uid, email: sess && sess.email, verified: !!(sess && sess.verified), name: profile ? profile.name : (sess && sess.name) || null, profile, hasProfile: !!profile, offset };
+    return { signedIn: !!sess, uid: sess && sess.uid, blocked, email: sess && sess.email, verified: !!(sess && sess.verified), name: profile ? profile.name : (sess && sess.name) || null, profile, hasProfile: !!profile, offset };
   }
   async function fresh() {
     if (!sess) throw oerr('NOT_SIGNED_IN');
@@ -198,6 +204,24 @@ const LMO = (function () {
     }
     return 'Kurier' + (1000 + Math.floor(Math.random() * 9000));
   }
+  const badName = msg => { const e = oerr('BAD_NAME'); e.message = msg; return e; };
+  // Steht der Name auf der Sperrliste des Betreibers? Ohne die neuen Regeln gibt es keine Liste.
+  async function nameBlocked(name) {
+    try { return !!(await db('GET', 'blockednames/' + nameKey(name), undefined, { auth: false })); }
+    catch (e) { if (e.code === 'PERMISSION_DENIED') return false; throw e; }
+  }
+  // Gesperrte Namen (vom Betreiber): als Menge von Schlüsseln, 5 Minuten zwischengespeichert. Ohne die neuen Regeln oder offline bleibt die bisherige Liste.
+  let blkSet = new Set(), blkAt = 0, blkP = null;
+  function blockedSet(force) {
+    if (!force && Date.now() - blkAt < 300000) return Promise.resolve(blkSet);
+    if (blkP) return blkP;
+    blkP = (async () => {
+      let ok = true;
+      try { const j = await db('GET', 'blockednames'); blkSet = new Set(Object.keys(j || {})); } catch (e) { ok = false; }
+      blkAt = ok ? Date.now() : Date.now() - 240000; blkP = null; return blkSet;
+    })();
+    return blkP;
+  }
   const mailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
 
   // ---------- Konto ----------
@@ -216,8 +240,10 @@ const LMO = (function () {
   async function loadProfile() {
     profile = await db('GET', 'users/' + sess.uid);
     if (profile && typeof profile !== 'object') profile = null;
+    blocked = false;
+    if (profile && profile.key) { try { blocked = !!(await db('GET', 'blockednames/' + profile.key)); } catch (e) { /* ohne die neuen Regeln gibt es keine Sperren */ } }
     persist(); emit();
-    if (profile && profile.key) {
+    if (profile && profile.key && !blocked) {
       // Ist der Name aus einer unterbrochenen Registrierung noch nicht beansprucht, wird das nachgeholt
       try { const owner = await db('GET', 'names/' + profile.key, undefined, { auth: false }); if (!owner) await db('PUT', 'names/' + profile.key, sess.uid); } catch (e) {}
     }
@@ -255,6 +281,7 @@ const LMO = (function () {
     if (!code) throw oerr('BAD_CODE');
     const taken = await nameOwner(name);
     if (taken) throw oerr('NAME_TAKEN');
+    if (await nameBlocked(name)) throw badName('Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.');
     const j = await authApi('signUp', { email, password: pw, returnSecureToken: true });
     setSession(j); pend = { name };
     try { await claim(name, code); }
@@ -272,6 +299,7 @@ const LMO = (function () {
     if (!code) throw oerr('BAD_CODE');
     const owner = await nameOwner(name);
     if (owner && owner !== sess.uid) throw oerr('NAME_TAKEN');
+    if (await nameBlocked(name)) throw badName('Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.');
     await claim(name, code);
     await loadProfile();
     return state();
@@ -313,6 +341,7 @@ const LMO = (function () {
       }
     } catch (e) { if (e.code !== 'RULES_CLAN' && !lenient) throw e; }
     try { await db('DELETE', 'clanof/' + uid); } catch (e) { if (e.code !== 'PERMISSION_DENIED') throw e; }
+    for (let i = 0; i < 10; i++) { try { await db('DELETE', 'reports/' + uid + '/s' + i); } catch (e) { if (e.code !== 'PERMISSION_DENIED') throw e; } } // frische Meldungen bleiben bis zur Prüfung beim Betreiber
     // Ranglisteneinträge (Städte der Online-Unternehmen und weltweit), dann Sitzungen, Stände, Uhr
     let metas = {}; try { metas = await db('GET', 'savemeta/' + uid) || {}; } catch (e) { if (!lenient) throw e; }
     for (const slot of Object.keys(metas)) if (slot.startsWith('o_')) for (const sc of ['all', 'day', 'week']) await del('board/' + slot.slice(2) + '/' + sc + '/' + uid);
@@ -426,13 +455,13 @@ const LMO = (function () {
       // Lieferungen und Ruf stehen nur in der Gesamtliste; Tag und Woche zählen allein das Wachstum
       if (!(g > 0) && !(all && l > 0)) continue;
       const cur = c.city[sc], same = cur && cur.p === p;
-      if (!same || g > cur.g || (all && l > (cur.l || 0))) {
+      if (!same || g > cur.g || cur.n !== name || (all && l > (cur.l || 0))) {
         const e = { n: name, c: String(st.city || '').slice(0, 40), g: r2(Math.max(0, g, same ? cur.g : 0)), p, t: SV };
         if (all) { e.l = Math.max(l, same ? (cur.l || 0) : 0); e.r = Math.min(5, Math.max(1, r2(st.r || 3))); }
         await put('board/' + ck + '/' + sc + '/' + uid, e, c.city, sc);
       }
       const gc = c.glob[sc];
-      if (g > 0 && (!gc || gc.p !== p || g > gc.g)) {
+      if (g > 0 && (!gc || gc.p !== p || gc.n !== name || g > gc.g)) {
         await put('board/_global/' + sc + '/' + uid, { n: name, c: String(st.city || '').slice(0, 40), g: r2(g), p, t: SV }, c.glob, sc);
       }
     }
@@ -447,7 +476,8 @@ const LMO = (function () {
       : await db('GET', path, undefined, { query: { orderBy: '"p"', equalTo: period(scope) } });
     const rows = Object.keys(j || {}).map(uid => { const e = j[uid] || {}; return { uid, name: String(e.n || '?'), city: e.c || '', g: +e.g || 0, l: +e.l || 0, r: +e.r || 0, t: e.t }; });
     const key = scope === 'all' ? metric : 'g';
-    return rows.filter(x => typeof x[key] === 'number' && x[key] > 0).sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name)).slice(0, n);
+    const hide = await blockedSet();
+    return rows.filter(x => typeof x[key] === 'number' && x[key] > 0 && !hide.has(nameKey(x.name))).sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name)).slice(0, n);
   }
   async function boardRank(ck) {
     const rows = await boardTop(ck, 'all', 'g', 100), i = rows.findIndex(x => x.uid === (sess && sess.uid));
@@ -466,6 +496,7 @@ const LMO = (function () {
   const lastPut = {}; // zuletzt geschriebene Wertung je Zeitraum, damit nichts unnötig neu geschrieben wird
   async function clanMine(o) {
     needProfile(); const uid = sess.uid; o = o || {};
+    const hideP = blockedSet(); // läuft nebenher (meist aus dem Zwischenspeicher)
     await ensureClock();
     let cid; try { cid = await db('GET', 'clanof/' + uid); } catch (e) { throw ruleErr(e); }
     if (!cid) return null;
@@ -476,7 +507,8 @@ const LMO = (function () {
       try { await db('DELETE', 'members/' + cid + '/' + uid); await db('DELETE', 'clanof/' + uid); } catch (e) {}
       return null;
     }
-    const members = Object.keys(mem).map(u => { const x = mem[u] || {}; return { uid: u, name: String(x.n || '?'), t: +x.t || 0, k: x.k, a: x.a, d: x.d, pd: x.pd, w: x.w, pw: x.pw }; })
+    const hide = await hideP;
+    const members = Object.keys(mem).map(u => { const x = mem[u] || {}; return { uid: u, name: hide.has(nameKey(x.n || '')) ? 'Gesperrter Name' : String(x.n || '?'), hidden: hide.has(nameKey(x.n || '')), raw: String(x.n || ''), t: +x.t || 0, k: x.k, a: x.a, d: x.d, pd: x.pd, w: x.w, pw: x.pw }; })
       .sort((x, y) => x.t - y.t || (x.uid < y.uid ? -1 : 1));
     return { cid, name: cl.n, key: cl.k, owner: cl.o, isOwner: cl.o === uid, code: typeof code === 'string' ? code : null, members, cap: CLAN_CAP };
   }
@@ -486,8 +518,9 @@ const LMO = (function () {
     const bad = checkName(name); if (bad) { const e = oerr('BAD_NAME'); e.message = bad.replace('Der Name', 'Der Clan-Name').replace('Dieser Name', 'Dieser Clan-Name'); throw e; }
     if (await clanMine({ code: false })) throw oerr('CLAN_HAVE');
     const key = nameKey(name);
-    let taken; try { taken = await db('GET', 'clannames/' + key); } catch (e) { throw ruleErr(e); }
+    let taken, blk; try { [taken, blk] = await Promise.all([db('GET', 'clannames/' + key), nameBlocked(name)]); } catch (e) { throw ruleErr(e); }
     if (taken) throw oerr('CLAN_NAME_TAKEN');
+    if (blk) throw badName('Dieser Clan-Name ist nicht erlaubt. Bitte wähle einen anderen.');
     const cid = rnd(ID_CH, 16), code = rnd(CODE_CH, 8), done = [];
     const put = async (path, val, onDenied) => { try { await db('PUT', path, val); done.push(path); } catch (e) { await undoAll(done); throw ruleErr(e, onDenied || 'PERMISSION_DENIED'); } };
     await put('clans/' + cid, { n: name, k: key, o: uid, t: SV }, 'CLAN_NAME_TAKEN');
@@ -559,7 +592,7 @@ const LMO = (function () {
   function clanRows(m, ms) {
     const pd = period('day', ms), pw = period('week', ms), total = { all: 0, day: 0, week: 0 };
     const rows = m.members.map((x, i) => {
-      const r = { uid: x.uid, name: x.name, all: +x.a || 0, day: x.pd === pd ? (+x.d || 0) : 0, week: x.pw === pw ? (+x.w || 0) : 0, owner: x.uid === m.owner, counts: i < CLAN_CAP };
+      const r = { uid: x.uid, name: x.name, hidden: !!x.hidden, all: +x.a || 0, day: x.pd === pd ? (+x.d || 0) : 0, week: x.pw === pw ? (+x.w || 0) : 0, owner: x.uid === m.owner, counts: i < CLAN_CAP };
       if (r.counts) { total.all += r.all; total.day += r.day; total.week += r.week; }
       return r;
     }).sort((a, b) => b.all - a.all || a.name.localeCompare(b.name));
@@ -577,7 +610,7 @@ const LMO = (function () {
     if (num(gl.day && gl.day.g) !== undefined) { want.d = gl.day.g; want.pd = gl.day.p; }
     if (num(gl.week && gl.week.g) !== undefined) { want.w = gl.week.g; want.pw = gl.week.p; }
     let firstErr = null;
-    if (me && Object.keys(want).some(k => me[k] !== want[k])) {
+    if (me && (me.raw !== name || Object.keys(want).some(k => me[k] !== want[k]))) {
       try { await db('PUT', 'members/' + m.cid + '/' + uid, Object.assign({ n: name, t: me.t, k: m.code || me.k }, want)); Object.assign(me, want); }
       catch (e) { firstErr = e; }
     }
@@ -599,8 +632,134 @@ const LMO = (function () {
       j = scope === 'all' ? await db('GET', path, undefined, { query: { orderBy: '"g"', limitToLast: n } })
         : await db('GET', path, undefined, { query: { orderBy: '"p"', equalTo: period(scope) } });
     } catch (e) { throw ruleErr(e); }
+    const hide = await blockedSet();
     return Object.keys(j || {}).map(cid => { const e = j[cid] || {}; return { cid, name: String(e.n || '?'), g: +e.g || 0, m: +e.m || 0, t: e.t }; })
-      .filter(x => x.g > 0).sort((a, b) => b.g - a.g || a.name.localeCompare(b.name)).slice(0, n);
+      .filter(x => x.g > 0 && !hide.has(nameKey(x.name))).sort((a, b) => b.g - a.g || a.name.localeCompare(b.name)).slice(0, n);
+  }
+
+  // ---------- Sperren, Melden, Betreiber ----------
+  // Ist der eigene Name gesperrt? Liest Profil und Sperrliste neu; offline bleibt der bisherige Stand.
+  async function checkBlocked() {
+    if (!sess || !profile) return false;
+    try { await loadProfile(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Sperre:', e.code); }
+    return blocked;
+  }
+  // Wer gesperrt wurde, darf (nur dann) den Namen ändern. Das Unternehmen und alle Stände bleiben erhalten.
+  async function rename(raw) {
+    needProfile(); const uid = sess.uid, name = tidyName(raw), key = nameKey(name);
+    await checkBlocked();
+    if (!blocked) throw oerr('RENAME_NOT_ALLOWED');
+    const bad = checkName(name); if (bad) throw badName(bad);
+    if (key === profile.key) throw badName('Bitte wähle einen anderen Namen als bisher.');
+    const owner = await nameOwner(name);
+    if (owner && owner !== uid) throw oerr('NAME_TAKEN');
+    if (await nameBlocked(name)) throw badName('Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.');
+    const u = await db('GET', 'users/' + uid);
+    if (!u || typeof u.created !== 'number' || !u.key) throw oerr('NO_PROFILE');
+    // Reihenfolge ist durch die Regeln vorgegeben: erst das Profil, dann der Namensanspruch, zuletzt der alte Anspruch weg
+    try { await db('PUT', 'users/' + uid, { name, key, created: u.created }); } catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('NAME_TAKEN') : e; }
+    try { await db('PUT', 'names/' + key, uid); } catch (e) { throw e.code === 'PERMISSION_DENIED' ? oerr('NAME_TAKEN') : e; }
+    try { await db('DELETE', 'names/' + u.key); } catch (e) { console.warn('Alter Namensanspruch:', e.code); }
+    profile = { name, key, created: u.created }; blocked = false; persist();
+    boardCache.clear(); for (const sc of SCOPES) delete lastPut[sc];
+    emit();
+    await boardsRename(name);
+    try { await clanRefresh(); } catch (e) { console.warn('Clan nach Umbenennen:', e.code); }
+    return state();
+  }
+  // Eigene Ranglisteneinträge mit dem neuen Namen neu schreiben (gleiche Werte). Nicht gelingende Einträge holt das normale Spielen nach.
+  async function boardsRename(name) {
+    const uid = sess.uid, ms = serverNow(); let metas = {};
+    try { metas = await db('GET', 'savemeta/' + uid) || {}; } catch (e) { return; }
+    const cks = ['_global'].concat(Object.keys(metas).filter(x => x.startsWith('o_')).map(x => x.slice(2)));
+    const jobs = []; for (const ck of cks) for (const sc of SCOPES) jobs.push([ck, sc]);
+    await Promise.all(jobs.map(async ([ck, sc]) => {
+      try {
+        const path = 'board/' + ck + '/' + sc + '/' + uid, e = await db('GET', path);
+        if (!e || e.n === name || (sc !== 'all' && e.p !== period(sc, ms))) return; // alte Zeiträume werden ohnehin nicht angezeigt
+        await db('PUT', path, Object.assign({}, e, { n: name, t: SV }));
+      } catch (e) { /* wird beim nächsten Spielen nachgeholt */ }
+    }));
+  }
+
+  const REASONS = [['beleidigung', 'Beleidigend oder vulgär'], ['hass', 'Hass, Extremismus'], ['echt', 'Echter Name oder persönliche Daten'], ['imitation', 'Gibt sich als Betreiber oder andere Person aus'], ['sonst', 'Sonstiges']];
+  const modErr = e => e && e.code === 'PERMISSION_DENIED' ? oerr('RULES_MOD') : e;
+  // Meldung abgeben. target = { k: 'p' (Spieler) | 'c' (Clan), id, name }. Je Konto höchstens 10 Meldungen innerhalb von 24 Stunden.
+  async function modReport(target, reason) {
+    needProfile(); const uid = sess.uid;
+    if (!target || (target.k !== 'p' && target.k !== 'c') || !/^[A-Za-z0-9]{12,40}$/.test(String(target.id || '')) || !REASONS.some(r => r[0] === reason)) throw oerr('PERMISSION_DENIED', 'Meldung unvollständig');
+    if (target.id === uid) throw oerr('REPORT_SELF');
+    await ensureClock();
+    let mine; try { mine = await db('GET', 'reports/' + uid); } catch (e) { throw modErr(e); }
+    mine = mine || {};
+    const slots = Object.keys(mine);
+    if (slots.some(x => mine[x] && mine[x].k === target.k && mine[x].id === target.id)) throw oerr('REPORT_DUP');
+    const ms = serverNow(); let slot = null, oldest = Infinity;
+    for (let i = 0; i < 10; i++) {
+      const e = mine['s' + i];
+      if (!e) { slot = 's' + i; break; }
+      const t = +e.t || 0; if (t < ms - 86400000 && t < oldest) { oldest = t; slot = 's' + i; } // nur Plätze, die älter als 24 Stunden sind (so verlangen es die Regeln)
+    }
+    if (!slot) throw oerr('REPORT_LIMIT');
+    try { await db('PUT', 'reports/' + uid + '/' + slot, { k: target.k, id: target.id, n: String(target.name || '?').slice(0, 20), r: reason, t: SV }); }
+    catch (e) { throw modErr(e); }
+  }
+  // Betreiber? Wird in der Datenbank von Hand eingetragen (admins/<uid> = true) und hier nur gelesen.
+  async function isAdmin() {
+    if (!sess) return false;
+    if (adminMemo) return true;
+    try { adminMemo = !!(await db('GET', 'admins/' + sess.uid)); }
+    catch (e) { adminMemo = false; } // ohne die neuen Regeln oder offline: kein Betreiber. Nur ein „Ja“ wird gemerkt, damit ein frischer Eintrag sofort wirkt.
+    return adminMemo;
+  }
+  const needAdmin = async () => { needProfile(); if (!(await isAdmin())) throw oerr('NOT_ADMIN'); };
+  // Alle Meldungen, zusammengefasst je gemeldetem Spieler oder Clan
+  async function modReports() {
+    await needAdmin();
+    let all; try { all = await db('GET', 'reports'); } catch (e) { throw modErr(e); }
+    const groups = new Map();
+    for (const rep of Object.keys(all || {})) for (const slot of Object.keys(all[rep] || {})) {
+      const e = all[rep][slot]; if (!e || !e.id) continue;
+      const gk = e.k + ':' + e.id; let g = groups.get(gk);
+      if (!g) { g = { k: e.k, id: e.id, name: '', count: 0, reasons: {}, last: 0, refs: [] }; groups.set(gk, g); }
+      g.count++; g.reasons[e.r] = (g.reasons[e.r] || 0) + 1; g.refs.push({ uid: rep, slot });
+      if ((+e.t || 0) >= g.last) { g.last = +e.t || 0; g.name = String(e.n || '?'); }
+    }
+    const hide = await blockedSet(true), out = [...groups.values()];
+    await Promise.all(out.map(async g => {
+      const key = nameKey(g.name); g.key = key; g.blocked = hide.has(key);
+      try {
+        if (g.k === 'p') g.status = (await db('GET', 'names/' + key)) === g.id ? 'current' : 'changed';
+        else { const c = await db('GET', 'clans/' + g.id); g.status = !c ? 'gone' : (c.k === key ? 'current' : 'changed'); }
+      } catch (e) { g.status = 'unknown'; }
+    }));
+    return out.sort((a, b) => b.count - a.count || b.last - a.last);
+  }
+  async function modDismiss(g) {
+    await needAdmin();
+    for (const r of g.refs) await db('DELETE', 'reports/' + r.uid + '/' + r.slot);
+  }
+  // Name sperren (für Spieler und Clans). Ein gemeldeter Clan wird zusätzlich aufgelöst; seine Mitglieder räumen ihre Zeiger beim nächsten Öffnen selbst weg.
+  async function modBlock(g) {
+    await needAdmin();
+    const key = nameKey(g.name);
+    try { await db('PUT', 'blockednames/' + key, SV); } catch (e) { throw modErr(e); }
+    blkSet.add(key);
+    if (g.k === 'c') {
+      const delIf = async p => { if ((await db('GET', p)) != null) await db('DELETE', p); };
+      for (const sc of SCOPES) await delIf('clanboard/' + sc + '/' + g.id);
+      await delIf('clannames/' + key); await delIf('clans/' + g.id);
+    }
+    await modDismiss(g);
+  }
+  async function modBlockedList() {
+    await needAdmin();
+    let j; try { j = await db('GET', 'blockednames'); } catch (e) { throw modErr(e); }
+    return Object.keys(j || {}).map(key => ({ key, t: +j[key] || 0 })).sort((a, b) => b.t - a.t || (a.key < b.key ? -1 : 1));
+  }
+  async function modUnblock(key) {
+    await needAdmin();
+    await db('DELETE', 'blockednames/' + key); blkSet.delete(key);
   }
 
   // ---------- Start ----------
@@ -626,6 +785,8 @@ const LMO = (function () {
     world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, period, ckOf },
     company: { open: companyOpen, push: companyPush, remove: companyRemove },
     board: { submit: boardSubmit, top: boardTop, rank: boardRank, mine: boardMine },
+    mod: { reasons: REASONS, refreshBlocked: () => blockedSet(true), report: modReport, isAdmin, reports: modReports, dismiss: modDismiss, block: modBlock, blockedList: modBlockedList, unblock: modUnblock },
+    rename, checkBlocked,
     clan: { cap: CLAN_CAP, fmtCode, myId: clanMyId, mine: clanMine, create: clanCreate, join: clanJoin, leave: clanLeave, disband: clanDisband, kick: clanKick, transfer: clanTransfer, renew: clanRenew, refresh: clanRefresh, rows: clanRows, top: clanTop },
     _db: db
   };

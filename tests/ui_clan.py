@@ -139,6 +139,8 @@ async def main():
             await pM.evaluate("__lm.setCash(900); __lm.push()"); await pM.wait_for_timeout(600)
             await pM.click('#onChip'); await pM.wait_for_timeout(700); await pM.click('#dlgB .seg button >> text=Mein Clan'); await pM.wait_for_timeout(1000)
             await pM.fill('#dlgB input[name=clanname]', 'Nachtfahrer'); await btn(pM,'#dlgB','Clan gründen',1500)
+            try: await pM.wait_for_function("document.querySelector('#dlgB').innerText.includes('Nachtfahrer')", timeout=10000)
+            except Exception: pass
             ok('Handy: Clan gegründet', 'Nachtfahrer' in await txt(pM,'#dlgB'))
             await pM.screenshot(path=OUT+'cl_mobile.png')
             ok('Handy: kein seitliches Scrollen im Dialog', await pM.evaluate("(()=>{const d=document.querySelector('#dlg .dlg');return d.scrollWidth<=d.clientWidth+1 && document.documentElement.scrollWidth<=window.innerWidth+1})()"))

@@ -29,8 +29,8 @@ const LMClan = (function () {
     try { await work(); return true; } catch (e) { mb.set(errText(e), 'err'); console.warn('Clan:', e && e.code, e && e.detail); b.disabled = false; b.textContent = old; return false; }
   }
 
-  // Zeichnet die Clan-Ansicht in host. flash: Hinweis, der nach dem Neuzeichnen oben steht.
-  async function render(host, flash) {
+  // Zeichnet die Clan-Ansicht in host. flash: Hinweis, der nach dem Neuzeichnen oben steht. hooks.report(ziel) öffnet das Meldeformular (ohne hooks gibt es keine Melden-Knöpfe).
+  async function render(host, flash, hooks) {
     const seq = host._clanSeq = (host._clanSeq || 0) + 1;
     host.textContent = ''; host.appendChild(mk('p', 'note', 'Clan wird geladen …'));
     let res;
@@ -41,8 +41,8 @@ const LMClan = (function () {
     }
     if (seq !== host._clanSeq || !host.isConnected) return;
     host.textContent = '';
-    const again = f => render(host, f);
-    host.appendChild(res ? memberView(res, again, flash) : noClanView(again, flash));
+    const again = f => render(host, f, hooks);
+    host.appendChild(res ? memberView(res, again, flash, hooks || {}) : noClanView(again, flash));
     if (res && res.err && res.err.code !== 'NETWORK') console.warn('Clan-Wertung:', res.err.code, res.err.detail);
   }
 
@@ -62,7 +62,7 @@ const LMClan = (function () {
     return root;
   }
 
-  function memberView(res, again, flash) {
+  function memberView(res, again, flash, hooks) {
     const m = res.m, root = mk('div', 'accform'), mb = msgBox();
     if (flash) root.appendChild(mk('p', 'accmsg ok', flash));
     const head = mk('div', ''), nm = mk('p', '', m.name); nm.style.cssText = 'margin:0 0 2px;font:600 17px var(--font-ui);color:var(--ink)'; head.appendChild(nm);
@@ -83,12 +83,15 @@ const LMClan = (function () {
       tx.appendChild(mk('span', 'tt', r.name + (r.owner ? ' · Leiter' : '') + (mine ? ' (du)' : '') + (r.counts ? '' : ' · zählt nicht (Clan voll)')));
       tx.appendChild(mk('span', 'ss', 'heute ' + eur(r.day) + ' · Woche ' + eur(r.week) + ' · gesamt ' + eur(r.all)));
       li.appendChild(tx);
+      const acts = mk('div', 'acts');
       if (m.isOwner && !mine) {
-        const acts = mk('div', 'acts'), lead = btn('Leitung', ''), kick = btn('Entfernen', 'danger');
+        const lead = btn('Leitung', ''), kick = btn('Entfernen', 'danger');
         confirmBtn(lead, 'Leitung übergeben?', b => act(b, mb, async () => { await L.clan.transfer(r.uid); await again('Die Leitung liegt jetzt bei ' + r.name + '.'); }));
         confirmBtn(kick, 'Wirklich entfernen?', b => act(b, mb, async () => { await L.clan.kick(r.uid); await again(r.name + ' wurde aus dem Clan entfernt.'); }));
-        acts.append(lead, kick); li.appendChild(acts);
+        acts.append(lead, kick);
       }
+      if (hooks.report && !mine && !r.hidden) acts.appendChild(btn('Melden', '', () => hooks.report({ k: 'p', id: r.uid, name: r.name })));
+      if (acts.children.length) li.appendChild(acts);
       ul.appendChild(li);
     }
     root.appendChild(ul);
@@ -104,16 +107,21 @@ const LMClan = (function () {
       const lv = btn('Clan verlassen', 'danger');
       confirmBtn(lv, 'Wirklich verlassen?', b => act(b, mb, async () => { const n = m.name; await L.clan.leave(); await again('Du hast den Clan „' + n + '“ verlassen.'); }));
       row.appendChild(lv);
+      if (hooks.report) row.appendChild(btn('Clan-Namen melden', '', () => hooks.report({ k: 'c', id: m.cid, name: m.name })));
     }
     root.append(mb.m, row);
     return root;
   }
 
   // Tabelle der Clan-Rangliste für den Zeitraum scope; myId hebt den eigenen Clan hervor
-  async function table(scope, myId) {
+  async function table(scope, myId, onReport) {
     const rows = await L.clan.top(scope, 25), tb = mk('table', 'rk'), hd = mk('tr');
-    hd.append(mk('th', 'n', '#'), mk('th', null, 'Clan'), mk('th', 'n', 'Mitglieder'), mk('th', 'n', 'Wachstum')); tb.appendChild(hd);
-    rows.forEach((r, i) => { const tr = mk('tr', r.cid === myId ? 'me' : ''); tr.append(mk('td', 'n', String(i + 1)), mk('td', null, r.name), mk('td', 'n', String(r.m)), mk('td', 'n', eur(r.g))); tb.appendChild(tr); });
+    hd.append(mk('th', 'n', '#'), mk('th', null, 'Clan'), mk('th', 'n', 'Mitglieder'), mk('th', 'n', 'Wachstum')); if (onReport) hd.appendChild(mk('th', 'f', '')); tb.appendChild(hd);
+    rows.forEach((r, i) => {
+      const tr = mk('tr', r.cid === myId ? 'me' : ''); tr.append(mk('td', 'n', String(i + 1)), mk('td', null, r.name), mk('td', 'n', String(r.m)), mk('td', 'n', eur(r.g)));
+      if (onReport) { const td = mk('td', 'f'); if (r.cid !== myId) td.appendChild(LMMod.flagBtn(r.name, () => onReport({ k: 'c', id: r.cid, name: r.name }))); tr.appendChild(td); }
+      tb.appendChild(tr);
+    });
     return { rows, node: tb };
   }
 

@@ -319,7 +319,7 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
 #dlgB .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 #dlgB button.btn { width: 100%; text-align: left; padding: 10px 12px; }
 #dlgB .row button.btn { width: auto; text-align: center; }
-#dlgB .nrow button.btn, #dlgB .cl button.btn { width: auto; text-align: center; }
+#dlgB .nrow button.btn, #dlgB .cl button.btn, #dlgB .accrow button.btn { width: auto; text-align: center; }
 #dlgB p.accmsg { font-size: 13px; }
 #dlgB p.accmsg.err { color: var(--warn); } #dlgB p.accmsg.ok { color: var(--ok); }
 .ach { display: grid; grid-template-columns: 22px 1fr; gap: 0 10px; padding: 8px 0; border-top: 1px solid var(--line); }
@@ -374,6 +374,12 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
 .rk td { padding: 5px 6px; border-bottom: 1px solid var(--line); }
 .rk .n { text-align: right; font-family: var(--font-mono); white-space: nowrap; }
 .rk td.c { color: var(--muted); }
+.rk th.f, .rk td.f { width: 1%; text-align: right; padding: 2px 4px; }
+.flag { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 5px 7px; line-height: 0; border-radius: 4px; opacity: 0.7; }
+.flag:hover, .flag:focus-visible { color: var(--warn); opacity: 1; }
+.flag:focus-visible { outline: 2px solid var(--route); outline-offset: 1px; }
+fieldset.rep { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px 10px; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .rk tr.me td { background: color-mix(in srgb, var(--signal) 22%, transparent); font-weight: 600; }
 .chartw svg { width: 100%; height: auto; display: block; }
 .bar-in { fill: var(--signal); } .bar-out { fill: var(--muted); opacity: .65; } .cur-bg { fill: var(--line); opacity: .5; }
@@ -685,6 +691,7 @@ const ESSEN = /*DATA*/null;
 /*LOADER*/
 /*ONLINE*/
 /*CLAN*/
+/*MOD*/
 
 const $ = id => document.getElementById(id);
 const MODES = {
@@ -2644,8 +2651,15 @@ function startGame(DATA, MODEKEY, PRE) {
     } finally { syncOnChip(); }
     return okk;
   }
+  // Gesperrter Name: das Unternehmen läuft weiter, aber der Spieler muss sich einen neuen Namen wählen
+  let blockShown = false;
+  function showBlocked() {
+    openDlg('Name gesperrt', b => { const host = mk('div'); b.appendChild(host); LMMod.renameForm(host, { onDone: name => { closeDlg(); toast('Neuer Name gespeichert', 'Du heißt jetzt ' + name + '.'); refreshRank(); } }); });
+  }
   async function refreshRank() {
     if (!ONLINE || halted) return;
+    try { await LMO.checkBlocked(); } catch (e) { /* offline: der letzte Stand gilt */ }
+    if (LMO.state().blocked && !blockShown && dlg.hidden) { blockShown = true; showBlocked(); }
     try { onNet.rank = await LMO.board.rank(CK); onNet.rankAt = Date.now(); } catch (e) { /* bleibt beim alten Wert */ }
     syncOnChip();
     try { await LMO.clan.refresh(); } catch (e) { /* ohne Clan oder ohne Verbindung nichts zu tun */ }
@@ -2653,13 +2667,16 @@ function startGame(DATA, MODEKEY, PRE) {
   function syncOnChip() {
     if (!ONLINE) return;
     const rkn = onNet.rank, dot = $('onDot');
-    const txt = halted ? 'Beendet' : onNet.err ? 'Offline' : rkn && rkn.rank ? 'Rang ' + rkn.rank + (rkn.full ? '' : ' von ' + rkn.total) : 'Online';
+    const blk = LMO.state().blocked;
+    const txt = halted ? 'Beendet' : blk ? 'Name ändern' : onNet.err ? 'Offline' : rkn && rkn.rank ? 'Rang ' + rkn.rank + (rkn.full ? '' : ' von ' + rkn.total) : 'Online';
     setText($('onT'), txt);
-    dot.style.background = halted || (onNet.err && onNet.err.code === 'PERMISSION_DENIED') ? '#e0402a' : onNet.err ? '#e0a020' : 'var(--ok)';
-    $('onChip').title = halted ? 'Sitzung beendet' : onNet.err ? 'Cloud-Speichern fehlgeschlagen: ' + onNet.err.message + ' (es wird weiter versucht)' : 'Rangliste öffnen';
+    dot.style.background = halted || blk || (onNet.err && onNet.err.code === 'PERMISSION_DENIED') ? '#e0402a' : onNet.err ? '#e0a020' : 'var(--ok)';
+    $('onChip').title = halted ? 'Sitzung beendet' : blk ? 'Dein Name wurde gesperrt. Tippe, um einen neuen zu wählen.' : onNet.err ? 'Cloud-Speichern fehlgeschlagen: ' + onNet.err.message + ' (es wird weiter versucht)' : 'Rangliste öffnen';
   }
   const RK_METRICS = { g: ['Wachstum', r => eur(r.g)], l: ['Lieferungen', r => String(r.l)], r: ['Ruf', r => nf(1).format(r.r) + ' ★'] };
   const rkView = { scope: 'all', area: 'city', metric: 'g' };
+  // Meldeformular aus der Rangliste; „Zurück“ führt in die Rangliste
+  const reportHook = t => openDlg('Melden', bb => { const host = mk('div'); bb.appendChild(host); LMMod.reportForm(host, t, { back: openRank }); });
   async function openRank() {
     if (halted) { location.reload(); return; }
     openDlg('Rangliste', b => {
@@ -2683,9 +2700,9 @@ function startGame(DATA, MODEKEY, PRE) {
           if (!onNet.push && !onNet.err) await cloudPush(false);
           else if (!halted && Date.now() - onNet.push > 20000) await cloudPush(false);
           if (my !== seq) return;
-          if (rkView.area === 'myclan') { msg.textContent = ''; const host = mk('div'); out.appendChild(host); LMClan.render(host); return; }
+          if (rkView.area === 'myclan') { msg.textContent = ''; const host = mk('div'); out.appendChild(host); LMClan.render(host, null, { report: reportHook }); return; }
           if (rkView.area === 'clans') {
-            const myId = await LMO.clan.myId().catch(() => null), t = await LMClan.table(scope, myId);
+            const myId = await LMO.clan.myId().catch(() => null), t = await LMClan.table(scope, myId, reportHook);
             if (my !== seq) return;
             msg.textContent = t.rows.length ? '' : 'Noch keine Clans in dieser Wertung. Gründe unter „Mein Clan“ den ersten.';
             if (t.rows.length) out.appendChild(t.node);
@@ -2696,8 +2713,12 @@ function startGame(DATA, MODEKEY, PRE) {
           if (my !== seq) return;
           msg.textContent = rows.length ? '' : 'Noch keine Einträge. Sobald dein Unternehmen wächst, erscheinst du hier.';
           const me = LMO.state().uid, tb = mk('table', 'rk'), hd = mk('tr');
-          hd.append(mk('th', 'n', '#'), mk('th', null, 'Spieler'), mk('th', null, world ? 'Stadt' : ''), mk('th', 'n', RK_METRICS[metric][0])); tb.appendChild(hd);
-          rows.forEach((r, i) => { const tr = mk('tr', r.uid === me ? 'me' : ''); tr.append(mk('td', 'n', String(i + 1)), mk('td', null, r.name), mk('td', 'c', world ? r.city : ''), mk('td', 'n', RK_METRICS[metric][1](r))); tb.appendChild(tr); });
+          hd.append(mk('th', 'n', '#'), mk('th', null, 'Spieler'), mk('th', null, world ? 'Stadt' : ''), mk('th', 'n', RK_METRICS[metric][0]), mk('th', 'f', '')); tb.appendChild(hd);
+          rows.forEach((r, i) => {
+            const tr = mk('tr', r.uid === me ? 'me' : ''), fl = mk('td', 'f');
+            if (r.uid !== me) fl.appendChild(LMMod.flagBtn(r.name, () => reportHook({ k: 'p', id: r.uid, name: r.name })));
+            tr.append(mk('td', 'n', String(i + 1)), mk('td', null, r.name), mk('td', 'c', world ? r.city : ''), mk('td', 'n', RK_METRICS[metric][1](r)), fl); tb.appendChild(tr);
+          });
           if (rows.length) out.appendChild(tb);
           const mine = rows.findIndex(r => r.uid === me);
           if (rows.length && mine < 0) out.appendChild(mk('p', 'note', 'Du bist in dieser Liste (noch) nicht unter den ersten 25.'));
@@ -2709,7 +2730,7 @@ function startGame(DATA, MODEKEY, PRE) {
       load();
     });
   }
-  $('onChip').onclick = openRank;
+  $('onChip').onclick = () => { if (LMO.state().blocked && !halted) showBlocked(); else openRank(); };
 
   // ---------- Start ----------
   new ResizeObserver(resize).observe(wrap);
