@@ -46,7 +46,7 @@ const LMO = (function () {
     API_KEY: 'Der Zugangsschlüssel zu Firebase wird abgelehnt. Bitte melde das dem Betreiber.',
     CLOCK: 'Die Serverzeit konnte nicht gelesen werden.',
     SUPERSEDED: 'Dein Unternehmen wird jetzt in einem anderen Tab oder auf einem anderen Gerät gespielt. Diese Sitzung wurde beendet, damit nichts doppelt gezählt wird.',
-    CORRUPT: 'Der gespeicherte Online-Stand ist beschädigt und wurde nicht verändert. Bitte melde das dem Betreiber.',
+    CORRUPT: 'Der gespeicherte Online-Stand ist beschädigt und wurde nicht verändert. Bitte melde das dem Betreiber. Wenn du nicht warten willst, kannst du dein Unternehmen löschen und neu anfangen.',
     RULES_ONLINE: 'Die Datenbank ist noch nicht für den Online-Modus eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.',
     RULES_CLAN: 'Die Datenbank ist noch nicht für Clans eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.',
     CLAN_HAVE: 'Du bist schon in einem Clan. Verlasse ihn zuerst.',
@@ -420,6 +420,20 @@ const LMO = (function () {
       throw e;
     }
   }
+  // Das Unternehmen des Kontos = das zuletzt gespeicherte Online-Unternehmen (ein Konto, ein Spielstand). Ältere Konten mit mehreren behalten das zuletzt gespielte; die anderen bleiben unangetastet in der Cloud.
+  async function companyMine() {
+    const list = (await cloudList()).filter(x => /^o_/.test(x.slot) && typeof x.t === 'number').sort((a, b) => b.t - a.t);
+    const x = list[0]; if (!x) return null;
+    const ck = x.slot.slice(2), parts = ck.split('_'), info = String(x.info || '').split(' · ');
+    const lat = parts.length === 4 ? +(parts[0] + '.' + parts[1]) : NaN, lon = parts.length === 4 ? +(parts[2] + '.' + parts[3]) : NaN;
+    return { ck, slot: x.slot, name: info[1] || 'Stadt', info: x.info || '', t: x.t, lat, lon, others: list.length - 1 };
+  }
+  // Alle Online-Unternehmen des Kontos löschen („Neu anfangen“). Gibt die Zahl der gelöschten zurück.
+  async function companyRemoveAll() {
+    const list = (await cloudList()).filter(x => /^o_/.test(x.slot));
+    for (const x of list) await companyRemove(x.slot.slice(2));
+    return list.length;
+  }
   async function companyRemove(ck) {
     needProfile(); const uid = sess.uid, slot = 'o_' + ck;
     for (const sc of ['all', 'day', 'week']) await db('DELETE', 'board/' + ck + '/' + sc + '/' + uid);
@@ -763,6 +777,7 @@ const LMO = (function () {
   }
 
   // ---------- Start ----------
+  let readyP = Promise.resolve();
   function init() {
     const raw = ls.get(LSK); if (!raw) return;
     try {
@@ -770,7 +785,7 @@ const LMO = (function () {
       if (!o || !o.uid || !o.refreshToken) throw 0;
       sess = { uid: o.uid, email: o.email || '', refreshToken: o.refreshToken, idToken: o.idToken || '', exp: +o.exp || 0, verified: !!o.verified, name: o.name || null };
     } catch (e) { ls.del(LSK); return; }
-    (async () => {
+    readyP = (async () => {
       try { await lookup(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Konto:', e.code); }
       if (sess) { try { await loadProfile(); } catch (e) { if (e.code !== 'NETWORK') console.warn('Konto:', e.code); } }
       emit();
@@ -778,12 +793,12 @@ const LMO = (function () {
   }
 
   return {
-    CFG, OErr, init, state, on(f) { subs.add(f); return () => subs.delete(f); },
+    CFG, OErr, init, ready: () => readyP, state, on(f) { subs.add(f); return () => subs.delete(f); },
     checkName, suggestName, mailOk, nameKey, tidyName,
     register, completeRegistration, login, logout, resetPassword, sendVerify, checkVerified, loadProfile, deleteAccount,
     syncClock, serverNow, cloud: { slotOf, list: cloudList, put: cloudPut, get: cloudGet, del: cloudDel },
     world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, period, ckOf },
-    company: { open: companyOpen, push: companyPush, remove: companyRemove },
+    company: { open: companyOpen, push: companyPush, remove: companyRemove, removeAll: companyRemoveAll, mine: companyMine },
     board: { submit: boardSubmit, top: boardTop, rank: boardRank, mine: boardMine },
     mod: { reasons: REASONS, refreshBlocked: () => blockedSet(true), report: modReport, isAdmin, reports: modReports, dismiss: modDismiss, block: modBlock, blockedList: modBlockedList, unblock: modUnblock },
     rename, checkBlocked,

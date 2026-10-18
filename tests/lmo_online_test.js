@@ -73,6 +73,36 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       eq((await stateOf()).DB.saves[uidA]['o_' + CK].data, raw + 'neu', 'Stand des neuen Geräts gilt');
       A.A2 = A2;
     }
+    // --- Mein Unternehmen (ein Konto, ein Spielstand) und ready()
+    { const A2 = A.A2, CK2 = '48_137_11_575', raw = JSON.stringify({ v: 2, pad: 'm'.repeat(60) });
+      let m = await A.L.company.mine();
+      eq([m.ck, m.slot, m.lat, m.lon, m.others, typeof m.t], [CK, 'o_' + CK, 51.457, 7.015, 0, 'number'], 'mine: das einzige Unternehmen mit Koordinaten');
+      eq(m.name, 'Stadt', 'mine: ohne lesbare Info bleibt ein Platzhalter für den Städtenamen');
+      await A2.L.company.push(o2.slot, o2.sess, raw, 'Online · Essen · 150 € · 3 Lieferungen');
+      m = await A.L.company.mine(); eq([m.name, m.info], ['Essen', 'Online · Essen · 150 € · 3 Lieferungen'], 'mine: Stadtname aus der Info');
+      await sleep(30);
+      const o3 = await A2.L.company.open(CK2); await A2.L.company.push(o3.slot, o3.sess, raw, 'Online · München · 90 € · 1 Lieferung');
+      m = await A.L.company.mine(); eq([m.ck, m.name, m.lat, m.lon, m.others], [CK2, 'München', 48.137, 11.575, 1], 'mine: bei mehreren gilt das zuletzt gespeicherte, die anderen werden gezählt');
+      await sleep(30); await A.L.cloud.put('s_solo_test', JSON.stringify({ v: 2, pad: 's'.repeat(60) }), 'Solo · Bochum', 1);
+      m = await A.L.company.mine(); eq(m.ck, CK2, 'mine: Solo-Stände (s_) zählen nicht');
+      await A2.L.company.remove(CK2);
+      m = await A.L.company.mine(); eq([m.ck, m.others], [CK, 0], 'mine: nach dem Aufgeben gilt wieder das andere');
+      await A.L.cloud.del('s_solo_test');
+      await rejects(client().L.company.mine(), 'NOT_SIGNED_IN', 'mine: nur angemeldet');
+      // removeAll: alle Online-Unternehmen des Kontos, Solo-Stände und fremde Konten bleiben
+      await A2.L.company.open(CK2).then(o => A2.L.company.push(o.slot, o.sess, raw, 'Online · München · 90 € · 1 Lieferung'));
+      await A.L.cloud.put('s_solo_test', JSON.stringify({ v: 2, pad: 's'.repeat(60) }), 'Solo · Bochum', 1);
+      eq(await A.L.company.removeAll(), 2, 'removeAll: beide Unternehmen gelöscht');
+      eq(await A.L.company.mine(), null, 'removeAll: danach kein Unternehmen mehr');
+      eq((await A.L.cloud.list()).map(x => x.slot), ['s_solo_test'], 'removeAll: Solo-Stand bleibt');
+      eq(await A.L.company.removeAll(), 0, 'removeAll ohne Unternehmen: nichts zu tun');
+      await A.L.cloud.del('s_solo_test');
+      { const o = await A.L.company.open(CK); await A.L.company.push(o.slot, o.sess, raw, 'Online · Essen · 150 € · 3 Lieferungen'); }
+      // ready(): wartet, bis Konto und Profil geladen sind
+      const R = client(A.store).L; await R.ready(); ok(!R.state().signedIn, 'ready ohne init: sofort fertig, nicht angemeldet');
+      R.init(); await R.ready(); eq([R.state().signedIn, R.state().uid, !!R.state().name], [true, uidA, true], 'ready: nach init sind Konto und Profil geladen');
+      const N = client(); N.L.init(); await N.L.ready(); ok(!N.L.state().signedIn, 'ready ohne gespeicherte Anmeldung: nicht angemeldet');
+    }
     // Regeln der Sitzung direkt prüfen
     { const raw = JSON.stringify({ v: 2, pad: 'x'.repeat(60) }), cur = (await stateOf()).DB.sessions[uidA]['o_' + CK].sess;
       await rejects(A.L._db('PUT', 'saves/' + uidA + '/o_' + CK, { t: { '.sv': 'timestamp' }, v: 2, data: raw }), 'PERMISSION_DENIED', 'Online-Stand ohne Sitzung abgelehnt');

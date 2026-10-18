@@ -38,6 +38,13 @@ async def newpage(ctx, url=URL, wait=1200):
     await pg.goto(url); await pg.wait_for_timeout(wait)
     return pg, errs
 async def vis(pg, sel): return await pg.evaluate("s=>{const e=document.querySelector(s);return !!e&&!e.hidden&&(e.offsetParent!==null||getComputedStyle(e).position==='fixed')}", sel)
+async def wait_vis(pg, sel, ms=8000):
+    for _ in range(ms//100):
+        try:
+            if await vis(pg, sel): return True
+        except Exception: pass
+        await pg.wait_for_timeout(100)
+    return False
 async def wait_app(pg, ms=25000):
     for _ in range(ms//250):
         if await pg.evaluate("!document.getElementById('app').hidden && !!window.__lm"): return True
@@ -48,7 +55,7 @@ async def away(pg, skew_ms):
     # Seite verlassen (dabei wird zuletzt gespeichert), Serveruhr vorstellen, Seite wieder öffnen
     await pg.goto('about:blank'); await pg.wait_for_timeout(1000)
     ctl('skew', {'ms': skew_ms})
-    await pg.goto(URL+'#c=essen-demo&m=o'); await pg.wait_for_timeout(500)
+    await pg.goto(URL); await pg.wait_for_timeout(500)
 async def main():
     srv=subprocess.Popen(['node',HERE+'fbmock.js','9297'], stdout=subprocess.DEVNULL)
     web=subprocess.Popen(['python3','-m','http.server','8397','--bind','127.0.0.1'], cwd=REPO, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -62,24 +69,17 @@ async def main():
             b = await p.chromium.launch()
             # ---------- Startseite ohne Konto
             ctx = await newctx(b); pg, errs = await newpage(ctx)
-            await pg.click('#playBox button[data-p=online]'); await pg.wait_for_timeout(200)
-            ok('Online ohne Konto: Hinweis statt Stadtsuche', await vis(pg,'#gateBox') and not await vis(pg,'#searchBox') and not await vis(pg,'#chipBox') and not await vis(pg,'#modeSec'))
-            ok('Hinweistext und Knopf', 'Konto' in await pg.inner_text('#gateTxt') and 'registrieren' in await pg.inner_text('#gateBtn'))
-            await pg.click('#gateBtn'); await pg.wait_for_timeout(200); ok('Knopf öffnet das Konto-Fenster', await vis(pg,'#accWrap')); await pg.keyboard.press('Escape')
-            await pg.click('#playBox button[data-p=solo]'); await pg.wait_for_timeout(100)
-            ok('Solo: Spielmodus und Suche wieder da', await vis(pg,'#modeSec') and await vis(pg,'#searchBox') and not await vis(pg,'#gateBox'))
-            # ---------- Konto anlegen, Online wählen
+            ok('Ohne Konto: nur die Anmeldung, keine Spielart, keine Suche', await vis(pg,'#authBox') and not await vis(pg,'#pickBox') and await pg.evaluate("['playBox','gateBox','onlineBox','modeSec','searchBox','chipBox'].every(i=>!document.getElementById(i))"))
+            # ---------- Konto anlegen: danach Startort wählen
             await pg.evaluate("code=>LMO.register({name:'Tim Express',email:'tim@example.de',password:'geheim123',code})", CODE)
             uid=await pg.evaluate("LMO.state().uid")
-            await pg.click('#playBox button[data-p=online]'); await pg.wait_for_timeout(600)
-            ok('Online mit Konto: Suche und Unternehmen-Liste', await vis(pg,'#searchBox') and await vis(pg,'#onlineBox') and not await vis(pg,'#gateBox') and not await vis(pg,'#fileBox'), '')
-            ok('leere Liste mit Hinweis', 'noch kein Online-Unternehmen' in await pg.inner_text('#onlineMsg'), await pg.inner_text('#onlineMsg'))
+            ok('Nach der Registrierung: Startort-Wahl, keine Unternehmen-Liste', await wait_vis(pg,'#pickMain') and not await vis(pg,'#authBox') and await pg.locator('#onlineList').count()==0)
             await pg.screenshot(path=OUT+'on_start.png')
-            await pg.click('#chips button >> text=Essen')
+            await pg.click('#chips button >> text=Essen'); await pg.click('#confirmGo')
             ok('Online-Spiel startet', await wait_app(pg))
             await pg.wait_for_timeout(800)
             ok('Kopfzeile: Online-Chip statt Tempo/Pause', await vis(pg,'#onChip') and not await vis(pg,'#speedSeg') and not await vis(pg,'#pauseBtn') and 'online' in (await pg.inner_text('#scope')).lower(), await pg.inner_text('#scope'))
-            ok('URL merkt Online', '&m=o' in pg.url, pg.url)
+            ok('Adresse bleibt ohne Anhang', '#' not in pg.url, pg.url)
             # Uhr: Weltzeit, 30-fach
             r=await pg.evaluate("()=>{const t=document.getElementById('clock').textContent.split(':').map(Number);return {clock:t[0]*3600+t[1]*60+t[2], g:LMO.world.gameNow()%86400}}")
             d=abs(r['clock']-r['g']); d=min(d, 86400-d); ok('Uhr zeigt die gemeinsame Weltzeit', d<8, f"{r}")
@@ -115,11 +115,11 @@ async def main():
             await pg.keyboard.press('Escape')
             # Menü
             await pg.click('#menuBtn'); await pg.wait_for_timeout(200); mt=await pg.inner_text('#dlgB')
-            ok('Menü online: Rangliste ja, Export/Import nein, Aufgeben ja', 'Rangliste' in mt and 'exportieren' not in mt and 'importieren' not in mt and 'Unternehmen aufgeben' in mt, mt[:200].replace('\n',' | '))
+            ok('Menü online: Rangliste und Konto ja, Export/Import und Aufgeben nein', 'Rangliste' in mt and 'Konto' in mt and 'exportieren' not in mt and 'importieren' not in mt and 'aufgeben' not in mt, mt[:200].replace('\n',' | '))
             await pg.keyboard.press('Escape')
             # ---------- zweites Gerät übernimmt
-            pg2, errs2 = await newpage(ctx, URL+'#c=essen-demo&m=o', 800)
-            ok('zweiter Tab startet online über die Adresse', await wait_app(pg2))
+            pg2, errs2 = await newpage(ctx, URL, 800)
+            ok('zweiter Tab startet von selbst mit dem Unternehmen', await wait_app(pg2))
             ok('zweiter Tab hat den Stand (Kasse 1500)', abs(await pg2.evaluate("__lm.cash()")-1500)<60, str(await pg2.evaluate("__lm.cash()")))
             ok('erster Tab: Speichern wird abgelehnt', not await pg.evaluate("__lm.push()")); await pg.wait_for_timeout(300)
             ok('erster Tab: Sitzung beendet, Dialog, angehalten', await pg.evaluate("__lm.halted()") and 'Sitzung beendet' in await pg.inner_text('#dlgT') and 'Beendet' in await pg.inner_text('#onChip'))
@@ -131,7 +131,7 @@ async def main():
             await pg2.evaluate("__lm.setCash(2000); Object.assign(__lm.stats,{n:9,pay:90,tip:6,cost:2}); __lm.push()"); await pg2.wait_for_timeout(500)
             await pg2.goto('about:blank'); await pg2.wait_for_timeout(1000)
             sim0=json.loads(dbstate()['saves'][uid]['o_'+CK]['data'])['simClock']
-            ctl('skew', {'ms': 600000}); await pg2.goto(URL+'#c=essen-demo&m=o')
+            ctl('skew', {'ms': 600000}); await pg2.goto(URL)
             ok('Neu laden: Online startet wieder', await wait_app(pg2)); await pg2.wait_for_timeout(500)
             dl=await pg2.inner_text('#dlgB') if await vis(pg2,'#dlg') else ''
             ok('Willkommen-Meldung nach 10 Minuten', 'Willkommen' in await pg2.inner_text('#dlgT') and ('10 Minuten' in dl or '11 Minuten' in dl) and 'Spielwelt' in dl, dl[:200].replace('\n',' | '))
@@ -154,7 +154,7 @@ async def main():
             cash0=await pg2.evaluate("__lm.cash()")
             await pg2.goto('about:blank'); await pg2.wait_for_timeout(1000)
             sim0=json.loads(dbstate()['saves'][uid]['o_'+CK]['data'])['simClock']
-            ctl('skew', {'ms': 600000+1800000+3*3600000}); await pg2.goto(URL+'#c=essen-demo&m=o'); ok('Neu laden nach 3 Stunden', await wait_app(pg2)); await pg2.wait_for_timeout(500)
+            ctl('skew', {'ms': 600000+1800000+3*3600000}); await pg2.goto(URL); ok('Neu laden nach 3 Stunden', await wait_app(pg2)); await pg2.wait_for_timeout(500)
             dl=await pg2.inner_text('#dlgB') if await vis(pg2,'#dlg') else ''
             ok('Obergrenze 1 Stunde im Text', 'höchstens 1 Stunde' in dl and '30 Stunden' in dl, dl[:260].replace('\n',' | '))
             sim1=await pg2.evaluate("__lm.sim()"); ok('angerechnet: 30 Spielstunden', abs((sim1-sim0)-108000)<600, f'{sim1-sim0:.0f}')
@@ -178,25 +178,27 @@ async def main():
             await pg2.reload(); ok('Neu laden bei ausgefallener Cloud-Speicherung', await wait_app(pg2)); await pg2.wait_for_timeout(500)
             ok('Stand kommt von der Kopie auf dem Gerät (Kasse 4321)', abs(await pg2.evaluate("__lm.cash()")-4321)<80, str(await pg2.evaluate("__lm.cash()")))
             if await vis(pg2,'#dlg'): await pg2.keyboard.press('Escape')
-            # ---------- Aufgeben
-            await pg2.click('#menuBtn'); await pg2.wait_for_timeout(200)
-            await pg2.click('#dlgB button >> text=Unternehmen aufgeben'); await pg2.wait_for_timeout(200); ok('erster Klick fragt nach', 'Wirklich' in await pg2.inner_text('#dlgB'))
-            await pg2.click('#dlgB button >> text=Wirklich'); await pg2.wait_for_timeout(2500)
-            S=dbstate(); ok('Aufgeben löscht Stand, Sitzung und Stadt-Eintrag', not (S.get('saves') or {}).get(uid) and not (S.get('sessions') or {}).get(uid) and uid not in ((S.get('board') or {}).get(CK) or {}).get('all',{}), json.dumps(S.get('saves'))[:100])
+            # ---------- Neu anfangen (Konto-Fenster)
+            await pg2.click('#menuBtn'); await pg2.wait_for_timeout(200); await pg2.click('#dlgB button >> text=Konto'); await pg2.wait_for_timeout(900)
+            ok('Konto-Fenster: Unternehmen mit Wert und Lieferungen', 'Startort: Essen' in await pg2.inner_text('#accBody') and 'Lieferungen' in await pg2.inner_text('#accBody'), (await pg2.inner_text('#accBody'))[:300].replace('\n',' | '))
+            await pg2.click('#accBody button >> text=Neu anfangen'); await pg2.wait_for_timeout(200); ok('erster Klick fragt nach', 'Wirklich' in await pg2.inner_text('#accBody'))
+            await pg2.click('#accBody button >> text=Wirklich'); await wait_vis(pg2,'#pickMain',20000); await pg2.wait_for_timeout(500)
+            S=dbstate(); ok('Neu anfangen löscht Stand, Sitzung und Stadt-Eintrag', not (S.get('saves') or {}).get(uid) and not (S.get('sessions') or {}).get(uid) and uid not in ((S.get('board') or {}).get(CK) or {}).get('all',{}), json.dumps(S.get('saves'))[:100])
             ok('weltweiter Eintrag bleibt', uid in S['board']['_global']['all'])
-            ok('zurück auf der Startseite', await vis(pg2,'#start'))
+            ok('zurück bei der Startort-Wahl', await vis(pg2,'#pickMain') and not await vis(pg2,'#app'))
             ok('keine Seitenfehler', not errs and not errs2, str(errs+errs2)[:300])
             # ---------- Handy-Breite
             await ctx.close()
             ctx2 = await newctx(b, (390,780)); pg3, e3 = await newpage(ctx2)
-            await pg3.evaluate("code=>LMO.login('tim@example.de','geheim123')", 0) if False else None
-            await pg3.evaluate("([e,p])=>LMO.login(e,p)", ['tim@example.de','geheim123']); await pg3.click('#playBox button[data-p=online]'); await pg3.wait_for_timeout(500)
-            await pg3.click('#chips button >> text=Essen'); ok('Handy: Online startet (neues Unternehmen)', await wait_app(pg3)); await pg3.wait_for_timeout(1200)
+            await pg3.evaluate("([e,p])=>LMO.login(e,p)", ['tim@example.de','geheim123']); await wait_vis(pg3,'#pickMain')
+            await pg3.click('#chips button >> text=Essen'); await pg3.click('#confirmGo'); ok('Handy: Online startet (neues Unternehmen)', await wait_app(pg3)); await pg3.wait_for_timeout(1200)
             await pg3.screenshot(path=OUT+'on_mobile.png')
             await pg3.evaluate("__lm.push()")
-            pg4, e4 = await newpage(ctx2, BASE); await pg4.click('#accBtn'); await pg4.wait_for_timeout(1500)
-            ct=await pg4.inner_text('#accBody'); ok('Konto-Fenster: Online-Unternehmen in der Cloud-Liste, ohne „Hierher laden“ dafür', 'Online-Unternehmen' in ct and ct.count('Hierher laden')==0, ct[-260:].replace('\n',' | '))
-            await pg4.screenshot(path=OUT+'on_account.png'); await pg4.close()
+            await pg3.click('#menuBtn'); await pg3.wait_for_timeout(200); await pg3.click('#dlgB button >> text=Konto'); await pg3.wait_for_timeout(1200)
+            ct=await pg3.inner_text('#accBody'); ok('Handy: Konto-Fenster mit Unternehmen', 'Startort: Essen' in ct and 'Neu anfangen' in ct, ct[:200].replace('\n',' | '))
+            await pg3.screenshot(path=OUT+'on_account.png')
+            w=await pg3.evaluate("[document.documentElement.scrollWidth, innerWidth, document.getElementById('accBox').getBoundingClientRect().width]"); ok('Handy: Konto-Fenster passt in die Breite', w[0]<=w[1]+1 and w[2]<=w[1], str(w))
+            await pg3.keyboard.press('Escape')
             ok('Handy: kein seitliches Scrollen', await pg3.evaluate("document.documentElement.scrollWidth<=window.innerWidth+1"))
             ok('Handy: keine Seitenfehler', not e3, str(e3)[:200])
             await b.close()

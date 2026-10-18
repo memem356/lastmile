@@ -6,11 +6,14 @@ Aktueller Stand: Phase 5 (Spielmodi Entspannt und Rush; Hauptquartier- und Fahre
 
 Spiel: https://memem356.github.io/lastmile/
 
+Seit Phase 9 gibt es nur noch den Online-Modus: ein Konto, ein Startort, ein Spielstand. Die älteren Abschnitte unten (Solo, Spielart, „Stadt wechseln“, Startseiten-Menü) beschreiben den Verlauf; wo sie von Phase 9 abweichen, gilt Phase 9.
+
 ## Aufbau
 - `index.html` – das fertige Spiel (wird aus `src/` gebaut)
 - `src/template.html` – Oberfläche und Spiellogik
 - `src/loader.js` – Stadtsuche, Kartendaten laden, Kompaktformat, Cache
-- `src/boot.js` – Startbildschirm
+- `src/boot.js` – Startseite: Anmeldung, Wahl des Startorts, direkter Start des Unternehmens
+- `src/account.js`, `src/online.js`, `src/clan.js`, `src/mod.js` – Konto, Online-Welt und Ranglisten, Clans, Melden/Sperren
 - `src/engine.js` – Straßennetz, Routenberechnung (A*), Fahrtsimulation
 - `src/build.py` – baut `index.html` aus Vorlage, Engine und Daten
 - `data/essen.json` – Straßen und Orte der Essener Innenstadt (Offline-Demo)
@@ -127,3 +130,15 @@ Das hier ist eine Gedächtnisstütze, keine Rechtsberatung, und ich bin kein Anw
 4. **Löschfristen für Meldungen und Sperrliste:** Festlegen und im Datenschutztext nennen, wie lange Meldungen aufbewahrt werden (jetzt: bis zur Prüfung, durch „Verwerfen“ oder „Sperren“ gelöscht, Plätze nach 24 Stunden überschreibbar), wie lange Namen auf der Sperrliste bleiben (jetzt: bis zur Freigabe) und was mit Meldungen eines gelöschten Kontos passiert. Außerdem zu überlegen: Wer außer dir kann in der Firebase-Konsole alles lesen (Zugriffsrechte, Zwei-Faktor-Anmeldung für das Google-Konto).
 5. **Alter und Einwilligung von Minderjährigen:** Das Konto verlangt keine Altersangabe. Bekommen Minderjährige einen Einladungscode, gilt für die Einwilligung in die Datenverarbeitung in Deutschland nach DSGVO-Auslegung meist eine Altersgrenze von 16 Jahren; darunter wäre die Zustimmung der Eltern nötig. Zu klären: An wen gibst du Codes weiter (nur Volljährige oder Bekannte?), und braucht es eine Altersgrenze („ab 16“) oder eine Einwilligung der Eltern? Das ist bewusst klein gehalten und hängt allein davon ab, wer den Code bekommt.
 6. **Weiteres:** Meldungen können personenbezogene Daten Dritter enthalten (Namen); der Betreiber-Bereich sollte nur von dir genutzt werden. Bei Beschwerden oder Auskunftswünschen braucht es einen festen Ansprechweg (E-Mail im Impressum). Verweise auf Impressum und Datenschutz gehören an jede Stelle, an der du die Adresse weitergibst.
+
+## Phase 9: Ein Konto, ein Startort, ein Spielstand
+- **Startseite:** Sie dient nur noch der Anmeldung und Registrierung (Formulare stehen direkt auf der Seite, kein Fenster mehr). Es gibt kein Menü mit Spielart, Spielmodus, „Weiter spielen“, Dateien oder Städteliste. Solo ist entfernt (der Code dafür liegt ungenutzt im Spiel, ist aber nicht erreichbar).
+- **Ablauf:** Abgemeldet → Anmeldung/Registrierung. Angemeldet → `LMO.company.mine()` sucht das Unternehmen des Kontos (jüngster `o_…`-Eintrag in `savemeta`) und startet es ohne Zwischenseite. Gibt es noch keines (direkt nach der Registrierung oder nach „Neu anfangen“), wählt der Spieler seinen Startort: weltweite Stadtsuche, Vorschläge, „Essen (kleine Karte)“, danach eine Rückfrage („Hier starten“ / „Anderen Ort suchen“). Das Unternehmen entsteht beim ersten Speichern in der Cloud (nach wenigen Sekunden im Spiel).
+- **Schnittstellen:** `LMO.ready()` wartet, bis gespeicherte Anmeldung und Profil geladen sind (die Startseite zeigt sonst kurz die falsche Ansicht). `LMO.company.mine()` liefert `{ck, name, lat, lon, info, t, others}`, `LMO.company.removeAll()` löscht alle Online-Unternehmen des Kontos. Das Spiel meldet sich bei der Seite über `LMUI.game` (`flush`, `stop`, `resume`, `settle`, `wipeLocal`, `refresh`), damit Konto-Aktionen nichts mehr in das Konto schreiben lassen.
+- **Konto-Fenster im Spiel:** Menü → „Konto“. Es zeigt „Dein Unternehmen“ (Startort, Stand), Clan, Betreiber-Bereich, Abmelden, Datenschutz, Technische Angaben und „Konto löschen“. Die Cloud-Sicherung für Solo-Stände entfällt.
+- **Neu anfangen** (Konto-Fenster, zweistufig): löscht alle Online-Unternehmen des Kontos (Stand, Sitzung, Einträge in den Stadt-Ranglisten) und die Kopie auf dem Gerät. Der beste Wert in der Weltrangliste und die Clan-Mitgliedschaft bleiben. Danach wählt der Spieler einen neuen Startort. Abmelden sichert erst den Stand (scheitert das, kommt eine Warnung, die sich mit einem zweiten Tippen übergehen lässt); beim Löschen des Kontos und beim Neuanfangen wird das Spiel vorher angehalten.
+- **Ältere Konten:** Wer mehrere Unternehmen hatte, spielt das zuletzt gespeicherte. Die anderen bleiben unberührt in der Cloud und werden im Konto-Fenster erwähnt; „Neu anfangen“ löscht auch sie. Solo-Spielstände im Browser bleiben dort liegen, sind aber nicht mehr erreichbar.
+- **Fehlerfälle:** Keine Verbindung beim Start oder beim Suchen des Unternehmens → Meldung mit „Erneut versuchen“ und „Abmelden“ (statt einer falschen Registrierungsseite). Karte lässt sich nicht laden → „Erneut versuchen“ oder „Anderen Ort wählen“. Unlesbarer Online-Stand → Meldung mit Wiederholen, Abmelden und als bewusster Ausweg „Unternehmen löschen und neu anfangen“ (zweistufig; der Stand wird nie von selbst gelöscht).
+- **Alte Links:** `#c=…` am Ende der Adresse wird ignoriert und entfernt.
+- **Datenschutz-Text:** Solo-Hinweise entfernt; neu: Karten und Sicherungskopie im Browser, „Neu anfangen“.
+- **Tests:** `python3 tests/ui_account.py` (71 Prüfungen: Anmeldung, Registrierung, Startort-Wahl mit Rückfrage, direkter Start nach dem Neuladen, Konto-Fenster, Abmelden, Neu anfangen, unlesbarer Stand, Verbindungsfehler, Löschen, Handy), angepasst `ui_online.py` (61), `ui_clan.py` (34), `ui_mod.py` (50); `node tests/lmo_online_test.js` (117 Prüfungen, jetzt mit `ready`, `company.mine` und `company.removeAll`).

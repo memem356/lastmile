@@ -1,4 +1,4 @@
-// Konto-Fenster der Startseite: Anmelden, Registrieren, Cloud-Sicherung der Spielstände, Konto löschen
+// Konto: Anmelden und Registrieren stehen direkt auf der Startseite (mountAuth); im Spiel öffnet das Menü das Konto-Fenster.
 (function accountUI() {
   const L = LMO, el = id => document.getElementById(id);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -14,45 +14,47 @@
     return { w, i };
   }
   const ago = (ms, ref) => { const m = Math.round(((ref || Date.now()) - ms) / 60000); return m < 2 ? 'gerade eben' : m < 90 ? 'vor ' + m + ' Min.' : m < 2880 ? 'vor ' + Math.round(m / 60) + ' Std.' : 'vor ' + Math.round(m / 1440) + ' Tagen'; };
-  const eur = v => Math.round(v).toLocaleString('de-DE') + ' €', lief = n => n + (n === 1 ? ' Lieferung' : ' Lieferungen');
 
-  let open = false, view = 'main', tab = 'login', last = null, rendered = '', note = null, lastFocus = null;
+  let open = false, view = 'main', tab = 'login', rendered = '', renderedIn = '', inline = false, note = null, lastFocus = null;
   const draft = { email: '', name: '' };
-
-  // ---------- Leiste auf der Startseite ----------
-  function updateBar() {
-    const s = L.state(), dot = el('accDot'), txt = el('accTxt'), b = el('accBtn');
-    dot.className = 'dot' + (s.signedIn && s.hasProfile ? (s.verified && !s.blocked ? ' on' : ' warn') : '');
-    if (!s.signedIn) { txt.textContent = 'Nicht angemeldet · Solo spielen geht ohne Konto'; b.textContent = 'Anmelden'; }
-    else if (!s.hasProfile) { txt.textContent = 'Angemeldet · Registrierung noch nicht abgeschlossen'; b.textContent = 'Fortsetzen'; }
-    else { txt.textContent = 'Angemeldet als ' + s.name + (s.blocked ? ' · Name gesperrt, bitte neuen wählen' : s.verified ? '' : ' · E-Mail noch nicht bestätigt'); b.textContent = 'Konto'; }
+  // Hinweis, der nach einem Neuladen oder an anderer Stelle der Seite angezeigt wird (z. B. „Willkommen“ nach der Registrierung)
+  function takeNote() {
+    let t = note; note = null;
+    try { const x = sessionStorage.getItem('lm-note'); if (x) { sessionStorage.removeItem('lm-note'); t = t || x; } } catch (e) {}
+    return t;
   }
+  function setNote(t) { note = t; try { document.dispatchEvent(new Event('lm-note')); } catch (e) {} }
+  function noteForReload(t) { try { sessionStorage.setItem('lm-note', t); } catch (e) {} }
 
-  // ---------- Fenster ----------
+  // ---------- Fenster (im Spiel) und Einbettung (Startseite) ----------
   function openWin(v) {
     lastFocus = document.activeElement; view = v || 'main'; open = true;
     el('accWrap').hidden = false; render(true);
   }
   function closeWin() { open = false; el('accWrap').hidden = true; if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} } }
-  el('accBtn').onclick = () => openWin('main');
   el('accClose').onclick = closeWin;
   el('accWrap').addEventListener('mousedown', e => { if (e.target === el('accWrap')) closeWin(); });
   document.addEventListener('keydown', e => { if (open && e.key === 'Escape') { e.preventDefault(); if (view !== 'main') { view = 'main'; render(true); } else closeWin(); } });
+  function mountAuth() { inline = true; view = 'main'; renderedIn = ''; render(true, false); }
+  function unmountAuth() { inline = false; renderedIn = ''; el('authBody').textContent = ''; }
 
   const modeKey = () => { const s = L.state(); return !s.signedIn ? 'out' : s.hasProfile ? (s.blocked ? 'inblk' : 'in') : 'noprof'; };
-  function render(force) {
-    if (!open) return;
-    const k = view + '|' + modeKey() + '|' + tab;
-    if (!force && k === rendered) return;
-    rendered = k;
-    const body = el('accBody'); body.textContent = '';
+  function draw(body, title, isInline, focus) {
+    body.textContent = '';
     const s = L.state();
-    if (view === 'privacy') { el('accTitle').textContent = 'Datenschutz'; body.appendChild(privacyView()); }
-    else if (view === 'forgot') { el('accTitle').textContent = 'Passwort vergessen'; body.appendChild(forgotView()); }
-    else if (!s.signedIn) { el('accTitle').textContent = 'Konto'; body.appendChild(authView()); }
-    else if (!s.hasProfile) { el('accTitle').textContent = 'Registrierung abschließen'; body.appendChild(completeView()); }
-    else { el('accTitle').textContent = 'Konto'; body.appendChild(accountView()); }
-    const f = body.querySelector('input:not([type=checkbox])'); if (f && modeKey() !== 'in') { try { f.focus({ preventScroll: true }); } catch (e) {} }
+    if (view === 'privacy') { title.textContent = 'Datenschutz'; body.appendChild(privacyView()); }
+    else if (view === 'forgot') { title.textContent = 'Passwort vergessen'; body.appendChild(forgotView()); }
+    else if (!s.signedIn) { title.textContent = isInline ? 'Anmelden oder registrieren' : 'Konto'; body.appendChild(authView()); }
+    else if (!s.hasProfile) { title.textContent = 'Registrierung abschließen'; body.appendChild(completeView()); }
+    else if (!isInline) { title.textContent = 'Konto'; body.appendChild(accountView()); }
+    else return;
+    const f = body.querySelector('input:not([type=checkbox])'); if (f && focus && modeKey() !== 'in') { try { f.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  function render(force, focus) {
+    if (focus === undefined) focus = true;
+    const k = view + '|' + modeKey() + '|' + tab;
+    if (open && (force || k !== rendered)) { rendered = k; draw(el('accBody'), el('accTitle'), false, focus); }
+    if (inline && (force || k !== renderedIn)) { renderedIn = k; draw(el('authBody'), el('authTitle'), true, focus); }
   }
   function msgBox() { const m = mk('p', 'accmsg'); m.setAttribute('role', 'status'); m.setAttribute('aria-live', 'polite'); const set = (t, kind) => { m.textContent = t || ''; m.className = 'accmsg' + (kind ? ' ' + kind : ''); }; return { m, set }; }
   async function run(b, mb, work) {
@@ -71,17 +73,17 @@
     const tabs = mk('div', 'acctabs');
     for (const [id, t] of [['login', 'Anmelden'], ['reg', 'Registrieren']]) { const b = mk('button', '', t); b.type = 'button'; b.setAttribute('aria-pressed', String(tab === id)); b.onclick = () => { tab = id; render(true); }; tabs.appendChild(b); }
     root.appendChild(tabs);
-    if (note) { const n = mk('p', 'accmsg ok', note); root.appendChild(n); note = null; }
+    { const t = takeNote(); if (t) root.appendChild(mk('p', 'accmsg ok', t)); }
     const mb = msgBox();
     if (tab === 'login') {
-      root.appendChild(mk('p', 'note', 'Mit einem Konto kannst du online spielen (gemeinsame Weltzeit für alle), in Ranglisten erscheinen und Spielstände in der Cloud sichern. Solo spielen geht weiterhin ohne Konto.'));
+      root.appendChild(mk('p', 'note', 'Melde dich mit deinem Konto an. Danach geht es direkt mit deinem Unternehmen weiter. Neu hier? Wechsle zu „Registrieren“.'));
       const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'username', value: draft.email }), fp = field('Passwort', { type: 'password', name: 'password', auto: 'current-password' });
       const go = btn('Anmelden', 'primary');
-      const submit = () => run(go, mb, async () => { draft.email = fe.i.value; await L.login(fe.i.value, fp.i.value); view = 'main'; render(true); updateBar(); });
+      const submit = () => run(go, mb, async () => { draft.email = fe.i.value; await L.login(fe.i.value, fp.i.value); view = 'main'; render(true); });
       go.onclick = submit; root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); submit(); } });
       root.append(fe.w, fp.w, mb.m, go, link('Passwort vergessen?', () => { draft.email = fe.i.value; view = 'forgot'; render(true); }));
     } else {
-      root.appendChild(mk('p', 'note', 'Dein Name steht in den Ranglisten und ist für alle angemeldeten Spieler sichtbar. Wähle am besten keinen echten Namen. Die E-Mail-Adresse sieht niemand außer dir.'));
+      root.appendChild(mk('p', 'note', 'Mit einem Konto spielst du in der gemeinsamen Online-Welt (für alle gilt dieselbe Weltzeit) und erscheinst in den Ranglisten. Dein Name ist für alle angemeldeten Spieler sichtbar. Wähle am besten keinen echten Namen. Die E-Mail-Adresse sieht niemand außer dir. Gleich nach der Registrierung wählst du deinen Startort.'));
       const sug = btn('Vorschlag', '', () => { fn.i.value = L.suggestName(); fn.i.dispatchEvent(new Event('input')); });
       const fn = field('Spielername (3 bis 16 Zeichen)', { name: 'name', max: 16, auto: 'nickname', value: draft.name, extra: sug });
       const fe = field('E-Mail-Adresse', { type: 'email', name: 'email', auto: 'email', value: draft.email, hint: 'Für die Bestätigung und, falls nötig, zum Zurücksetzen des Passworts.' });
@@ -96,8 +98,7 @@
       go.onclick = () => run(go, mb, async () => {
         if (!cb.checked) throw Object.assign(new Error('Bitte bestätige, dass du die Datenschutz-Hinweise gelesen hast.'), { code: 'UI' });
         const s = await L.register({ name: fn.i.value, email: fe.i.value, password: fp.i.value, code: fc.i.value });
-        note = 'Willkommen, ' + s.name + '! Wir haben eine E-Mail an ' + s.email + ' geschickt. Bitte bestätige die Adresse über den Link darin.';
-        draft.name = ''; view = 'main'; render(true); updateBar();
+        draft.name = ''; view = 'main'; setNote('Willkommen, ' + s.name + '! Wir haben eine E-Mail an ' + s.email + ' geschickt. Bitte bestätige die Adresse über den Link darin (das geht auch später).'); render(true);
       });
       root.append(fn.w, fe.w, fp.w, fc.w, chk, mb.m, go);
     }
@@ -113,31 +114,31 @@
   }
   function completeView() {
     const root = mk('div', 'accform'), mb = msgBox(), s = L.state();
-    root.appendChild(mk('p', 'note', 'Dein Zugang (' + s.email + ') besteht, aber der Spielername ist noch nicht festgelegt. Das holen wir jetzt nach.'));
+    root.appendChild(mk('p', 'note', 'Dein Zugang (' + s.email + ') besteht, aber der Spielername ist noch nicht festgelegt. Das holen wir jetzt nach. Hast du dich schon früher registriert und es fehlte nur die Verbindung, tippe auf „Neu laden“.'));
     const sug = btn('Vorschlag', '', () => { fn.i.value = L.suggestName(); });
     const fn = field('Spielername (3 bis 16 Zeichen)', { name: 'name', max: 16, value: draft.name, extra: sug }), fc = field('Einladungscode', { name: 'code', ph: 'LM-XXXX-XXXX' });
     const go = btn('Registrierung abschließen', 'primary');
-    go.onclick = () => run(go, mb, async () => { await L.completeRegistration({ name: fn.i.value, code: fc.i.value }); try { await L.sendVerify(); } catch (e) {} view = 'main'; render(true); updateBar(); });
-    const re = btn('Neu laden', '', () => run(re, mb, async () => { await L.loadProfile(); render(true); updateBar(); }));
-    const out = btn('Abmelden', '', () => { L.logout(); view = 'main'; render(true); updateBar(); });
+    go.onclick = () => run(go, mb, async () => { await L.completeRegistration({ name: fn.i.value, code: fc.i.value }); try { await L.sendVerify(); } catch (e) {} view = 'main'; setNote('Willkommen, ' + L.state().name + '! Wir haben eine E-Mail an ' + L.state().email + ' geschickt. Bitte bestätige die Adresse über den Link darin (das geht auch später).'); render(true); });
+    const re = btn('Neu laden', '', () => run(re, mb, async () => { await L.loadProfile(); render(true); }));
+    const out = btn('Abmelden', '', () => { L.logout(); view = 'main'; render(true); });
     const row = mk('div', 'accrow'); row.append(re, out);
     root.append(fn.w, fc.w, mb.m, go, row);
     return root;
   }
   function privacyView() {
     const root = mk('div', 'privacy');
-    root.appendChild(mk('p', '', 'Kurz gesagt: Solo spielen funktioniert ohne Konto und ohne Daten an Server. Für ein Konto werden die folgenden Daten verarbeitet.'));
+    root.appendChild(mk('p', '', 'Kurz gesagt: Zum Spielen brauchst du ein Konto. Dafür werden die folgenden Daten verarbeitet.'));
     const ul = mk('ul'), items = [
-      'Solo: Spielstände, Städte und Einstellungen bleiben ausschließlich in deinem Browser.',
+      'Auf deinem Gerät: Karten der Städte, die du lädst, Einstellungen (zum Beispiel Ton) und eine Sicherungskopie deines Unternehmens liegen im Speicher deines Browsers.',
       'Konto: E-Mail-Adresse und Passwort verwaltet Google Firebase Authentication (Google). Das Spiel selbst sieht dein Passwort nie. Die E-Mail wird für die Bestätigung und das Zurücksetzen des Passworts genutzt.',
-      'Datenbank (Google Firebase Realtime Database): Spielername (für andere sichtbar), Kontokennung, Zeitpunkt der Registrierung, der benutzte Einladungscode und die Spielstände, die du selbst in die Cloud lädst. Die E-Mail-Adresse steht nicht in der Datenbank.',
-      'Online-Modus: dein Online-Unternehmen (Spielstand), eine Sitzungskennung, Zeitstempel des Servers und Ranglisteneinträge mit Name, Stadt, Wachstum, Lieferungen, Ruf und Zeitraum. Die Ranglisten sind für alle angemeldeten Spieler sichtbar.',
+      'Datenbank (Google Firebase Realtime Database): Spielername (für andere sichtbar), Kontokennung, Zeitpunkt der Registrierung, der benutzte Einladungscode und dein Unternehmen (der Spielstand, mit deinem Startort). Die E-Mail-Adresse steht nicht in der Datenbank.',
+      'Spiel: dein Unternehmen (Spielstand), eine Sitzungskennung, Zeitstempel des Servers und Ranglisteneinträge mit Name, Stadt, Wachstum, Lieferungen, Ruf und Zeitraum. Die Ranglisten sind für alle angemeldeten Spieler sichtbar.',
       'Clans: Clan-Name, Leiter, Mitgliederliste (nur für Mitglieder sichtbar: Name und Beitrag zum Wachstum des Clans), geheimer Beitrittscode und die Clan-Wertung. Clan-Name und Clan-Wertung sind für alle angemeldeten Spieler sichtbar.',
       'Melden und Sperren: Wenn du einen Spieler oder Clan meldest, speichert die Datenbank deine Kontokennung, die Kennung und den Namen des Gemeldeten, den gewählten Grund (feste Auswahl, kein Freitext) und den Zeitpunkt. Meldungen sind nicht öffentlich; sie sieht nur der Betreiber. Je Konto sind höchstens 10 Meldungen innerhalb von 24 Stunden möglich. Der Betreiber löscht eine Meldung nach der Prüfung (verwerfen oder sperren). Es wird nichts automatisch gesperrt.',
       'Sperrliste: Sperrt der Betreiber einen Namen, steht dieser (nur der Name und der Zeitpunkt, ohne Bezug zu einem Konto) auf einer Sperrliste, die alle angemeldeten Spieler lesen können. Gesperrte Namen sind in Ranglisten und Clan-Listen nicht mehr sichtbar und können nicht mehr gewählt werden. Wer gesperrt wurde, behält Konto und Spielstände und wählt einen neuen Namen.',
       'Keine Werbung, keine Tracking-Cookies, keine Analyse-Dienste. Damit du angemeldet bleibst, speichert dein Browser eine Anmeldemarke im lokalen Speicher; „Abmelden“ löscht sie.',
       'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
-      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto selbst. Eigene Meldungen werden mitgelöscht, soweit sie älter als 24 Stunden sind; jüngere bleiben bis zur Prüfung durch den Betreiber gespeichert. Als Leiter gibst du die Leitung dabei an das dienstälteste Mitglied ab; bist du allein im Clan, wird er aufgelöst.',
+      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Unternehmen und Spielstand, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto selbst. „Neu anfangen“ löscht nur dein Unternehmen und seine Einträge in der Rangliste deiner Stadt; dein bester Wert in der Weltrangliste bleibt dabei erhalten. Eigene Meldungen werden mitgelöscht, soweit sie älter als 24 Stunden sind; jüngere bleiben bis zur Prüfung durch den Betreiber gespeichert. Als Leiter gibst du die Leitung dabei an das dienstälteste Mitglied ab; bist du allein im Clan, wird er aufgelöst.',
       'Kontakt zum Betreiber dieses Hobby-Projekts: über die Projektseite github.com/memem356/lastmile.'
     ];
     for (const t of items) ul.appendChild(mk('li', '', t));
@@ -147,37 +148,79 @@
     return root;
   }
 
-  // ---------- Konto und Cloud ----------
+  // ---------- Konto-Fenster im Spiel ----------
+  function confirmBtn(b, ask, fn) {
+    let armed = false, t = null; const orig = b.textContent;
+    b.onclick = () => {
+      if (!armed) { armed = true; b.textContent = ask; t = setTimeout(() => { armed = false; b.textContent = orig; }, 6000); return; }
+      clearTimeout(t); armed = false; b.textContent = orig; fn(b);
+    };
+  }
+  const game = () => (window.LMUI && window.LMUI.game) || null;
+  // Dein Unternehmen: Startort, Stand und „Neu anfangen“
+  function companySection() {
+    const sec = mk('section', ''); sec.appendChild(mk('h4', '', 'Dein Unternehmen'));
+    const box = mk('div', 'accform'); sec.appendChild(box);
+    const g = game(), city = g ? g.city : '';
+    const info = mk('p', '', g ? 'Startort: ' + city : 'Wird geladen …'); box.appendChild(info);
+    const extra = mk('p', 'note', ''); extra.hidden = true; box.appendChild(extra);
+    box.appendChild(mk('p', 'note', 'Dein Konto hat genau einen Startort und einen Spielstand. Willst du an einem anderen Ort beginnen, fängst du hier neu an. Das geht nicht rückgängig: Unternehmen, Spielstand und deine Einträge in der Rangliste deiner Stadt werden gelöscht. Dein bester Wert in der Weltrangliste bleibt erhalten. Deinen Clan behältst du.'));
+    const mb = msgBox(), go = btn('Neu anfangen …', 'danger'), row = mk('div', 'accrow'); row.appendChild(go); box.append(mb.m, row);
+    L.company.mine().then(m => {
+      if (!sec.isConnected || !m) return;
+      info.textContent = 'Startort: ' + (city || m.name) + (m.info ? ' · ' + m.info.split(' · ').slice(2).join(' · ') : '') + ' · gesichert ' + ago(m.t, L.serverNow());
+      if (m.others) extra.hidden = false;
+      if (m.others) extra.textContent = 'Auf diesem Konto liegen außerdem ' + m.others + (m.others === 1 ? ' älteres Unternehmen' : ' ältere Unternehmen') + ' aus früheren Versionen, die nicht mehr gespielt werden. „Neu anfangen“ löscht auch diese.';
+    }).catch(() => { if (!g) info.textContent = 'Dein Unternehmen konnte nicht geladen werden.'; });
+    confirmBtn(go, 'Wirklich? Dein Unternehmen' + (city ? ' in ' + city : '') + ' wird gelöscht', async b => {
+      b.disabled = true; mb.set(''); const gm = game();
+      try {
+        if (gm) { gm.stop(); await gm.settle(); }
+        await L.company.removeAll();
+      } catch (e) { if (gm) gm.resume(); fail(mb, e); console.warn('Neu anfangen:', e && e.code, e && e.detail); b.disabled = false; return; }
+      if (gm) gm.wipeLocal();
+      noteForReload('Dein Unternehmen wurde gelöscht. Such dir jetzt einen neuen Startort aus.');
+      location.reload();
+    });
+    return sec;
+  }
   function accountView() {
     const s = L.state(), root = mk('div', 'accform');
-    if (note) { root.appendChild(mk('p', 'accmsg ok', note)); note = null; }
+    { const t = takeNote(); if (t) root.appendChild(mk('p', 'accmsg ok', t)); }
     const who = mk('div', ''); const nm = mk('p', '', ''); const b = mk('b', '', s.name); nm.appendChild(b); nm.appendChild(document.createTextNode('  ·  ' + s.email)); who.appendChild(nm);
     root.appendChild(who);
-    if (s.blocked) { const bh = mk('div', ''); root.appendChild(bh); LMMod.renameForm(bh, { onDone: name => { note = 'Dein neuer Name ist „' + name + '“.'; render(true); updateBar(); } }); }
+    if (s.blocked) { const bh = mk('div', ''); root.appendChild(bh); LMMod.renameForm(bh, { onDone: name => { setNote('Dein neuer Name ist „' + name + '“.'); if (game()) game().refresh(); render(true); } }); }
     const vm = msgBox();
     if (!s.verified) {
       vm.set('Die E-Mail-Adresse ist noch nicht bestätigt. Öffne den Link in der E-Mail von Firebase (auch im Spam-Ordner nachsehen) und tippe dann auf „Ich habe bestätigt“.', 'err');
       const row = mk('div', 'accrow');
-      const chk = btn('Ich habe bestätigt', 'primary', () => run(chk, vm, async () => { const v = await L.checkVerified(); if (v) { render(true); updateBar(); } else vm.set('Noch nicht bestätigt. Bitte erst den Link in der E-Mail öffnen.', 'err'); }));
+      const chk = btn('Ich habe bestätigt', 'primary', () => run(chk, vm, async () => { const v = await L.checkVerified(); if (v) { render(true); } else vm.set('Noch nicht bestätigt. Bitte erst den Link in der E-Mail öffnen.', 'err'); }));
       const again = btn('E-Mail erneut senden', '', () => run(again, vm, async () => { await L.sendVerify(); vm.set('Die E-Mail wurde erneut gesendet.', 'ok'); }));
       row.append(chk, again); root.append(vm.m, row);
     } else root.appendChild(mk('p', 'accmsg ok', 'E-Mail-Adresse bestätigt.'));
+
+    root.appendChild(companySection());
 
     const cn = mk('section', ''); cn.appendChild(mk('h4', '', 'Clan')); const chost = mk('div', ''); cn.appendChild(chost); root.appendChild(cn);
     const hooks = { report: t => LMMod.reportForm(chost, t, { back: () => LMClan.render(chost, null, hooks) }) };
     LMClan.render(chost, null, hooks);
 
-    const cs = mk('section', ''); cs.appendChild(mk('h4', '', 'Cloud-Sicherung (nur für dich sichtbar)'));
-    cs.appendChild(mk('p', 'note', 'Lade Solo-Spielstände hoch, um sie auf einem anderen Gerät weiterzuspielen. Beim Laden bleibt der bisherige Stand auf diesem Gerät als Sicherung erhalten.'));
-    const box = mk('div', ''); box.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:10px'; cs.appendChild(box); root.appendChild(cs);
-    loadCloud(box);
-
     const adm = mk('section', ''), ah = mk('div', ''); adm.hidden = true; adm.append(mk('h4', '', 'Betreiber: Meldungen und Sperren'), ah); root.appendChild(adm);
     L.mod.isAdmin().then(yes => { if (yes && adm.isConnected) { adm.hidden = false; LMMod.adminPanel(ah); } }).catch(() => {});
 
-    const acts = mk('div', 'accrow'); acts.appendChild(btn('Abmelden', '', () => { L.logout(); view = 'main'; tab = 'login'; render(true); updateBar(); }));
+    // Abmelden: erst den Stand sichern, dann das Spiel anhalten, damit danach nichts mehr in das Konto geschrieben wird
+    const om = msgBox(), out = btn('Abmelden', ''); let force = false;
+    out.onclick = async () => {
+      out.disabled = true; om.set(''); const gm = game(), old = out.textContent; out.textContent = 'Wird gespeichert …';
+      let saved = true;
+      if (gm) { try { saved = (await gm.flush()) || gm.halted(); } catch (e) { saved = false; } }
+      if (!saved && !force) { force = true; out.disabled = false; out.textContent = old; om.set('Der Stand konnte nicht in die Cloud gespeichert werden (keine Verbindung?). Eine Kopie bleibt auf diesem Gerät und wird beim nächsten Anmelden hier genutzt. Tippe noch einmal auf „Abmelden“, um trotzdem abzumelden.', 'err'); return; }
+      if (gm) { gm.stop(); await gm.settle(); }
+      L.logout(); location.reload();
+    };
+    const acts = mk('div', 'accrow'); acts.appendChild(out);
     acts.appendChild(link('Datenschutz', () => { view = 'privacy'; render(true); }));
-    root.appendChild(acts);
+    root.append(om.m, acts);
 
     const tech = mk('details', ''); tech.appendChild(mk('summary', '', 'Technische Angaben'));
     const cpy = btn('Kopieren', '', async () => { try { await navigator.clipboard.writeText(s.uid); cpy.textContent = 'Kopiert'; setTimeout(() => { cpy.textContent = 'Kopieren'; }, 1500); } catch (e) { tf.i.focus(); tf.i.select(); } });
@@ -187,80 +230,17 @@
 
     const del = mk('details', ''); del.appendChild(mk('summary', '', 'Konto löschen …'));
     const dm = msgBox(), dp = field('Passwort zur Bestätigung', { type: 'password', name: 'password', auto: 'current-password' });
-    const dgo = btn('Konto endgültig löschen', 'danger', () => run(dgo, dm, async () => { await L.deleteAccount(dp.i.value); note = 'Dein Konto und alle Daten dazu wurden gelöscht.'; tab = 'login'; view = 'main'; render(true); updateBar(); }));
-    const dw = mk('div', 'accform'); dw.style.marginTop = '10px'; dw.append(mk('p', 'note', 'Löscht Profil, Spielernamen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto. Das lässt sich nicht rückgängig machen. Spielstände auf diesem Gerät bleiben erhalten.'), dp.w, dm.m, dgo);
+    const dgo = btn('Konto endgültig löschen', 'danger', () => run(dgo, dm, async () => {
+      const gm = game(); if (gm) { gm.stop(); await gm.settle(); }
+      try { await L.deleteAccount(dp.i.value); } catch (e) { if (gm) gm.resume(); throw e; }
+      if (gm) gm.wipeLocal();
+      noteForReload('Dein Konto und alle Daten dazu wurden gelöscht.'); location.reload();
+    }));
+    const dw = mk('div', 'accform'); dw.style.marginTop = '10px'; dw.append(mk('p', 'note', 'Löscht Profil, Spielernamen, dein Unternehmen mit Spielstand, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto. Das lässt sich nicht rückgängig machen.'), dp.w, dm.m, dgo);
     del.appendChild(dw); root.appendChild(del);
     return root;
   }
 
-  function confirmBtn(b, ask, fn) {
-    let armed = false, t = null; const orig = b.textContent;
-    b.onclick = () => {
-      if (!armed) { armed = true; b.textContent = ask; t = setTimeout(() => { armed = false; b.textContent = orig; }, 5000); return; }
-      clearTimeout(t); armed = false; b.textContent = orig; fn(b);
-    };
-  }
-  async function loadCloud(box, flash) {
-    box.textContent = ''; box.appendChild(mk('p', 'note', 'Cloud-Stände werden geladen …'));
-    const seq = loadCloud.seq = (loadCloud.seq || 0) + 1;
-    let list;
-    try { try { await L.syncClock(); } catch (e) { if (e.code === 'NETWORK') throw e; } list = await L.cloud.list(); }
-    catch (e) { if (seq !== loadCloud.seq) return; box.textContent = ''; const m = mk('p', 'accmsg err', e.message); box.appendChild(m); box.appendChild(btn('Erneut versuchen', '', () => loadCloud(box))); return; }
-    if (seq !== loadCloud.seq || !box.isConnected) return;
-    box.textContent = '';
-    const ref = L.serverNow(), clouds = new Map(list.map(x => [x.slot, x])), locals = LMUI.localSaves().map(x => Object.assign(x, { slot: L.cloud.slotOf(x.key) }));
-    const msg = msgBox(); box.appendChild(msg.m); if (flash) msg.set(flash, 'ok');
-
-    const h1 = mk('h4', '', 'Auf diesem Gerät'); box.appendChild(h1);
-    const u1 = mk('ul', 'cl'); box.appendChild(u1);
-    if (!locals.length) u1.replaceWith(mk('p', 'note', 'Noch keine Spielstände auf diesem Gerät.'));
-    for (const x of locals) {
-      const sv = x.sv, c = clouds.get(x.slot), li = mk('li', '');
-      const tx = mk('div', ''); tx.appendChild(mk('span', 'tt', sv.place.name + ' · ' + (sv.mode === 'rush' ? 'Rush' : 'Entspannt')));
-      tx.appendChild(mk('span', 'ss', eur(sv.cash) + ' · ' + lief(sv.stats ? sv.stats.n : 0) + ' · gespielt ' + ago(sv.at) + (c ? ' · Cloud: ' + ago(c.t, ref) : ' · noch nicht in der Cloud')));
-      const acts = mk('div', 'acts'), up = btn(c ? 'Hochladen (ersetzt)' : 'Hochladen', '');
-      const cloudNewer = c && c.t > sv.at + 120000;
-      const doUp = async () => {
-        up.disabled = true; msg.set('');
-        try {
-          if (x.raw.length > 390000) throw Object.assign(new Error('Dieser Spielstand ist zu groß für die Cloud.'), { code: 'UI' });
-          await L.cloud.put(x.slot, x.raw, sv.place.name + ' · ' + (sv.mode === 'rush' ? 'Rush' : 'Entspannt') + ' · ' + eur(sv.cash) + ' · ' + lief(sv.stats ? sv.stats.n : 0), sv.v);
-          await loadCloud(box, '„' + sv.place.name + '“ ist in der Cloud gesichert.');
-        } catch (e) { fail(msg, e); up.disabled = false; }
-      };
-      if (cloudNewer) { up.onclick = null; confirmBtn(up, 'Neueren Cloud-Stand ersetzen?', doUp); } else up.onclick = doUp;
-      acts.appendChild(up); li.append(tx, acts); u1.appendChild(li);
-    }
-
-    const h2 = mk('h4', '', 'In der Cloud'); box.appendChild(h2);
-    const u2 = mk('ul', 'cl'); box.appendChild(u2);
-    if (!list.length) u2.replaceWith(mk('p', 'note', 'Noch nichts in der Cloud.'));
-    for (const c of list) {
-      const li = mk('li', ''), loc = locals.find(x => x.slot === c.slot), tx = mk('div', '');
-      tx.appendChild(mk('span', 'tt', c.info || c.slot)); tx.appendChild(mk('span', 'ss', 'gesichert ' + ago(c.t, ref)));
-      const acts = mk('div', 'acts'), dl = btn('Hierher laden', ''), rm = btn('Löschen', 'danger');
-      if (c.slot.startsWith('o_')) { // Online-Unternehmen: lebt in der Cloud, wird nicht auf das Gerät kopiert
-        const ck = c.slot.slice(2);
-        tx.firstChild.textContent = c.info || c.slot; tx.lastChild.textContent = 'Online-Unternehmen · gesichert ' + ago(c.t, ref);
-        confirmBtn(rm, 'Unternehmen und Rangeintrag wirklich löschen?', async () => { rm.disabled = true; try { await L.company.remove(ck); await loadCloud(box, 'Das Online-Unternehmen wurde gelöscht.'); } catch (e) { fail(msg, e); rm.disabled = false; } });
-        acts.append(rm); li.append(tx, acts); u2.appendChild(li); continue;
-      }
-      const localNewer = loc && loc.sv.at > c.t + 120000;
-      const doDl = async () => {
-        dl.disabled = true; msg.set('');
-        try {
-          const d = await L.cloud.get(c.slot); let sv; try { sv = JSON.parse(d.data); } catch (e) { throw Object.assign(new Error('Der Cloud-Stand ist beschädigt.'), { code: 'UI' }); }
-          const err = LMUI.importSave(sv); if (err) throw Object.assign(new Error(err), { code: 'UI' });
-          await loadCloud(box, 'Geladen. Du findest den Stand oben unter „Weiter spielen“.');
-        } catch (e) { fail(msg, e); dl.disabled = false; }
-      };
-      if (localNewer) confirmBtn(dl, 'Neueren Stand hier ersetzen?', doDl); else dl.onclick = doDl;
-      confirmBtn(rm, 'Wirklich löschen?', async () => { rm.disabled = true; try { await L.cloud.del(c.slot); await loadCloud(box); } catch (e) { fail(msg, e); rm.disabled = false; } });
-      acts.append(dl, rm); li.append(tx, acts); u2.appendChild(li);
-    }
-  }
-
-  L.on(() => { updateBar(); if (open) render(false); });
-  L.init(); updateBar();
-  window.__lmAcc = { open: openWin, close: closeWin };
+  L.on(() => render(false));
+  window.__lmAcc = { open: openWin, close: closeWin, mountAuth, unmountAuth, takeNote };
 })();

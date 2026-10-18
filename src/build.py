@@ -2,7 +2,7 @@
 import json
 d = json.load(open('data/essen.json', encoding='utf-8'))
 d['elev'] = json.load(open('data/essen_elev.json'))
-d.update({'v': 1, 'name': 'Essen', 'sub': 'Innenstadt (Demo), Deutschland',
+d.update({'v': 1, 'name': 'Essen', 'sub': 'Innenstadt (kleine Karte), Deutschland',
           'tz': 'Europe/Berlin', 'radius': 750, 'ref': {'lat': 51.4510, 'lon': 7.0140}, 'hub': {'lat': 51.4513, 'lon': 7.0147}})
 rd = lambda p: open(p, encoding='utf-8').read()
 esc = lambda s: s.replace('</', '<\\/')

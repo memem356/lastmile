@@ -48,7 +48,24 @@ async def away(pg, skew_ms):
     # Seite verlassen (dabei wird zuletzt gespeichert), Serveruhr vorstellen, Seite wieder öffnen
     await pg.goto('about:blank'); await pg.wait_for_timeout(1000)
     ctl('skew', {'ms': skew_ms})
-    await pg.goto(URL+'#c=essen-demo&m=o'); await pg.wait_for_timeout(500)
+    await pg.goto(URL); await pg.wait_for_timeout(500)
+async def in_game(pg): return await pg.evaluate("!document.getElementById('app').hidden && !!window.__lm")
+async def wait_vis(pg, sel, ms=8000):
+    for _ in range(ms//100):
+        try:
+            if await vis(pg, sel): return True
+        except Exception: pass
+        await pg.wait_for_timeout(100)
+    return False
+async def enter(pg):
+    # neues Konto: Startort Essen wählen und starten; Konto mit Unternehmen: das Spiel startet von selbst
+    if await wait_vis(pg,'#pickMain',3000): await pg.click('#chips button >> text=Essen'); await pg.click('#confirmGo')
+    return await wait_app(pg)
+async def konto(pg, extra=300):
+    await pg.click('#menuBtn'); await pg.wait_for_timeout(200); await pg.click('#dlgB button >> text=Konto'); await pg.wait_for_timeout(300)
+    try: await pg.wait_for_function("(()=>{const t=document.querySelector('#accBody').innerText;return t.includes('Clan') && !t.includes('Clan wird geladen')})()", timeout=15000)
+    except Exception: pass
+    await pg.wait_for_timeout(extra)
 async def main():
     srv=subprocess.Popen(['node',HERE+'fbmock.js','9299'], stdout=subprocess.DEVNULL)
     web=subprocess.Popen(['python3','-m','http.server','8399','--bind','127.0.0.1'], cwd=REPO, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -58,14 +75,18 @@ async def main():
     R=[]
     def ok(name, cond, info=''): R.append((name, bool(cond))); print(('OK  ' if cond else 'FAIL'), name, info, flush=True)
     async def txt(pg, sel='#accBody'): return await pg.inner_text(sel)
+    async def idle(pg, scope, wait):  # erst die feste Zeit, dann warten, bis in diesem Bereich keine Schaltfläche mehr beschäftigt (gesperrt) ist
+        await pg.wait_for_timeout(wait)
+        try: await pg.wait_for_function("s=>![...document.querySelectorAll(s+' button:disabled')].length && !document.querySelector(s).innerText.includes('Clan wird geladen')", arg=scope, timeout=15000)
+        except Exception: pass
+        await pg.wait_for_timeout(200)
     async def btn(pg, scope, label, wait=500):
-        await pg.click(scope+' button >> text='+label); await pg.wait_for_timeout(wait)
+        await pg.click(scope+' button >> text='+label); await idle(pg, scope, wait)
     async def twice(pg, scope, label, wait=1200):  # zweistufige Bestätigung
         await pg.click(scope+' button >> text='+label); await pg.wait_for_timeout(150)
-        await pg.locator(scope+' button.btn:has-text("?")').first.click(); await pg.wait_for_timeout(wait)
+        await pg.locator(scope+' button.btn:has-text("?")').first.click(); await idle(pg, scope, wait)
     async def play(pg, cash):
-        await pg.click('#playBox button[data-p=online]'); await pg.wait_for_timeout(400)
-        await pg.click('#chips button >> text=Essen'); good=await wait_app(pg); await pg.wait_for_timeout(900)
+        good=await enter(pg); await pg.wait_for_timeout(900)
         await pg.evaluate("c=>__lm.setCash(c)", cash); await pg.evaluate("__lm.push()"); await pg.evaluate("__lm.rank()"); await pg.wait_for_timeout(800)
         return good
     try:
@@ -102,10 +123,10 @@ async def main():
             await btn(pC,'#dlgB','Abbrechen',900); ok('Abbrechen führt zurück', 'Rangliste' in await pC.inner_text('#dlgT'))
             await pC.keyboard.press('Escape')
             # ---------- Clan: Zoe gründet, Cara tritt bei und meldet den Clan-Namen
-            await pZ.goto(URL); await pZ.wait_for_timeout(1500); await pZ.click('#accBtn'); await pZ.wait_for_timeout(1500)
+            await pZ.goto(URL); await wait_app(pZ); await konto(pZ)
             await pZ.fill('#accBody input[name=clanname]', 'Schlimme Boten'); await btn(pZ,'#accBody','Clan gründen',1500)
-            code=await pZ.input_value('#accBody input[readonly]')
-            await pC.goto(URL); await pC.wait_for_timeout(1500); await pC.click('#accBtn'); await pC.wait_for_timeout(1500)
+            code=await pZ.input_value('#accBody input[readonly]:not([name=uid])')
+            await pC.goto(URL); await wait_app(pC); await konto(pC)
             await pC.fill('#accBody input[name=clancode]', code); await btn(pC,'#accBody','Beitreten',1500); t=await txt(pC)
             ok('Cara ist im Clan, sieht Melden bei Zoe und „Clan-Namen melden“', 'Du bist Mitglied' in t and await pC.locator('#accBody .cl button:has-text("Melden")').count()==1 and await pC.locator('#accBody button:has-text("Clan-Namen melden")').count()==1, t[:300].replace('\n',' | '))
             ok('keine Melden-Knöpfe bei der eigenen Zeile', await pC.locator('#accBody li:has-text("heute")').count()==2)
@@ -117,7 +138,7 @@ async def main():
             ok('Cara sieht keinen Betreiber-Bereich', not await vis(pC,'#accBody section:has(h4:text-is("Betreiber: Meldungen und Sperren"))') if False else 'Betreiber: Meldungen' not in await pC.inner_text('#accBody'))
             await pC.screenshot(path=OUT+'mod_member.png')
             # ---------- Tim als Betreiber
-            await pT.goto(URL); await pT.wait_for_timeout(1500); await pT.click('#accBtn'); await pT.wait_for_timeout(2500); t=await txt(pT)
+            ok('Tim: Startort gewählt, Spiel läuft', await enter(pT)); await konto(pT, 2500); t=await txt(pT)
             ok('Betreiber sieht den Bereich', 'betreiber: meldungen und sperren' in t.lower() and 'offene meldungen (2)' in t.lower(), t[:100].replace('\n',' | '))
             ok('Meldung zu Zoe mit Grund und Status', 'Zoe · Spieler · 1 Meldung' in t and 'Hass, Extremismus' in t and 'Name noch aktuell' in t, t[t.lower().find('offene'):][:400].replace('\n',' | '))
             ok('Meldung zum Clan', 'Schlimme Boten · Clan · 1 Meldung' in t and 'Beleidigend oder vulgär' in t)
@@ -127,6 +148,8 @@ async def main():
             # Verwerfen und Sperren
             await pT.fill('body', '') if False else None
             await twice(pT,'#accBody','Sperren') # erster Eintrag der Liste (meistgemeldet gleich, zuletzt gemeldet zuerst)
+            try: await pT.wait_for_function("document.querySelector('#accBody').innerText.includes('ist gesperrt')", timeout=15000)
+            except Exception: pass
             t=await txt(pT); ok('Sperren (zweistufig) funktioniert', 'ist gesperrt' in t and 'offene meldungen (1)' in t.lower() and 'gesperrte namen (1)' in t.lower(), t[t.lower().find('offene')-80:][:300].replace('\n',' | '))
             S=dbstate(); blocked=list(S.get('blockednames',{}).keys())
             ok('Name steht auf der Sperrliste', len(blocked)==1 and blocked[0] in ('zoe','schlimme_boten'), str(blocked))
@@ -136,7 +159,7 @@ async def main():
             ctl('put', {'path':'blockednames/zoe', 'value':int(time.time()*1000)})  # Zoe zusätzlich sperren (Test der Umbenennung)
             S=dbstate()
             # ---------- Zoe wird gesperrt: Hinweis und Umbenennen im Spiel
-            await pZ.goto(URL+'#c=essen-demo&m=o'); await pZ.wait_for_timeout(500); await pZ.reload(); await pZ.wait_for_timeout(1500)
+            await pZ.reload(); await pZ.wait_for_timeout(500)
             ok('Online-Spiel startet wieder', await wait_app(pZ)); await pZ.wait_for_timeout(500); await pZ.evaluate("__lm.rank()"); await pZ.wait_for_timeout(1500)
             ok('Hinweis „Name gesperrt“ öffnet sich', await vis(pZ,'#dlg') and 'Name gesperrt' in await pZ.inner_text('#dlgT') and 'wurde vom Betreiber gesperrt' in await pZ.inner_text('#dlgB'), (await pZ.inner_text('#dlgB'))[:200].replace('\n',' | '))
             ok('Chip zeigt „Name ändern“', 'Name ändern' in await pZ.inner_text('#onChip'))
@@ -155,34 +178,36 @@ async def main():
             ok('Rangliste: Eintrag trägt den neuen Namen', S['board']['_global']['all'][uidZ]['n']=='Zoe Neu', json.dumps(S['board']['_global']['all'][uidZ]))
             # ---------- Clan sperren (Tims erste Sperre oben galt dem zuletzt gemeldeten Ziel: dem Clan)
             S=dbstate(); ok('Clan wurde mit der Sperre aufgelöst', not (S.get('clans') or {}) and not (S.get('clannames') or {}) and 'schlimme_boten' in (S.get('blockednames') or {}), json.dumps({k:S.get(k) for k in ('clans','clannames','blockednames')})[:200])
-            await pC.reload(); await pC.wait_for_timeout(1500); await pC.click('#accBtn'); await pC.wait_for_timeout(1800); t=await txt(pC)
+            await pC.reload(); await wait_app(pC); await konto(pC, 500); t=await txt(pC)
             ok('Cara merkt: der Clan ist weg', 'Clan gründen' in t and 'Du bist Mitglied' not in t, t[:200].replace('\n',' | '))
-            # ---------- Cara wird gesperrt: Umbenennen im Konto-Fenster der Startseite
+            # ---------- Cara wird gesperrt: Umbenennen im Konto-Fenster (das Hinweisfenster im Spiel wird geschlossen)
             ctl('put', {'path':'blockednames/cara_cool', 'value':int(time.time()*1000)})
-            await pC.reload(); await pC.wait_for_timeout(2000)
-            ok('Leiste auf der Startseite warnt', 'Name gesperrt' in await pC.inner_text('#accTxt'), await pC.inner_text('#accTxt'))
-            await pC.click('#accBtn'); await pC.wait_for_timeout(1500); t=await txt(pC)
+            await pC.reload(); await wait_app(pC); await pC.wait_for_timeout(1500); await pC.evaluate("__lm.rank()"); await pC.wait_for_timeout(1500)
+            ok('Chip warnt: Name ändern', 'Name ändern' in await pC.inner_text('#onChip'), await pC.inner_text('#onChip'))
+            if await vis(pC,'#dlg'): await pC.keyboard.press('Escape')
+            await konto(pC, 500); t=await txt(pC)
             ok('Konto-Fenster zeigt Hinweis und Namensfeld', 'wurde vom Betreiber gesperrt' in t and await pC.locator('#accBody input[name=newname]').count()==1, t[:200].replace('\n',' | '))
             await pC.fill('#accBody input[name=newname]', 'Cara Cool'); await btn(pC,'#accBody','Neuen Namen speichern',800)
             ok('derselbe Name wird abgelehnt', 'anderen Namen' in await txt(pC), (await txt(pC))[:200].replace('\n',' | '))
             await pC.fill('#accBody input[name=newname]', 'Cara Neu'); await btn(pC,'#accBody','Neuen Namen speichern',2500); t=await txt(pC)
             ok('umbenannt: Hinweis und neuer Name', 'Cara Neu' in t and 'wurde vom Betreiber gesperrt' not in t and 'Dein neuer Name ist' in t, t[:200].replace('\n',' | '))
-            ok('Leiste zeigt den neuen Namen', 'Angemeldet als Cara Neu' in await pC.inner_text('#accTxt') and 'gesperrt' not in await pC.inner_text('#accTxt'), await pC.inner_text('#accTxt'))
+            ok('Konto zeigt den neuen Namen', await pC.evaluate("LMO.state().name")=='Cara Neu' and not await pC.evaluate("LMO.state().blocked"))
+            try: await pC.wait_for_function("!document.getElementById('onChip').innerText.includes('Name ändern')", timeout=8000)
+            except Exception: pass
+            ok('Chip im Spiel wieder normal', 'Name ändern' not in await pC.inner_text('#onChip'), await pC.inner_text('#onChip'))
             # ---------- Freigeben
-            await pT.reload(); await pT.wait_for_timeout(1500); await pT.click('#accBtn'); await pT.wait_for_timeout(2500); t=await txt(pT)
+            await pT.reload(); await wait_app(pT); await konto(pT, 2500); t=await txt(pT)
             ok('Sperrliste im Betreiber-Bereich', 'gesperrte namen (3)' in t.lower() and 'schlimme boten' in t and 'cara cool' in t, t[t.lower().find('gesperrte'):][:200].replace('\n',' | '))
             li=pT.locator('#accBody .cl li:has-text("gesperrt vor")').filter(has_text='gesperrt').first
             await twice(pT,'#accBody','Freigeben'); t=await txt(pT)
             ok('Freigeben nimmt einen Namen von der Liste', 'gesperrte namen (2)' in t.lower() and 'ist wieder frei' in t, t[t.lower().find('gesperrte')-60:][:200].replace('\n',' | '))
             # ---------- Handy-Breite
             ctxM = await newctx(b,(390,780)); pM, eM = await newpage(ctxM)
-            await pM.evaluate("([e,p])=>LMO.login(e,p)", ['tim@example.de','geheim123']); await pM.wait_for_timeout(800)
-            await pM.click('#accBtn'); await pM.wait_for_timeout(2500)
+            await pM.evaluate("([e,p])=>LMO.login(e,p)", ['tim@example.de','geheim123']); await wait_app(pM); await konto(pM, 2500)
             ok('Handy: Betreiber-Bereich ohne seitliches Scrollen', await pM.evaluate("(()=>{const d=document.querySelector('.accbox');return d.scrollWidth<=d.clientWidth+1 && document.documentElement.scrollWidth<=window.innerWidth+1})()"))
             await pM.screenshot(path=OUT+'mod_mobile.png')
             ctxN = await newctx(b,(390,780)); pN, eN = await newpage(ctxN)
-            await pN.evaluate("([e,p])=>LMO.login(e,p)", ['zoe@example.de','geheim123']); await pN.wait_for_timeout(800)
-            await pN.click('#playBox button[data-p=online]'); await pN.wait_for_timeout(400); await pN.click('#chips button >> text=Essen'); await wait_app(pN); await pN.wait_for_timeout(1500)
+            await pN.evaluate("([e,p])=>LMO.login(e,p)", ['zoe@example.de','geheim123']); await wait_app(pN); await pN.wait_for_timeout(1500)
             await pN.click('#onChip'); await pN.wait_for_timeout(1200)
             fl=pN.locator('#dlgB button.flag').first
             if await fl.count(): await fl.click(); await pN.wait_for_timeout(500)
