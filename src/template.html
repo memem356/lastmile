@@ -113,6 +113,8 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .rows dd { margin: 0; font: 500 13px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .rows .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); height: 0; margin: 2px 0; }
 .rows dt.total { font-weight: 500; color: var(--ink); }
+.keyrows dd { font: 400 13px var(--font-ui); text-align: left; }
+.keyrows { grid-template-columns: auto minmax(0, 1fr); align-items: center; row-gap: 8px; }
 .rows dd.total { color: var(--ink); }
 .pos { color: var(--ok); } .neg { color: var(--warn); }
 .note { font-size: 12px; color: var(--muted); margin: 0; }
@@ -177,7 +179,6 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .attr { position: absolute; right: 0; bottom: 0; padding: 3px 9px; font-size: 11px; background: var(--panel); color: var(--muted); border-top-left-radius: 4px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .attr a { color: var(--ink); }
 .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--panel); padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; transform: translate(12px, 12px); z-index: 5; }
-.keys { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
 
 :focus-visible { outline: 2px solid var(--route); outline-offset: 2px; }
 
@@ -345,7 +346,6 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
   .grid[data-tab="map"] > .mapwrap { display: block; order: 0; height: auto; min-height: 0; }
   .grid[data-tab="ops"] > .panel:last-child { display: flex; }
   .panel { overflow: auto; }
-  .keys { display: none; }
   .attr { font-size: 10px; padding: 2px 6px; max-width: 70%; }
   .legend { font-size: 11px; gap: 4px 10px; }
   .tabbar { display: grid; grid-template-columns: repeat(3, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -500,7 +500,7 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <div class="block">
         <h2>Fahrer <span class="count" id="dcount">1 / 4</span></h2>
         <ul class="dlist" id="dlist"></ul>
-        <p class="note">Klicke einen Fahrer an, um Details und Schulungen zu öffnen.</p>
+        <p class="note">Klicke einen Fahrer an, um Details, Schulung, Pause und Kündigung zu öffnen.</p>
       </div>
 
       <div class="block hire">
@@ -517,7 +517,6 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <h2>Protokoll</h2>
         <ol class="log" id="log"></ol>
       </div>
-      <p class="keys"><span><kbd>A</kbd> schnellsten Fahrer zuweisen</span><span><kbd>↑</kbd><kbd>↓</kbd> Bestellung wählen</span><span><kbd>Leertaste</kbd> Pause</span><span><kbd>F</kbd> Karte einpassen</span><span><kbd>W</kbd> ganze Erde</span></p>
     </aside>
   </main>
   <nav class="tabbar" id="tabbar" aria-label="Ansicht">
@@ -652,6 +651,12 @@ fieldset.rep legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
         <div class="xp t" id="dwTBarW"><i id="dwTBar"></i></div>
         <button type="button" class="btn primary" id="dwTBtn"></button>
         <button type="button" class="btn" id="dwTCancel" hidden>Schulung absagen und Geld zurück</button>
+        <h3>Pause</h3>
+        <p id="dwPInfo"></p>
+        <button type="button" class="btn" id="dwPBtn"></button>
+        <h3>Kündigung</h3>
+        <p id="dwFInfo"></p>
+        <button type="button" class="btn danger" id="dwFBtn"></button>
       </div>
     </div>
   </section>
@@ -691,7 +696,7 @@ function startGame(DATA, MODEKEY, PRE) {
     zones: [600, 900, 1300, 1800, 2400], zoneCost: [0, 250, 600, 1200, 2200],
     hubBuild: [0, 500, 1400], hubGap: 400,
     partnerCost: 120, maxPartners: 6, partnerWeight: 4, partnerDwell: 0.6, partnerPay: 1.12,
-    vehPrice: { bike: 60, scooter: 240, van: 600 },
+    vehPrice: { bike: 60, scooter: 240, van: 600 }, sellRate: 0.5,    // beim Kündigen wird das Fahrzeug zu diesem Anteil des Kaufpreises verkauft
     kmCost: { bike: 0, scooter: 0.12, van: 0.35 },
     wage: { bike: 8, scooter: 9, van: 11 }, wageLevel: 0.12,        // Euro pro Stunde, plus 12 % je Stufe
     payBase: 6.5, payPerKm: 3.5, detour: 1.25,
@@ -748,7 +753,7 @@ function startGame(DATA, MODEKEY, PRE) {
   }
 
   // ---------- Spielzustand ----------
-  let orders = [], drivers = [], orderSeq = 1001, cash = CFG.startCash;
+  let orders = [], drivers = [], orderSeq = 1001, driverSeq = 1, cash = CFG.startCash;
   let rep = 3, hubLevel = 0, autoOn = false, heat = false; const owned = {};
   const MAXR = DATA.radius || 750;
   let zoneLevel = 0, placing = false, ghost = null, zPois = [], zHomes = [];
@@ -984,7 +989,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function drawDrivers() {
     for (const d of drivers) {
       const p = driverPos(d), x = toX(p.x), y = toY(p.y), selected = sel.driver === d.id;
-      if (d.sick) ctx.globalAlpha = 0.45;
+      if (d.sick || d.rest === 'on') ctx.globalAlpha = 0.45;
       if (d.stall) { const k = (performance.now() / 700) % 1; ctx.beginPath(); ctx.arc(x, y, 14 + k * 8, 0, 6.283); ctx.strokeStyle = '#e0402a'; ctx.globalAlpha = 0.8 * (1 - k); ctx.lineWidth = 2.5; ctx.stroke(); ctx.globalAlpha = 1; dirty = true; }
       if (d.detAt && performance.now() - d.detAt < 6000) {
         const k = (performance.now() - d.detAt) / 6000, w = performance.now() / 500 % 1;
@@ -1191,7 +1196,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (def.id === 'cater') {
       const o = spawnOrder(true); if (o) log('Ereignis: Großbestellung, ' + eur(o.pay) + '. Der Kunde plant mehr Zeit ein.', true);
     } else {
-      const c = drivers.filter(d => !d.trip && !d.train && !d.sick);
+      const c = drivers.filter(d => !d.trip && !d.train && !d.sick && !d.rest);
       if (c.length < 2) return; // der letzte freie Fahrer wird nie krank
       const d = c[Math.floor(Math.random() * c.length)]; d.sick = { left: def.dur };
       log('Ereignis: Fahrer ' + d.id + ' meldet sich krank (' + fmtMin(def.dur) + ' min)', true); driverStructDirty = true; plansDirty = true; orderStructDirty = true;
@@ -1503,7 +1508,7 @@ function startGame(DATA, MODEKEY, PRE) {
     return { x: nx[d.node], y: ny[d.node], hd: 0, moving: false };
   }
   function addDriver(vehKey, hubIdx) {
-    const id = drivers.length + 1;
+    const id = driverSeq++;                                   // Fahrernummern werden nie neu vergeben, auch nach einer Kündigung nicht
     hubIdx = hubIdx || 0;
     drivers.push({ id, veh: vehKey, hub: hubIdx, node: nodeFor(hubs[hubIdx], vehKey), trip: null, ret: null, st: null, phase: -1, lvl: 1, done: 0 });
     driverStructDirty = true; plansDirty = true;
@@ -1564,7 +1569,7 @@ function startGame(DATA, MODEKEY, PRE) {
   }
 
   // ---------- Effekte von Stufen und Ausbauten ----------
-  const isFree = d => !d.trip && !d.train && !d.sick;
+  const isFree = d => !d.trip && !d.train && !d.sick && !d.rest;       // rest: 'wait' = Pause vorgemerkt, 'on' = in Pause
   const cap = () => CFG.hubCaps[hubLevel] * hubs.length;
   const levelMult = d => (1 + CFG.lvlSpeed * (d.lvl - 1)) * (d.veh === 'bike' && owned.motor ? 1.15 : 1);
   const envMult = d => d.veh !== 'bike' ? WX[wx].car : WX[wx].bike; // nur Wetter, der Verkehr wirkt je Straße
@@ -1573,6 +1578,7 @@ function startGame(DATA, MODEKEY, PRE) {
   const tipMax = () => (owned.boxes ? 0.4 : CFG.tipMax) * MODE.tip;
   const kmCostOf = k => CFG.kmCost[k] * (owned.service ? 0.6 : 1);
   const wageOf = d => CFG.wage[d.veh] * (1 + CFG.wageLevel * (d.lvl - 1));
+  const payOf = d => d.rest === 'on' ? 0 : wageOf(d);                  // in Pause gibt es keinen Lohn
   // Anlaufphase: im Rush-Modus startet die Nachfrage niedrig und steigt über die ersten Spielstunden auf das volle Niveau
   const rampF = () => MODE.ramp ? MODE.ramp + (1 - MODE.ramp) * Math.min(1, Math.max(0, simClock) / (MODE.rampH * 3600)) : 1;
   const demand = () => (0.5 + 0.17 * rep) * (owned.ads ? 1.25 : 1) * MODE.demand * rampF() * dayDemand() * WX[wx].dem;
@@ -1659,6 +1665,7 @@ function startGame(DATA, MODEKEY, PRE) {
           log('Fahrer ' + d.id + ' hat die Schulung abgeschlossen: Stufe ' + d.lvl, true); driverStructDirty = true; plansDirty = true; orderStructDirty = true;
         }
       }
+      if (d.rest === 'wait') settleRest(d);
       if (!d.trip) continue;
       const trip = d.trip, o = trip.order;
       const st = E.tripState(trip, trip.t); d.st = st;
@@ -1766,7 +1773,7 @@ function startGame(DATA, MODEKEY, PRE) {
     ensurePlans();
     const box = document.createElement('div'); box.className = 'assign';
     const free = drivers.filter(isFree);
-    if (!free.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Alle Fahrer sind unterwegs. Sobald einer frei ist, kannst du ihm die Bestellung geben.'; box.appendChild(p); return box; }
+    if (!free.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = drivers.some(d => d.rest === 'on') ? 'Kein Fahrer ist frei (unterwegs, krank oder in Pause). Bestelle einen Fahrer aus der Pause ein oder warte, bis einer frei ist.' : 'Alle Fahrer sind unterwegs. Sobald einer frei ist, kannst du ihm die Bestellung geben.'; box.appendChild(p); return box; }
     const best = fastestFree();
     for (const d of free) {
       const plan = plans[d.id];
@@ -1798,6 +1805,7 @@ function startGame(DATA, MODEKEY, PRE) {
   const dlist = $('dlist'); const dRefs = new Map();
   function renderDrivers() {
     setText($('dcount'), drivers.length + ' / ' + cap());
+    for (const [id, r] of dRefs) if (!drivers.some(d => d.id === id)) { r.li.remove(); dRefs.delete(id); }          // gekündigte Fahrer
     for (const d of drivers) {
       let r = dRefs.get(d.id);
       if (!r) {
@@ -1824,6 +1832,9 @@ function startGame(DATA, MODEKEY, PRE) {
       if (d.stall) {
         r.pill.className = 'pill s-bad'; setText(r.pill, 'Panne: ' + d.stall.kind);
         setText(r.line, (d.trip ? '#' + d.trip.order.id + ' · ' : '') + 'noch ' + fmtMin(d.stall.left) + ' min');
+      } else if (d.rest === 'on') {
+        r.pill.className = 'pill s-idle'; setText(r.pill, 'In Pause');
+        setText(r.line, 'Im Hub ' + (d.hub + 1) + ' · kein Lohn bis zum Einbestellen' + (d.sick ? ' · krank' : ''));
       } else if (d.sick) {
         r.pill.className = 'pill s-bad'; setText(r.pill, 'Krank');
         setText(r.line, 'wieder gesund in ' + fmtMin(d.sick.left) + ' min');
@@ -1831,7 +1842,7 @@ function startGame(DATA, MODEKEY, PRE) {
         const st = d.st || E.tripState(d.trip, d.trip.t);
         r.pill.className = 'pill ' + PHASE_CLS[Math.min(3, st.phase)];
         setText(r.pill, PHASE_TXT[Math.min(3, st.phase)]);
-        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (st.phase < 3 && d.trip.delay > 30 ? ' · +' + fmtMin(d.trip.delay) + ' Verkehr' : '') + (d.trip.det > 30 ? ' · Umweg −' + fmtMin(d.trip.det) : '') + (d.train ? ' · danach Schulung' : ''));
+        setText(r.line, '#' + d.trip.order.id + ' · ' + (st.phase >= 3 ? 'beim Kunden' : fmtDist(st.left) + ' bis zum Kunden · ' + Math.round(st.s.sp) + ' km/h') + (st.phase < 3 && d.trip.delay > 30 ? ' · +' + fmtMin(d.trip.delay) + ' Verkehr' : '') + (d.trip.det > 30 ? ' · Umweg −' + fmtMin(d.trip.det) : '') + (d.train ? ' · danach Schulung' : '') + (d.rest ? ' · danach Pause' : ''));
       } else if (d.train && d.train.state === 'active') {
         r.pill.className = 'pill s-wait'; setText(r.pill, 'In Schulung');
         setText(r.line, 'Hub ' + (d.hub + 1) + ' · noch ' + fmtMin(d.train.dur - d.train.t) + ' min');
@@ -1840,7 +1851,7 @@ function startGame(DATA, MODEKEY, PRE) {
         setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) : 'Schulung beginnt');
       } else {
         r.pill.className = 'pill s-idle'; setText(r.pill, d.ret ? 'Zurück zum Hub' : 'Frei');
-        setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) : 'Wartet im Hub ' + (d.hub + 1));
+        setText(r.line, d.ret ? 'Fährt zu Hub ' + (d.hub + 1) + ' · ' + fmtDist(d.ret.leg.len - E.sample(d.ret.leg, d.ret.t).d) + (d.rest ? ' · danach Pause' : '') : 'Wartet im Hub ' + (d.hub + 1));
       }
     }
   }
@@ -1869,9 +1880,10 @@ function startGame(DATA, MODEKEY, PRE) {
   // ---------- Fahrerdetail, Schulung, Ausbau ----------
   // ---------- Fenster: Hauptquartier und Fahrer ----------
   const winEl = $('win'), win = { kind: null, id: null };
+  let fireArm = null;                                       // Rückfrage beim Kündigen: { id, until }
   const trainDur = l => (10 + 10 * l) * 60;
   function openHQ() { win.kind = 'hq'; win.id = null; $('winHQ').hidden = false; $('winDrv').hidden = true; $('winSt').hidden = true; setText($('winT'), 'Hauptquartier'); winEl.hidden = false; updateUpgrades(); updatePartners(); updateHubs(); }
-  function openDriverWin(id) { win.kind = 'drv'; win.id = id; $('winHQ').hidden = true; $('winSt').hidden = true; $('winDrv').hidden = false; winEl.hidden = false; updateDriverWin(); }
+  function openDriverWin(id) { fireArm = null; win.kind = 'drv'; win.id = id; $('winHQ').hidden = true; $('winSt').hidden = true; $('winDrv').hidden = false; winEl.hidden = false; updateDriverWin(); }
   function openStat(tab) {
     win.kind = 'st'; win.id = null; $('winHQ').hidden = true; $('winDrv').hidden = true; $('winSt').hidden = false; setText($('winT'), 'Finanzen und Statistik'); winEl.hidden = false;
     if (tab) selStTab(tab); updateStatWin();
@@ -1884,7 +1896,7 @@ function startGame(DATA, MODEKEY, PRE) {
   $('cashBtn').onclick = () => (win.kind === 'st' && !winEl.hidden ? closeWin() : openStat());
   $('chipWx').onclick = () => openStat('sx'); $('chipTr').onclick = () => openStat('sx');
   $('stAchBtn').onclick = () => openAch();
-  function closeWin() { winEl.hidden = true; win.kind = null; }
+  function closeWin() { winEl.hidden = true; win.kind = null; fireArm = null; }
   $('winClose').onclick = closeWin; $('hqBtn').onclick = () => (win.kind === 'hq' && !winEl.hidden ? closeWin() : openHQ());
   $('winPause').onclick = () => togglePause();
   $('hqTabs').addEventListener('click', e => {
@@ -1903,6 +1915,43 @@ function startGame(DATA, MODEKEY, PRE) {
     spend('train', -d.train.cost); log('Schulung für Fahrer ' + d.id + ' abgesagt, ' + seur(d.train.cost)); d.train = null;
     driverStructDirty = true; plansDirty = true; orderStructDirty = true; dirty = true;
   }
+  // Pause: Fahrer in Pause kosten keinen Lohn und nehmen keine Bestellungen an, bis du sie einbestellst. Ihr Platz im Hub bleibt reserviert.
+  // 'wait' = vorgemerkt: Ist der Fahrer unterwegs, beendet er erst die Fahrt und fährt zum Hub; die Pause beginnt dort.
+  function settleRest(d) {
+    if (d.rest !== 'wait' || d.trip || d.ret || d.stall) return;
+    d.rest = 'on'; log('Fahrer ' + d.id + ' ist in der Pause (kein Lohn bis zum Einbestellen)');
+    driverStructDirty = true; plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+  function toggleRest(d) {
+    if (!d) return;
+    if (d.rest) {
+      const was = d.rest; d.rest = null;
+      log(was === 'on' ? 'Fahrer ' + d.id + ' ist wieder im Dienst (einbestellt) und nimmt Bestellungen an' : 'Pause für Fahrer ' + d.id + ' abgebrochen');
+    } else {
+      if (d.train) return;
+      d.rest = 'wait'; log('Fahrer ' + d.id + ' geht in die Pause' + (d.trip || d.ret ? ', sobald er im Hub ist' : ''));
+      settleRest(d);
+    }
+    driverStructDirty = true; plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+  // Kündigen: Fahrzeug wird anteilig verkauft, der Platz im Hub wird frei. Nicht während einer Lieferung oder Schulung, und der letzte Fahrer bleibt.
+  const canFire = d => !d.trip && !d.train && drivers.length > 1;
+  const sellPrice = d => Math.round(CFG.vehPrice[d.veh] * CFG.sellRate * 100) / 100;
+  function fireDriver(d) {
+    if (!d || !canFire(d)) return;
+    const back = sellPrice(d), i = drivers.indexOf(d); if (i < 0) return;
+    spend('hire', -back); drivers.splice(i, 1);
+    if (sel.driver === d.id) sel.driver = drivers[0].id;
+    if (sel.preview === d.id) sel.preview = null;
+    log('Fahrer ' + d.id + ' gekündigt, ' + driverLabel(d) + ' verkauft: ' + seur(back), true);
+    closeWin(); driverStructDirty = true; plansDirty = true; orderStructDirty = true; dirty = true;
+  }
+  $('dwPBtn').onclick = () => toggleRest(drivers.find(x => x.id === win.id));
+  $('dwFBtn').onclick = () => {
+    const d = drivers.find(x => x.id === win.id); if (!d || !canFire(d)) return;
+    if (fireArm && fireArm.id === d.id && Date.now() < fireArm.until) { fireDriver(d); return; }
+    fireArm = { id: d.id, until: Date.now() + 6000 }; updateDriverWin(); setTimeout(() => { if (fireArm && Date.now() >= fireArm.until) { fireArm = null; updateDriverWin(); } }, 6100);
+  };
   $('dwTBtn').onclick = () => planTraining(drivers.find(x => x.id === win.id));
   $('dwTCancel').onclick = () => cancelTraining(drivers.find(x => x.id === win.id));
   function updateDriverWin() {
@@ -1911,7 +1960,7 @@ function startGame(DATA, MODEKEY, PRE) {
     setText($('winT'), 'Fahrer ' + d.id + ' · ' + driverLabel(d));
     const r = dRefs.get(d.id); if (r) { $('dwPill').className = r.pill.className; setText($('dwPill'), r.pill.textContent); setText($('dwLine'), r.line.textContent); }
     setText($('dwVeh'), driverLabel(d)); setText($('dwHub'), 'Hub ' + (d.hub + 1)); setText($('dwLvl'), d.lvl + ' von 5');
-    setText($('dwSpd'), '+' + Math.round((levelMult(d) - 1) * 100) + ' % (Stufe, Ausbau), jetzt ' + Math.round((envMult(d) - 1) * 100) + ' % durch das Wetter'); setText($('dwDelay'), d.trip && d.trip.delay > 5 ? '+' + fmtMin(d.trip.delay) + ' min durch Verkehr' : '–'); setText($('dwDone'), String(d.done)); setText($('dwWage'), eur(wageOf(d)) + ' pro Stunde');
+    setText($('dwSpd'), '+' + Math.round((levelMult(d) - 1) * 100) + ' % (Stufe, Ausbau), jetzt ' + Math.round((envMult(d) - 1) * 100) + ' % durch das Wetter'); setText($('dwDelay'), d.trip && d.trip.delay > 5 ? '+' + fmtMin(d.trip.delay) + ' min durch Verkehr' : '–'); setText($('dwDone'), String(d.done)); setText($('dwWage'), d.rest === 'on' ? eur(0) + ' (in Pause, sonst ' + eur(wageOf(d)) + ' pro Stunde)' : eur(wageOf(d)) + ' pro Stunde');
     const nextN = d.lvl < 5 ? CFG.xpNeed[d.lvl] : null, prevN = CFG.xpNeed[d.lvl - 1];
     $('dwXpBar').style.width = (nextN ? Math.min(100, (d.done - prevN) / (nextN - prevN) * 100) : 100) + '%';
     setText($('dwXp'), nextN ? 'Erfahrung: nächste Stufe nach ' + nextN + ' Lieferungen, oder durch eine Schulung.' : 'Höchste Stufe erreicht.');
@@ -1924,9 +1973,18 @@ function startGame(DATA, MODEKEY, PRE) {
       $('dwTCancel').hidden = act;
     } else {
       $('dwTBarW').hidden = true; $('dwTCancel').hidden = true;
-      setText($('dwTInfo'), d.lvl >= 5 ? 'Dieser Fahrer hat die höchste Stufe.' : 'Fahrtraining auf Stufe ' + (d.lvl + 1) + ': dauert ' + fmtMin(trainDur(d.lvl)) + ' min und macht den Fahrer 4 % schneller (Lohn +12 %). Während der Schulung nimmt er keine Aufträge an. Bei einer laufenden Lieferung wartet er, bis sie fertig ist.');
-      setText($('dwTBtn'), d.lvl >= 5 ? 'Höchste Stufe erreicht' : 'Schulung planen für ' + eur(c)); $('dwTBtn').disabled = d.lvl >= 5 || cash < c;
+      setText($('dwTInfo'), d.lvl >= 5 ? 'Dieser Fahrer hat die höchste Stufe.' : d.rest ? 'Ein Fahrer in Pause (oder mit vorgemerkter Pause) kann keine Schulung beginnen. Bestelle ihn zuerst ein.' : 'Fahrtraining auf Stufe ' + (d.lvl + 1) + ': dauert ' + fmtMin(trainDur(d.lvl)) + ' min und macht den Fahrer 4 % schneller (Lohn +12 %). Während der Schulung nimmt er keine Aufträge an. Bei einer laufenden Lieferung wartet er, bis sie fertig ist.');
+      setText($('dwTBtn'), d.lvl >= 5 ? 'Höchste Stufe erreicht' : 'Schulung planen für ' + eur(c)); $('dwTBtn').disabled = d.lvl >= 5 || cash < c || !!d.rest;
     }
+    // Pause
+    const pb = $('dwPBtn');
+    if (d.rest === 'on') { setText($('dwPInfo'), 'Der Fahrer ist in Pause: kein Lohn, keine Bestellungen. Sein Platz im Hub ' + (d.hub + 1) + ' bleibt reserviert.'); setText(pb, 'Einbestellen'); pb.disabled = false; }
+    else if (d.rest === 'wait') { setText($('dwPInfo'), 'Pause vorgemerkt: ' + (d.trip ? 'Der Fahrer beendet erst die Lieferung und fährt dann zum Hub.' : 'Der Fahrer fährt zum Hub.') + ' Bis dahin zahlst du Lohn, neue Bestellungen bekommt er nicht.'); setText(pb, 'Pause abbrechen'); pb.disabled = false; }
+    else { setText($('dwPInfo'), d.train ? 'Mit geplanter oder laufender Schulung geht keine Pause. Sage die Schulung ab oder warte, bis sie fertig ist.' : 'In der Pause kostet der Fahrer keinen Lohn und nimmt keine Bestellungen an, bis du ihn einbestellst. Der Platz im Hub bleibt reserviert. Ist der Fahrer unterwegs, beginnt die Pause im Hub.'); setText(pb, 'In Pause schicken'); pb.disabled = !!d.train; }
+    // Kündigung
+    const fb = $('dwFBtn'), armed = !!fireArm && fireArm.id === d.id && Date.now() < fireArm.until, ok = canFire(d);
+    setText($('dwFInfo'), ok ? 'Der Fahrer verlässt dein Unternehmen. Das Fahrzeug wird für ' + eur(sellPrice(d)) + ' verkauft (' + Math.round(CFG.sellRate * 100) + ' % vom Kaufpreis), der Platz im Hub wird frei. Seine Nummer wird nicht neu vergeben.' : d.trip ? 'Während einer Lieferung geht das nicht. Warte, bis sie abgeschlossen ist.' : d.train ? 'Während einer Schulung geht das nicht. Sage eine geplante Schulung ab oder warte, bis sie fertig ist.' : 'Dein letzter Fahrer kann nicht gekündigt werden.');
+    setText(fb, armed ? 'Wirklich kündigen? Nochmal tippen.' : 'Fahrer kündigen (+' + eur(sellPrice(d)) + ')'); fb.disabled = !ok;
   }
   let hSig = '';
   function updateHubs() {
@@ -2142,7 +2200,7 @@ function startGame(DATA, MODEKEY, PRE) {
       if (d.train && d.train.state === 'active') d.train.t += adv;
     }
     updateDrivers(); tickWorld(adv); tickTraffic(adv); refreshTraffic(false); rerouteAll();
-    let w = 0; for (const d of drivers) w += wageOf(d); bill.wage += w * adv / 3600;
+    let w = 0; for (const d of drivers) w += payOf(d); bill.wage += w * adv / 3600;
     const hr = Math.floor((simClock + START) / 3600); if (hr > bill.hr) { bill.hr = hr; chargeBill(); }
     expireOrders();
     if (simClock - lastSpawnT >= CFG.spawnMin && openOrders().length < CFG.maxOpen && Math.random() < 1 - Math.exp(-adv * demand() / CFG.spawnMean)) { spawnOrder(); lastSpawnT = simClock; }
@@ -2266,7 +2324,7 @@ function startGame(DATA, MODEKEY, PRE) {
     ['Willkommen bei Lastmile', 'Du führst einen Lieferdienst. Bestellungen erscheinen als orange Punkte an Restaurants, Cafés, Bäckereien und Supermärkten. Dein Fahrer holt das Essen ab und bringt es zum Kunden.'],
     ['Bestellung zuweisen', 'Wähle eine Bestellung (in der Liste oder auf der Karte). Dann weist du einen freien Fahrer zu. Die Taste A nimmt automatisch den schnellsten. Die Route siehst du vorher auf der Karte.'],
     ['Geld verdienen', 'Jede Lieferung bringt Lohn. Wer schnell liefert, bekommt Trinkgeld und einen besseren Ruf, und ein guter Ruf bringt mehr Bestellungen. Fahrer kosten Stundenlohn, Roller und Transporter auch Fahrzeugkosten.'],
-    ['Wachsen', 'Stelle rechts weitere Fahrer ein. Klicke auf das Hauptquartier (das schwarze Quadrat) für Ausbauten, Partner, neue Hubs und ein größeres Liefergebiet. Ein Klick auf einen Fahrer öffnet seine Schulungen.'],
+    ['Wachsen', 'Stelle rechts weitere Fahrer ein. Klicke auf das Hauptquartier (das schwarze Quadrat) für Ausbauten, Partner, neue Hubs und ein größeres Liefergebiet. Ein Klick auf einen Fahrer öffnet seine Schulungen, die Pause (ohne Lohn) und die Kündigung.'],
     ['Wetter und Verkehr', 'Tageszeit, Wetter, Stau und Ereignisse verändern Tempo und Nachfrage. Fahrzeuge können liegen bleiben. Die Taste H zeigt auf der Karte, wo gerade am meisten bestellt wird.'],
     ['Speichern', 'Dein Spiel wird automatisch in diesem Browser gespeichert. Mit der Dispositions-Software arbeitet dein Betrieb auch weiter, wenn du nicht da bist (bis zu 4 Stunden). Im Menü findest du Erfolge, Ton und dieses Tutorial.']
   ];
@@ -2284,6 +2342,27 @@ function startGame(DATA, MODEKEY, PRE) {
       if (i + 1 < TUT.length) row.appendChild(skip); row.appendChild(nx2); b.appendChild(row);
     }, { pause: true });
   }
+  // Tastenkürzel (früher als Zeile unter der Spalte rechts)
+  function openKeys() {
+    const K = [
+      ['A', 'Schnellsten freien Fahrer der gewählten Bestellung zuweisen'],
+      ['↑ ↓', 'Bestellung wählen'],
+      ['F', 'Karte auf die Stadt einpassen'],
+      ['W', 'Ganze Erde zeigen (wenn das Kartenbild geladen ist)'],
+      ['+ −', 'Karte vergrößern und verkleinern'],
+      ['H', 'Karte der Nachfrage ein- und ausschalten'],
+      ['T', 'Verkehrsfarben ein- und ausschalten'],
+      ['K', 'Finanzen und Statistik öffnen und schließen'],
+      ['Esc', 'Fenster schließen, Hub-Platzierung abbrechen']
+    ];
+    if (!ONLINE) K.splice(5, 0, ['Leertaste', 'Pause']);
+    openDlg('Tastenkürzel', b => {
+      const dl = mk('dl', 'rows keyrows');
+      for (const [k, d] of K) { const dt = mk('dt'); for (const part of k.split(' ')) { dt.appendChild(mk('kbd', null, part)); dt.appendChild(document.createTextNode(' ')); } dl.append(dt, mk('dd', null, d)); }
+      b.appendChild(dl);
+      const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Schließen'); ok.type = 'button'; ok.onclick = closeDlg; row.appendChild(ok); b.appendChild(row);
+    });
+  }
   function openMenu() {
     openDlg('Menü', b => {
       const btn = (text, fn) => { const x = mk('button', 'btn', text); x.type = 'button'; x.onclick = fn; b.appendChild(x); return x; };
@@ -2294,6 +2373,7 @@ function startGame(DATA, MODEKEY, PRE) {
       const look = btn('Kartenbild: ' + LOOKS[baseLook], () => { setLook({ pale: 'full', full: 'off', off: 'pale' }[baseLook]); look.textContent = 'Kartenbild: ' + LOOKS[baseLook]; });
       btn('Erfolge (' + ACH.filter(a => prog.ach[a.id]).length + ' von ' + ACH.length + ')', () => { closeDlg(); openAch(); });
       btn('Tutorial', () => { closeDlg(); openTutorial(); });
+      btn('Tastenkürzel', () => { closeDlg(); openKeys(); });
       if (ONLINE) btn('Rangliste', () => { closeDlg(); openRank(); });
       if (!ONLINE) {
         btn('Spielstand exportieren (Datei)', () => { exportSave(); closeDlg(); toast('Spielstand exportiert', 'Die Datei liegt in deinen Downloads.'); });
@@ -2344,12 +2424,12 @@ function startGame(DATA, MODEKEY, PRE) {
       place: { name: DATA.name, sub: DATA.sub || '', lat: DATA.ref.lat, lon: DATA.ref.lon, demo: DATA === ESSEN },
       simClock, cash, rep, hubLevel, autoOn, owned: Object.assign({}, owned), zoneLevel, partners: [...partners], partnerXY: [...partners].map(i => [rd(pois[i].x), rd(pois[i].y)]),
       hubs: hubs.map(h => ({ x: h.x, y: h.y, nb: h.n.bike, nc: h.n.car })),
-      orderSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh },
+      orderSeq, driverSeq, lastSpawnT, bill: { wage: bill.wage, veh: bill.veh },
       led: { exp: led.exp, hist: led.hist, ontime: led.ontime, base: led.base, brk: led.brk, ev: led.ev, places: Object.fromEntries(Object.entries(led.places).sort((a, b) => b[1] - a[1]).slice(0, 40)), det: led.det, detSec: led.detSec }, stats: Object.assign({}, stats), prog: JSON.parse(JSON.stringify(prog)),
       seed: WORLD.seed, teScan, events: events.map(e => Object.assign({}, e)), tevents: tevents.map(e => Object.assign({}, e)), teSeq, selDriver: sel.driver,
       orders: orders.filter(o => o.state === 'open' || o.state === 'assigned').map(o => ({ id: o.id, pi: o.pick.i, hi: o.home.i, px: rd(o.pick.x), py: rd(o.pick.y), hx: rd(o.home.x), hy: rd(o.home.y), createdAt: o.createdAt, pay: o.pay, air: o.air, target: o.target, state: o.state, driver: o.driver, picked: o.picked, partner: o.partner, big: o.big })),
       drivers: drivers.map(d => { const nd = curNode(d); return {
-        id: d.id, veh: d.veh, hub: d.hub, node: nd, nx: rd(nx[nd]), ny: rd(ny[nd]), lvl: d.lvl, done: d.done, earn: d.earn || 0,
+        id: d.id, veh: d.veh, hub: d.hub, node: nd, nx: rd(nx[nd]), ny: rd(ny[nd]), lvl: d.lvl, done: d.done, earn: d.earn || 0, rest: d.rest || null,
         train: d.train ? Object.assign({}, d.train) : null, sick: d.sick ? { left: d.sick.left } : null, stall: d.stall ? { left: d.stall.left, kind: d.stall.kind } : null,
         trip: d.trip ? { o: d.trip.order.id, f: d.trip.total ? d.trip.t / d.trip.total : 0 } : null
       }; }),
@@ -2389,7 +2469,7 @@ function startGame(DATA, MODEKEY, PRE) {
     const seen = new Set();
     for (const d of arr(sv.drivers)) {
       if (!isObj(d) || !VEHICLES[d.veh] || !Number.isInteger(d.id) || seen.has(d.id)) continue; seen.add(d.id);
-      n.drivers.push({ id: d.id, veh: d.veh, hub: Math.max(0, Math.round(num(d.hub, 0, 0))), node: d.node, nx: d.nx, ny: d.ny, lvl: Math.round(num(d.lvl, 1, 1, 5)), done: Math.round(num(d.done, 0, 0)), earn: num(d.earn, 0, 0),
+      n.drivers.push({ id: d.id, veh: d.veh, hub: Math.max(0, Math.round(num(d.hub, 0, 0))), node: d.node, nx: d.nx, ny: d.ny, lvl: Math.round(num(d.lvl, 1, 1, 5)), done: Math.round(num(d.done, 0, 0)), earn: num(d.earn, 0, 0), rest: d.rest === 'on' || d.rest === 'wait' ? d.rest : null,
         train: isObj(d.train) ? d.train : null, sick: isObj(d.sick) ? { left: num(d.sick.left, 0, 0) } : null, stall: isObj(d.stall) ? { left: num(d.stall.left, 0, 0), kind: String(d.stall.kind || 'Panne') } : null,
         trip: isObj(d.trip) && Number.isInteger(d.trip.o) ? { o: d.trip.o, f: num(d.trip.f, 0, 0, 1) } : null });
     }
@@ -2402,6 +2482,7 @@ function startGame(DATA, MODEKEY, PRE) {
     n.autoOn = !!sv.autoOn; n.owned = {}; for (const u of UPG) if (isObj(sv.owned) && sv.owned[u.id]) n.owned[u.id] = true;
     n.partners = arr(sv.partners).filter(Number.isInteger); n.partnerXY = arr(sv.partnerXY).filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1]));
     n.orderSeq = Math.round(num(sv.orderSeq, 1001, 1)); n.lastSpawnT = num(sv.lastSpawnT, 0);
+    n.driverSeq = Math.max(Math.round(num(sv.driverSeq, 1, 1)), n.drivers.reduce((m, d) => Math.max(m, d.id), 0) + 1);
     n.bill = { wage: num(sv.bill && sv.bill.wage, 0, 0), veh: num(sv.bill && sv.bill.veh, 0, 0) };
     const st = isObj(sv.stats) ? sv.stats : {}; n.stats = {}; for (const k of ['n', 'pay', 'tip', 'cost', 'wage', 'cancel', 'ageSum']) n.stats[k] = num(st[k], 0, 0);
     const L = isObj(sv.led) ? sv.led : null; n.led = { exp: {}, hist: [], ontime: 0, base: n.stats.n, brk: 0, ev: {}, places: {}, det: 0, detSec: 0 };
@@ -2439,7 +2520,7 @@ function startGame(DATA, MODEKEY, PRE) {
       const ok = same && Number.isInteger(h.nb) && Number.isInteger(h.nc) && h.nb >= 0 && h.nb < N && h.nc >= 0 && h.nc < N;
       hubs.push({ x: h.x, y: h.y, n: ok ? { bike: h.nb, car: h.nc } : { bike: E.hubNode('bike', h.x, h.y), car: E.hubNode('scooter', h.x, h.y) } });
     }
-    orderSeq = sv.orderSeq; lastSpawnT = sv.lastSpawnT; bill.wage = sv.bill.wage; bill.veh = sv.bill.veh;
+    orderSeq = sv.orderSeq; driverSeq = sv.driverSeq; lastSpawnT = sv.lastSpawnT; bill.wage = sv.bill.wage; bill.veh = sv.bill.veh;
     Object.assign(led, sv.led); Object.assign(stats, sv.stats); Object.assign(prog, sv.prog);
     if (sv.seed !== null) { WORLD.seed = sv.seed; wxChain = []; }
     events = sv.events; tevents = sv.tevents; teSeq = sv.teSeq; syncWeather(true); teScan = sv.teScan === null ? worldT() : Math.min(sv.teScan, worldT()); refreshTraffic(true);
@@ -2458,7 +2539,7 @@ function startGame(DATA, MODEKEY, PRE) {
       let node = q.node;
       if (!same || !Number.isInteger(node) || node < 0 || node >= N) node = isFinite(q.nx) && isFinite(q.ny) ? E.hubNode(q.veh, q.nx, q.ny) : nodeFor(hubs[q.hub], q.veh);
       const d = { id: q.id, veh: q.veh, hub: q.hub, node, trip: null, ret: null, st: null, phase: -1, lvl: q.lvl, done: q.done, earn: q.earn };
-      if (q.train) d.train = q.train; if (q.sick) d.sick = q.sick; if (q.stall) d.stall = q.stall;
+      if (q.train) d.train = q.train; if (q.sick) d.sick = q.sick; if (q.stall) d.stall = q.stall; if (q.rest) d.rest = q.rest;
       drivers.push(d);
       if (q.trip) {
         const o = orderById(q.trip.o), plan = o && planFor(d, o);
@@ -2467,7 +2548,7 @@ function startGame(DATA, MODEKEY, PRE) {
       }
     }
     for (const o of orders) if (o.state === 'assigned' && !drivers.some(d => d.trip && d.trip.order === o)) { o.state = 'open'; o.driver = null; o.picked = false; }
-    for (const d of drivers) if (!d.trip && !(d.train && d.train.state === 'active')) { if (d.stall) d.stall = null; startReturn(d); }
+    for (const d of drivers) if (!d.trip && !(d.train && d.train.state === 'active')) { if (d.stall) d.stall = null; startReturn(d); if (d.rest === 'on' && d.ret) d.rest = 'wait'; }
     for (const l of sv.log) {
       const li = document.createElement('li'); if (l[2]) li.className = 'hl';
       const t = document.createElement('time'); t.textContent = String(l[0]); const sp = document.createElement('span'); sp.textContent = String(l[1]); li.append(t, sp); $('log').prepend(li);
@@ -2588,18 +2669,19 @@ function startGame(DATA, MODEKEY, PRE) {
   // anchor(t0) stellt die Uhr für die Schätzung auf den Beginn der Abwesenheit. keepOpen: offene Bestellungen bleiben (kurze Pausen).
   function runAbsence(eff, away, anchor, keepOpen) {
     const hours = eff / 3600, rpt = { away, eff, capped: false, worked: false, n: 0, net: 0, wages: 0 };
-    if (owned.dispatch && autoOn && drivers.length) {
+    const act = drivers.filter(d => d.rest !== 'on');          // Fahrer in Pause arbeiten nicht und kosten nichts
+    if (owned.dispatch && autoOn && act.length) {
       const t0 = simClock, st0 = START, w0 = WORLD.t0; let exp = 0;
       anchor(t0);
       for (let t = 0; t < eff; t += 600) { simClock = t0 + t; exp += Math.min(600, eff - t) * demand() / CFG.spawnMean; }
       simClock = t0; START = st0; WORLD.t0 = w0;
-      const capH = drivers.reduce((a, d) => a + 3600 / ({ bike: 780, scooter: 600, van: 660 }[d.veh] || 780) * levelMult(d), 0);
+      const capH = act.reduce((a, d) => a + 3600 / ({ bike: 780, scooter: 600, van: 660 }[d.veh] || 780) * levelMult(d), 0);
       const n = Math.floor(Math.min(exp, capH * hours * 0.75));
       const av = stats.n > 0 ? { pay: stats.pay / stats.n, tip: stats.tip / stats.n, cost: stats.cost / stats.n } : { pay: 9 * MODE.pay, tip: 0.6, cost: 0.2 };
-      const gain = n * (av.pay + av.tip * 0.7 - av.cost), wages = drivers.reduce((a, d) => a + wageOf(d), 0) * hours;
+      const gain = n * (av.pay + av.tip * 0.7 - av.cost), wages = act.reduce((a, d) => a + wageOf(d), 0) * hours;
       cash = Math.max(cash + gain - wages, Math.min(cash, 0));
       stats.n += n; stats.pay += n * av.pay; stats.tip += n * av.tip * 0.7; stats.cost += n * av.cost; stats.wage += wages;
-      for (const d of drivers) { d.done += Math.floor(n / drivers.length); while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) d.lvl++; }
+      for (const d of act) { d.done += Math.floor(n / act.length); while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) d.lvl++; }
       Object.assign(rpt, { worked: true, n, net: gain - wages, wages });
     }
     simClock += eff; lastSpawnT = simClock - CFG.spawnMin;
@@ -2833,7 +2915,7 @@ function startGame(DATA, MODEKEY, PRE) {
   if (/[?&]debug/.test(location.search)) { const worldDump = (t0, t1) => { const out = []; for (const kind of Object.keys(TCELL)) { const L = TCELL[kind]; for (let c = Math.floor(t0 / L); c <= Math.floor(t1 / L); c++) { const q = tevCand(kind, c); if (q && q.t >= t0 && q.t < t1) out.push([kind, Math.round(q.t), Math.round(q.dur)]); } } for (let c = Math.floor(t0 / CITY_L); c <= Math.floor(t1 / CITY_L); c++) { const q = cityCand(c); if (q && q.t >= t0 && q.t < t1) out.push([q.type, Math.round(q.t), 0]); } return out.sort((a, b) => a[1] - b[1]); };
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
-  window.__lm = { view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
+  window.__lm = { view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });
