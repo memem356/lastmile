@@ -41,7 +41,8 @@ def way_tags(kind, a, seg):
 
 class World:
     def __init__(self):
-        self.calls = {'roads': 0, 'places': 0, 'firms': 0, 'isin': 0, 'lookup': 0, 'nearby': 0, 'search': 0}
+        self.calls = {'roads': 0, 'places': 0, 'firms': 0, 'isin': 0, 'lookup': 0, 'nearby': 0, 'search': 0, 'reverse': 0}
+        self.no_reverse = False          # Nominatim reverse antwortet mit 429
         self.fail_roads = 0              # die nächsten n Straßenabfragen scheitern (504)
         self.offline = False             # alles scheitert
         self.no_link = False             # Abfragen nach großen Straßen (Verbindungen) bleiben leer
@@ -135,6 +136,15 @@ class World:
     # ---------- Nominatim ----------
     def nominatim(self, url):
         if self.offline: return None
+        if '/reverse' in url:
+            self.calls['reverse'] += 1
+            if self.no_reverse: return 'fail'
+            m = re.search(r'lat=([\d.]+)&lon=([\d.]+)', url); la, lo = float(m[1]), float(m[2])
+            for rel, c in CITIES.items():
+                if nlat(c[1]) <= la <= nlat(c[2]) and nlon(c[3]) <= lo <= nlon(c[4]):
+                    return {'osm_type': 'relation', 'osm_id': rel, 'name': c[0], 'lat': str(nlat((c[1] + c[2]) // 2)), 'lon': str(nlon((c[3] + c[4]) // 2)), 'geojson': {'type': 'Polygon', 'coordinates': [poly(c)]},
+                            'extratags': {'population': str(c[5]), 'admin_level': '8'}}
+            return {'error': 'Unable to geocode'}
         if 'lookup' in url:
             self.calls['lookup'] += 1
             rel = int(re.search(r'osm_ids=R(\d+)', url)[1]); c = CITIES.get(rel)
@@ -159,7 +169,8 @@ class World:
         async def no(route, request):
             r = self.nominatim(request.url)
             if r is None: return await route.abort()
+            if r == 'fail': return await route.fulfill(status=429, headers=CORS, body='')
             await route.fulfill(status=200, headers=J, body=json.dumps(r))
-        await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), ov)
+        await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), ov)
         await ctx.route(re.compile(r'https://nominatim\.openstreetmap\.org/.*'), no)
         await ctx.route(re.compile(r'https://api\.open-meteo\.com/.*'), lambda r, q: r.abort())

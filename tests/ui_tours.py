@@ -145,7 +145,7 @@ async def main():
 
             async def overpass(route, request):
                 await route.fulfill(status=200, headers={'content-type': 'application/json', 'access-control-allow-origin': '*'}, body=json.dumps(FAKE))
-            await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
+            await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pg, errs, started = await start_game(ctx, 'Tim Tour', 'tour@example.de')
             ok('T0 Spiel startet', started)
             # Zufall festlegen: nichts entsteht von allein, keine Pannen; Fahrer des Lieferdienstes ruhen (kein Lohn aus dieser Quelle)

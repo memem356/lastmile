@@ -1,20 +1,24 @@
 // Stadtlader: Suche (Nominatim), Straßen/Orte (Overpass), Kompaktformat, Cache (IndexedDB)
 const LM = (function () {
   const FORMAT = 1;
+  // Öffentliche Overpass-Server. Der Hauptserver ist oft überlastet; die anderen springen ein. Reihenfolge = Vorrang, bis ein anderer Server schneller war.
   const OVERPASS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+    'https://overpass.private.coffee/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter'
   ];
+  let HEDGE = 8000;                          // so lange hat der bevorzugte Server allein Zeit, danach fragt auch der nächste (der erste brauchbare Treffer gilt)
+  let pref = 0;                                // zuletzt erfolgreicher Server: kommt als Nächster zuerst dran
   const HW = { motorway: 0, motorway_link: 0, trunk: 0, trunk_link: 0, primary: 1, primary_link: 1, secondary: 2, secondary_link: 2,
     tertiary: 3, tertiary_link: 3, unclassified: 4, residential: 4, living_street: 5, service: 6, cycleway: 7 };
   const HW_RE = Object.keys(HW).join('|');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const net = { bytes: 0, calls: 0 };                              // Zähler für den Stadt-Test: übertragene Zeichen und Abfragen
+  const net = { bytes: 0, calls: 0, log: [] };                      // Zähler für den Stadt-Test: übertragene Zeichen und Abfragen; log: Versuche je Server (Antwortzeit oder Fehler)
 
   // ---------- Suche ----------
   async function search(q) {
-    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&q=' + encodeURIComponent(q);
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&extratags=1&q=' + encodeURIComponent(q);
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
     let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error('Suche nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
     if (!r.ok) throw new Error('Suche nicht erreichbar (' + r.status + ')');
@@ -25,32 +29,53 @@ const LM = (function () {
       const sub = [a.state || a.region || a.county, a.country].filter(Boolean).join(', ');
       const lat = Number(x.lat), lon = Number(x.lon), key = name + '|' + sub;
       if (seen.has(key) || !isFinite(lat) || !isFinite(lon)) continue;
-      seen.add(key); out.push({ name, sub, lat, lon });
+      seen.add(key);
+      // nrel/nplace/npop: nur für den Stadt-Test und die Grenzsuche (Verwaltungsgrenze als Beziehung, Art des Ortes, Einwohner)
+      out.push({ name, sub, lat, lon, nrel: x.osm_type === 'relation' && x.osm_id ? Number(x.osm_id) : 0, nplace: /^(city|town)$/.test(x.addresstype || x.type || '') ? (x.addresstype || x.type) : '', npop: parseInt(String((x.extratags && x.extratags.population) || '').replace(/[^0-9]/g, ''), 10) || 0 });
     }
     return out;
   }
 
   // ---------- Overpass ----------
+  const host = u => u.replace(/^https:\/\/([^/]+)\/.*$/, '$1');
+  const secs = ms => (ms / 1000).toFixed(1) + ' s';
+  function note(t) { net.log.push(t); if (net.log.length > 300) net.log.splice(0, 100); }
+  // Eine Abfrage an einen Server: Ergebnis oder Fehler
+  async function once(url, query, ctl) {
+    const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(query), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
+    if (!r.ok) throw new Error('Antwort ' + r.status);
+    const txt = await r.text(), j = JSON.parse(txt);
+    // Overpass antwortet bei Zeitüberschreitung oder Speichermangel mit 200 und einer unvollständigen Antwort samt Hinweis: das darf nicht als Ergebnis (und nicht in den Zwischenspeicher) gelten
+    if (j && typeof j.remark === 'string' && /runtime error/i.test(j.remark)) throw new Error('Kartenserver überlastet (' + j.remark.slice(0, 80) + ')');
+    return { j, len: txt.length };
+  }
+  // Der zuletzt erfolgreiche Server zuerst. Antwortet er nach HEDGE nicht, kommt der nächste dazu; fällt einer aus, sofort der nächste. Der erste brauchbare Treffer gewinnt, die anderen werden abgebrochen.
   async function overpass(query, onTry, rounds) {
     let lastErr = null;
     for (let round = 0; round < (rounds || 2); round++) {
-      for (let m = 0; m < OVERPASS.length; m++) {
-        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 70000);
-        try {
+      const order = OVERPASS.map((u, i) => (i + pref) % OVERPASS.length);
+      const won = await new Promise(resolve => {
+        const ctls = []; let started = 0, fails = 0, done = false, timer = null;
+        const launch = () => {
+          clearTimeout(timer); if (done || started >= order.length) return;
+          const m = order[started++], ctl = new AbortController(), t0 = Date.now(), to = setTimeout(() => ctl.abort(), 70000); ctls.push(ctl);
           if (onTry) onTry(m, round);
-          const r = await fetch(OVERPASS[m], { method: 'POST', body: 'data=' + encodeURIComponent(query),
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
-          if (r.ok) {
-            const txt = await r.text(); net.bytes += txt.length; net.calls++; const j = JSON.parse(txt);
-            // Overpass antwortet bei Zeitüberschreitung oder Speichermangel mit 200 und einer unvollständigen Antwort samt Hinweis: das darf nicht als Ergebnis (und nicht in den Zwischenspeicher) gelten
-            if (j && typeof j.remark === 'string' && /runtime error/i.test(j.remark)) throw new Error('Kartenserver überlastet (' + j.remark.slice(0, 80) + ')');
-            clearTimeout(to); return j;
-          }
-          lastErr = new Error('Kartenserver antwortet mit ' + r.status);
-        } catch (e) { lastErr = e; }
-        clearTimeout(to);
-        await sleep(600);
-      }
+          once(OVERPASS[m], query, ctl).then(o => {
+            clearTimeout(to); if (done) return; done = true; clearTimeout(timer);
+            note(host(OVERPASS[m]) + ' ok ' + secs(Date.now() - t0)); pref = m; net.bytes += o.len; net.calls++;
+            for (const c of ctls) if (c !== ctl) c.abort();
+            resolve(o);
+          }, e => {
+            clearTimeout(to); if (done) return;
+            note(host(OVERPASS[m]) + ' ' + (e && e.name === 'AbortError' ? 'keine Antwort' : (e && e.message) || 'Fehler') + ' nach ' + secs(Date.now() - t0));
+            lastErr = e; fails++;
+            if (fails >= order.length) { done = true; clearTimeout(timer); resolve(null); } else launch();
+          });
+          if (started < order.length) timer = setTimeout(launch, HEDGE);
+        };
+        launch();
+      });
+      if (won) return won.j;
       await sleep(2500);
     }
     throw new Error('Kartendaten konnten nicht geladen werden (' + (lastErr && lastErr.message || 'unbekannt') + ')');
@@ -283,5 +308,5 @@ const LM = (function () {
 
   return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
     overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
-    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; } };
+    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref };
 })();

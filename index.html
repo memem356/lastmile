@@ -1240,20 +1240,24 @@ function createEngine(D) {
 // Stadtlader: Suche (Nominatim), Straßen/Orte (Overpass), Kompaktformat, Cache (IndexedDB)
 const LM = (function () {
   const FORMAT = 1;
+  // Öffentliche Overpass-Server. Der Hauptserver ist oft überlastet; die anderen springen ein. Reihenfolge = Vorrang, bis ein anderer Server schneller war.
   const OVERPASS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+    'https://overpass.private.coffee/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter'
   ];
+  let HEDGE = 8000;                          // so lange hat der bevorzugte Server allein Zeit, danach fragt auch der nächste (der erste brauchbare Treffer gilt)
+  let pref = 0;                                // zuletzt erfolgreicher Server: kommt als Nächster zuerst dran
   const HW = { motorway: 0, motorway_link: 0, trunk: 0, trunk_link: 0, primary: 1, primary_link: 1, secondary: 2, secondary_link: 2,
     tertiary: 3, tertiary_link: 3, unclassified: 4, residential: 4, living_street: 5, service: 6, cycleway: 7 };
   const HW_RE = Object.keys(HW).join('|');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const net = { bytes: 0, calls: 0 };                              // Zähler für den Stadt-Test: übertragene Zeichen und Abfragen
+  const net = { bytes: 0, calls: 0, log: [] };                      // Zähler für den Stadt-Test: übertragene Zeichen und Abfragen; log: Versuche je Server (Antwortzeit oder Fehler)
 
   // ---------- Suche ----------
   async function search(q) {
-    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&q=' + encodeURIComponent(q);
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&extratags=1&q=' + encodeURIComponent(q);
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
     let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error('Suche nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
     if (!r.ok) throw new Error('Suche nicht erreichbar (' + r.status + ')');
@@ -1264,32 +1268,53 @@ const LM = (function () {
       const sub = [a.state || a.region || a.county, a.country].filter(Boolean).join(', ');
       const lat = Number(x.lat), lon = Number(x.lon), key = name + '|' + sub;
       if (seen.has(key) || !isFinite(lat) || !isFinite(lon)) continue;
-      seen.add(key); out.push({ name, sub, lat, lon });
+      seen.add(key);
+      // nrel/nplace/npop: nur für den Stadt-Test und die Grenzsuche (Verwaltungsgrenze als Beziehung, Art des Ortes, Einwohner)
+      out.push({ name, sub, lat, lon, nrel: x.osm_type === 'relation' && x.osm_id ? Number(x.osm_id) : 0, nplace: /^(city|town)$/.test(x.addresstype || x.type || '') ? (x.addresstype || x.type) : '', npop: parseInt(String((x.extratags && x.extratags.population) || '').replace(/[^0-9]/g, ''), 10) || 0 });
     }
     return out;
   }
 
   // ---------- Overpass ----------
+  const host = u => u.replace(/^https:\/\/([^/]+)\/.*$/, '$1');
+  const secs = ms => (ms / 1000).toFixed(1) + ' s';
+  function note(t) { net.log.push(t); if (net.log.length > 300) net.log.splice(0, 100); }
+  // Eine Abfrage an einen Server: Ergebnis oder Fehler
+  async function once(url, query, ctl) {
+    const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(query), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
+    if (!r.ok) throw new Error('Antwort ' + r.status);
+    const txt = await r.text(), j = JSON.parse(txt);
+    // Overpass antwortet bei Zeitüberschreitung oder Speichermangel mit 200 und einer unvollständigen Antwort samt Hinweis: das darf nicht als Ergebnis (und nicht in den Zwischenspeicher) gelten
+    if (j && typeof j.remark === 'string' && /runtime error/i.test(j.remark)) throw new Error('Kartenserver überlastet (' + j.remark.slice(0, 80) + ')');
+    return { j, len: txt.length };
+  }
+  // Der zuletzt erfolgreiche Server zuerst. Antwortet er nach HEDGE nicht, kommt der nächste dazu; fällt einer aus, sofort der nächste. Der erste brauchbare Treffer gewinnt, die anderen werden abgebrochen.
   async function overpass(query, onTry, rounds) {
     let lastErr = null;
     for (let round = 0; round < (rounds || 2); round++) {
-      for (let m = 0; m < OVERPASS.length; m++) {
-        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 70000);
-        try {
+      const order = OVERPASS.map((u, i) => (i + pref) % OVERPASS.length);
+      const won = await new Promise(resolve => {
+        const ctls = []; let started = 0, fails = 0, done = false, timer = null;
+        const launch = () => {
+          clearTimeout(timer); if (done || started >= order.length) return;
+          const m = order[started++], ctl = new AbortController(), t0 = Date.now(), to = setTimeout(() => ctl.abort(), 70000); ctls.push(ctl);
           if (onTry) onTry(m, round);
-          const r = await fetch(OVERPASS[m], { method: 'POST', body: 'data=' + encodeURIComponent(query),
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
-          if (r.ok) {
-            const txt = await r.text(); net.bytes += txt.length; net.calls++; const j = JSON.parse(txt);
-            // Overpass antwortet bei Zeitüberschreitung oder Speichermangel mit 200 und einer unvollständigen Antwort samt Hinweis: das darf nicht als Ergebnis (und nicht in den Zwischenspeicher) gelten
-            if (j && typeof j.remark === 'string' && /runtime error/i.test(j.remark)) throw new Error('Kartenserver überlastet (' + j.remark.slice(0, 80) + ')');
-            clearTimeout(to); return j;
-          }
-          lastErr = new Error('Kartenserver antwortet mit ' + r.status);
-        } catch (e) { lastErr = e; }
-        clearTimeout(to);
-        await sleep(600);
-      }
+          once(OVERPASS[m], query, ctl).then(o => {
+            clearTimeout(to); if (done) return; done = true; clearTimeout(timer);
+            note(host(OVERPASS[m]) + ' ok ' + secs(Date.now() - t0)); pref = m; net.bytes += o.len; net.calls++;
+            for (const c of ctls) if (c !== ctl) c.abort();
+            resolve(o);
+          }, e => {
+            clearTimeout(to); if (done) return;
+            note(host(OVERPASS[m]) + ' ' + (e && e.name === 'AbortError' ? 'keine Antwort' : (e && e.message) || 'Fehler') + ' nach ' + secs(Date.now() - t0));
+            lastErr = e; fails++;
+            if (fails >= order.length) { done = true; clearTimeout(timer); resolve(null); } else launch();
+          });
+          if (started < order.length) timer = setTimeout(launch, HEDGE);
+        };
+        launch();
+      });
+      if (won) return won.j;
       await sleep(2500);
     }
     throw new Error('Kartendaten konnten nicht geladen werden (' + (lastErr && lastErr.message || 'unbekannt') + ')');
@@ -1522,7 +1547,7 @@ const LM = (function () {
 
   return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
     overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
-    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; } };
+    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref };
 })();
 
 // Städte für das Fulfillment Center: Nachbarstädte finden, Stadtgrenze holen, Straßen und Firmen ganzer Städte kachelweise laden,
@@ -1625,46 +1650,71 @@ const LMCity = (function () {
     return out.sort((a, b) => a.dist - b.dist);
   }
 
-  async function nominatimPolygon(rel) {
-    const url = 'https://nominatim.openstreetmap.org/lookup?osm_ids=R' + rel + '&format=jsonv2&polygon_geojson=1&polygon_threshold=0.0003&accept-language=de';
+  async function nominatimJson(url, what) {
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 45000);
-    let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error('Stadtgrenze nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
-    if (!r.ok) throw new Error('Stadtgrenze nicht erreichbar (' + r.status + ')');
-    const j = await r.json(), x = j && j[0], g = x && fromGeoJSON(x.geojson);
-    if (!g) throw new Error('Keine Stadtgrenze gefunden');
-    return { g, name: x.name || '', lat: Number(x.lat), lon: Number(x.lon) };
+    let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error(what + ' nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
+    if (!r.ok) throw new Error(what + ' nicht erreichbar (' + r.status + ')');
+    return r.json();
   }
+  const popOf = v => parseInt(String(v || '').replace(/[^0-9]/g, ''), 10) || 0;
+  // Grenze einer Beziehung (Relation) bei Nominatim
+  async function nominatimPolygon(rel) {
+    const j = await nominatimJson('https://nominatim.openstreetmap.org/lookup?osm_ids=R' + rel + '&format=jsonv2&polygon_geojson=1&polygon_threshold=0.0003&extratags=1&accept-language=de', 'Stadtgrenze');
+    const x = j && j[0], g = x && fromGeoJSON(x.geojson);
+    if (!g) throw new Error('Keine Stadtgrenze gefunden');
+    return { g, rel, name: x.name || '', lat: Number(x.lat), lon: Number(x.lon), pop: popOf(x.extratags && x.extratags.population), level: parseInt(x.extratags && x.extratags.admin_level, 10) || 0 };
+  }
+  // Die Stadt (Verwaltungsgrenze) um einen Punkt direkt bei Nominatim erfragen: eine einzige Abfrage, ohne den oft überlasteten Overpass-Server
+  async function nominatimAround(lat, lon) {
+    const x = await nominatimJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=' + lat.toFixed(6) + '&lon=' + lon.toFixed(6) + '&polygon_geojson=1&polygon_threshold=0.0003&extratags=1&accept-language=de', 'Stadtgrenze');
+    if (!x || x.error) throw new Error('keine Verwaltungsgrenze an diesem Ort');
+    if (x.osm_type !== 'relation') throw new Error('Treffer ist keine Grenze (' + x.osm_type + ')');
+    const g = fromGeoJSON(x.geojson);
+    if (!g) throw new Error('Treffer ohne Grenzlinie');
+    return { g, rel: Number(x.osm_id), name: x.name || '', lat: Number(x.lat), lon: Number(x.lon), pop: popOf(x.extratags && x.extratags.population), level: parseInt(x.extratags && x.extratags.admin_level, 10) || 0 };
+  }
+  // Gründe, warum die letzte Grenzsuche ohne Grenze blieb (für den Stadt-Test)
+  const lastResolve = { how: '', why: [] };
+  const plausible = (p, lat, lon) => p && p.g && p.g.area >= 0.5 && p.g.area <= 3000 && inRings(p.g.rings, lat, lon);
   // Die Verwaltungsgrenze (Stadt oder Gemeinde) um einen Ort. pl: { name, lat, lon, place?, rel?, pop? }. Ohne Grenzdaten: Kreis (approx).
+  // Wege, in dieser Reihenfolge: Beziehung bekannt → Grenze dazu; sonst Nominatim „reverse“; sonst Overpass is_in. Ein Kreis wird NICHT gemerkt (der nächste Versuch fragt neu).
   async function resolve(pl) {
-    const pk = 'pt:' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3);
-    let rel = pl.rel || 0, level = 0, name = pl.name, relPop = 0;
-    if (!rel) {
-      const hit = await store.get(pk);
-      if (hit && hit.id) { const c = await store.get('city:' + hit.id); if (c && c.v === PACK_V) return c; }
+    const pk = 'pt:' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3), why = [];
+    let p = null, how = '';
+    if (pl.rel) { const c = await store.get('city:r' + pl.rel); if (c && c.v === PACK_V && !c.approx) return c; }
+    else { const hit = await store.get(pk); if (hit && hit.id) { const c = await store.get('city:' + hit.id); if (c && c.v === PACK_V && !c.approx) return c; } }
+    if (pl.rel) {
+      try { p = await nominatimPolygon(pl.rel); how = 'Beziehung R' + pl.rel; if (!plausible(p, pl.lat, pl.lon)) { why.push('Grenze R' + pl.rel + ' unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; } }
+      catch (e) { why.push('lookup R' + pl.rel + ': ' + e.message); p = null; }
+    }
+    if (!p) {
+      try { p = await nominatimAround(pl.lat, pl.lon); how = 'Nominatim reverse'; if (!plausible(p, pl.lat, pl.lon)) { why.push('reverse: Grenze unplausibel (' + (p.g.area || 0).toFixed(1) + ' km², Ort liegt ' + (inRings(p.g.rings, pl.lat, pl.lon) ? 'in' : 'nicht in') + ' der Grenze)'); p = null; } }
+      catch (e) { why.push('reverse: ' + e.message); p = null; }
+    }
+    if (!p && !pl.rel) {
       try {
         const q = `[out:json][timeout:40];is_in(${pl.lat.toFixed(5)},${pl.lon.toFixed(5)})->.a;rel(pivot.a)["boundary"="administrative"]["admin_level"~"^[678]$"];out tags;`;
         const j = await LM.overpass(q, null, 1); let best = null;
         for (const el of j.elements || []) {
           const lv = parseInt(el.tags && el.tags.admin_level, 10);
-          if (el.type === 'relation' && lv >= 6 && lv <= 8 && (!best || lv > best.lv)) best = { id: el.id, lv, name: el.tags.name, pop: parseInt(String(el.tags.population || '').replace(/[^0-9]/g, ''), 10) || 0 };
+          if (el.type === 'relation' && lv >= 6 && lv <= 8 && (!best || lv > best.lv)) best = { id: el.id, lv, name: el.tags.name, pop: popOf(el.tags.population) };
         }
-        if (best) { rel = best.id; level = best.lv; name = best.name || name; relPop = best.pop; }
-      } catch (e) { /* ohne Antwort: Ersatzkreis */ }
-    } else {
-      const c = await store.get('city:r' + rel); if (c && c.v === PACK_V) return c;
+        if (!best) why.push('is_in: keine Gemeindegrenze in der Antwort (' + (j.elements || []).length + ' Treffer)');
+        else {
+          p = await nominatimPolygon(best.id); how = 'Overpass is_in R' + best.id; p.pop = p.pop || best.pop; p.level = best.lv; p.name = best.name || p.name;
+          if (!plausible(p, pl.lat, pl.lon)) { why.push('is_in: Grenze unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; }
+        }
+      } catch (e) { why.push('is_in: ' + e.message); p = null; }
     }
-    let city = null;
-    if (rel) {
-      try {
-        const p = await nominatimPolygon(rel);
-        city = cityOf({ id: 'r' + rel, rel, level, name: p.name || name, lat: pl.lat || p.lat, lon: pl.lon || p.lon, pop: pl.pop || relPop, place: pl.place || '', rings: p.g.rings, area: p.g.area });
-      } catch (e) { city = null; }
-    }
-    if (!city) {
+    let city;
+    if (p) city = cityOf({ id: 'r' + p.rel, rel: p.rel, level: p.level, name: p.name || pl.name, lat: pl.lat || p.lat, lon: pl.lon || p.lon, pop: pl.pop || p.pop, place: pl.place || '', rings: p.g.rings, area: p.g.area });
+    else {
       const c = circle(pl.lat, pl.lon, pl.place === 'city' ? 4500 : pl.place === 'town' ? 2500 : 3000);
-      city = cityOf({ id: 'c' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3), name, lat: pl.lat, lon: pl.lon, pop: pl.pop || 0, place: pl.place || '', rings: c.rings, area: c.area, approx: true });
+      city = cityOf({ id: 'c' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3), name: pl.name, lat: pl.lat, lon: pl.lon, pop: pl.pop || 0, place: pl.place || '', rings: c.rings, area: c.area, approx: true });
+      how = 'Kreis';
     }
-    await store.put('city:' + city.id, city); if (!pl.rel) await store.put(pk, { id: city.id });
+    lastResolve.how = how; lastResolve.why = why;
+    if (!city.approx) { await store.put('city:' + city.id, city); if (!pl.rel) await store.put(pk, { id: city.id }); }
     return city;
   }
 
@@ -1957,10 +2007,11 @@ const LMCity = (function () {
 
   // ---------- Stadt-Test: lädt Stichproben einer echten Stadt und schätzt Dauer und Datenmenge für die ganze Stadt ----------
   async function probe(name, log) {
-    const say = t => log && log(t), t0 = Date.now(); say('Suche „' + name + '“ …');
+    const say = t => log && log(t), t0 = Date.now(), tries = i => { const l = ((LM.net && LM.net.log) || []).slice(i); return l.length ? ' [' + l.join('; ') + ']' : ''; }; say('Suche „' + name + '“ …');
     const hits = await LM.search(name); if (!hits.length) throw new Error('Ort nicht gefunden');
-    const pl = hits[0]; say('Gefunden: ' + pl.name + (pl.sub ? ', ' + pl.sub : '') + '. Suche die Stadtgrenze …');
-    const city = await resolve(pl);
+    const pl = hits[0]; say('Gefunden: ' + pl.name + (pl.sub ? ', ' + pl.sub : '') + (pl.nrel ? ' (Grenze R' + pl.nrel + ')' : ' (Punkt)') + '. Suche die Stadtgrenze …');
+    const city = await resolve(Object.assign({}, pl, { rel: pl.nrel || 0, place: pl.nplace || pl.place || '', pop: pl.npop || pl.pop || 0 }));
+    say('Grenze über: ' + lastResolve.how + (lastResolve.why.length ? ' (zuvor gescheitert: ' + lastResolve.why.join('; ') + ')' : '') + (city.pop ? ', Einwohner ' + city.pop : ''));
     if (LM.dbBlocked && LM.dbBlocked()) say('Hinweis: Der Kartenspeicher antwortet nicht, vermutlich ist Lastmile noch in einem anderen Tab oder Fenster geöffnet (ältere Version). Alles wird neu geladen (langsamer). Bitte die anderen Tabs schließen und diese Seite neu laden.');
     let pts = 0; for (const r of city.rings) pts += r.length / 2;
     say(city.name + ': ' + (city.approx ? 'keine Grenzdaten, Näherungskreis' : 'Stadtgrenze mit ' + city.rings.length + ' Ringen und ' + pts + ' Punkten') + ', Fläche ' + city.area.toFixed(1) + ' km²');
@@ -1969,20 +2020,20 @@ const LMCity = (function () {
     const pick = [sorted[0], sorted[Math.floor(sorted.length / 2)], sorted[sorted.length - 1]].filter((v, i, a) => v && a.indexOf(v) === i);
     let nodes = 0, ways = 0, ms = 0, bytes = 0;
     for (const t of pick) {
-      const b0 = LM.net.bytes, s0 = Date.now(), c = compactTile(await LM.overpass(LM.qRoads(t), null, 2));
+      const b0 = LM.net.bytes, s0 = Date.now(), l0 = (LM.net.log || []).length, c = compactTile(await LM.overpass(LM.qRoads(t), null, 2));
       const d = Date.now() - s0; nodes += c.ids.length; ways += c.wc.length; ms += d; bytes += LM.net.bytes - b0;
-      say('Kachel ' + t.k + ': ' + c.ids.length + ' Knoten, ' + c.wc.length + ' Wege, ' + (d / 1000).toFixed(1) + ' s, ' + ((LM.net.bytes - b0) / 1048576).toFixed(1) + ' MB');
+      say('Kachel ' + t.k + ': ' + c.ids.length + ' Knoten, ' + c.wc.length + ' Wege, ' + (d / 1000).toFixed(1) + ' s, ' + ((LM.net.bytes - b0) / 1048576).toFixed(1) + ' MB' + tries(l0));
     }
     const f = tiles.length / pick.length, est = { tiles: tiles.length, nodes: Math.round(nodes * f), ways: Math.round(ways * f), seconds: Math.round(ms * f / 1000 / 2), mb: Math.round(bytes * f / 1048576) };
     say('Schätzung für die ganze Stadt (Straßen): ' + est.nodes + ' Knoten, ' + est.ways + ' Wege, ca. ' + est.mb + ' MB Download, ca. ' + est.seconds + ' s bei zwei Abfragen gleichzeitig');
-    const ft = sorted[0], fs0 = Date.now(), fr = firmsOf(await LM.overpass(LM.qFirms(ft), null, 2), city, new Set());
-    say('Firmen in einer Kachel (' + (TILE_FIRMS / 1000) + ' km, zentral): ' + fr.length + ' in ' + ((Date.now() - fs0) / 1000).toFixed(1) + ' s');
+    const ft = sorted[0], fs0 = Date.now(), fl0 = (LM.net.log || []).length, fr = firmsOf(await LM.overpass(LM.qFirms(ft), null, 2), city, new Set());
+    say('Firmen in einer Kachel (' + (TILE_FIRMS / 1000) + ' km, zentral): ' + fr.length + ' in ' + ((Date.now() - fs0) / 1000).toFixed(1) + ' s' + tries(fl0));
     say('Fertig nach ' + Math.round((Date.now() - t0) / 1000) + ' s. Zahlen bitte weitergeben.');
     return { city: city.name, area: city.area, approx: city.approx, est, firmsSample: fr.length };
   }
 
   return { PACK_V, TILE_ROADS, TILE_FIRMS, FIRM_CAP, store, nearby, resolve, tilesOf, tileTouches, inRings, inCity, fromGeoJSON, circle, ringArea, boxOf, cityOf,
-    compactTile, merge, forEngine, withCore, synthHomes, demand, prepare, link, gather, closestPair, linkOf, touches, partOf, loadRoads, loadFirms, loadCity, cached, probe, dist };
+    compactTile, merge, forEngine, withCore, lastResolve, synthHomes, demand, prepare, link, gather, closestPair, linkOf, touches, partOf, loadRoads, loadFirms, loadCity, cached, probe, dist };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = LMCity;
 

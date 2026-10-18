@@ -17,7 +17,7 @@ const wayDef = (kind, a, seg) => {                      // kind 'h' (Zeile a) od
   if (kind === 'v' && a % 19 === 5) tags.access = 'private';                                           // zählt nicht
   return { type: 'way', id: (kind === 'h' ? 2e9 : 3e9) + a * 1000 + seg, nodes, tags };
 };
-const world = { calls: [], failAfter: Infinity, offline: false, towns: [], rel: [], polys: {}, noLink: false, hwQueries: [], remark: 0 };
+const world = { reverseCalls: 0, isinCalls: 0, hang: '', dead: '', noReverse: false, calls: [], failAfter: Infinity, offline: false, towns: [], rel: [], polys: {}, noLink: false, hwQueries: [], remark: 0 };
 const cityRect = (i0, j0, i1, j1) => ({ type: 'Polygon', coordinates: [[[nlon(j0), nlat(i0)], [nlon(j1), nlat(i0)], [nlon(j1), nlat(i1)], [nlon(j0), nlat(i1)], [nlon(j0), nlat(i0)]]] });
 world.polys[111] = { pop: 120000, name: 'Teststadt A', lat: nlat(60), lon: nlon(60), g: cityRect(10, 10, 110, 110) };            // 100 x 100 Gitterpunkte
 world.polys[222] = { name: 'Teststadt B', lat: nlat(60), lon: nlon(160), g: cityRect(10, 100, 110, 200) };         // überlappt A an der Grenze (Spalten 100 bis 110)
@@ -32,6 +32,7 @@ function overpassAnswer(q) {
     return { elements: world.towns.filter(t => /city|town/.test(t.tags.place) && Math.hypot((t.lat - la) * 110574, (t.lon - lo) * 111320 * Math.cos(la * Math.PI / 180)) <= R).map(t => ({ type: 'node', id: t.id, lat: t.lat, lon: t.lon, tags: Object.assign({ name: t.name }, t.tags) })) };
   }
   if (q.includes('is_in(')) {
+    world.isinCalls++;
     const m = q.match(/is_in\(([\d.]+),([\d.]+)\)/), la = Number(m[1]), lo = Number(m[2]), out = [];
     for (const [id, p] of Object.entries(world.polys)) { const c = p.g.coordinates[0]; if (inBox([c[0][1], c[0][0], c[2][1], c[2][0]].sort ? [Math.min(...c.map(x => x[1])), Math.min(...c.map(x => x[0])), Math.max(...c.map(x => x[1])), Math.max(...c.map(x => x[0]))] : 0, la, lo)) out.push({ type: 'relation', id: Number(id), tags: Object.assign({ boundary: 'administrative', admin_level: '8', name: p.name }, p.pop ? { population: String(p.pop) } : {}) }); }
     if (out.length) { out.push({ type: 'relation', id: 999, tags: { boundary: 'administrative', admin_level: '6', name: 'Testkreis' } }); out.push({ type: 'relation', id: 998, tags: { boundary: 'administrative', admin_level: '7', name: 'Testamt' } }); }
@@ -63,6 +64,14 @@ global.fetch = async (url, init) => {
   world.calls.push(url); net.n++;
   if (world.offline) throw new Error('offline');
   const ok = (j) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
+  if (world.hang && url.includes(world.hang)) return new Promise((res, rej) => init.signal.addEventListener('abort', () => rej(Object.assign(new Error('abgebrochen'), { name: 'AbortError' }))));
+  if (world.dead && url.includes(world.dead)) return { ok: false, status: 504, text: async () => '', json: async () => ({}) };
+  if (/nominatim.*reverse/.test(url)) {
+    world.reverseCalls++; if (world.noReverse) return { ok: false, status: 429, json: async () => ({}), text: async () => '' };
+    const m = url.match(/lat=([\d.]+)&lon=([\d.]+)/), la = Number(m[1]), lo = Number(m[2]);
+    for (const [id, p] of Object.entries(world.polys)) { const c = p.g.coordinates[0], ys = c.map(x => x[1]), xs = c.map(x => x[0]); if (la >= Math.min(...ys) && la <= Math.max(...ys) && lo >= Math.min(...xs) && lo <= Math.max(...xs)) return ok({ osm_type: 'relation', osm_id: Number(id), name: p.name, lat: String(p.lat), lon: String(p.lon), geojson: p.g, extratags: p.pop ? { population: String(p.pop), admin_level: '8' } : { admin_level: '8' } }); }
+    return ok({ error: 'Unable to geocode' });
+  }
   if (/nominatim.*lookup/.test(url)) { const id = Number(url.match(/osm_ids=R(\d+)/)[1]), p = world.polys[id]; return ok(p ? [{ name: p.name, lat: String(p.lat), lon: String(p.lon), geojson: p.g }] : []); }
   if (/nominatim.*search/.test(url)) return ok([{ name: 'Teststadt A', lat: String(world.polys[111].lat), lon: String(world.polys[111].lon), address: { state: 'Testland', country: 'Deutschland' }, display_name: 'Teststadt A' }]);
   const q = decodeURIComponent(String(init.body).replace(/^data=/, ''));
@@ -318,10 +327,54 @@ const gridCore = () => {
     check('prepare: getrennte Stadt trägt das Zeichen unlinked, die andere nicht', P3.cities[0].unlinked === false && P3.cities[1].unlinked === true);
     world.noLink = false; mem.delete('pack:link:r111~r333');
     // Abstand zu groß (über 90 km): keine Verbindung, kein Laden
-    const far = { id: 'cfar', name: 'Weit weg', lat: 52.9, lon: 7.4, rel: 0, place: 'city' }; mem.set('pt:52.900,7.400', { id: 'cfar' }); mem.set('city:cfar', LMCity.cityOf({ id: 'cfar', name: 'Weit weg', lat: 52.9, lon: 7.4, rings: LMCity.circle(52.9, 7.4, 3000).rings, area: 28, approx: true, v: LMCity.PACK_V }));
+    const far = { id: 'cfar', name: 'Weit weg', lat: 52.9, lon: 7.4, rel: 0, place: 'city' }; mem.set('pt:52.900,7.400', { id: 'cfar' }); mem.set('city:cfar', LMCity.cityOf({ id: 'cfar', name: 'Weit weg', lat: 52.9, lon: 7.4, rings: LMCity.circle(52.9, 7.4, 3000).rings, area: 28, rel: 424242, v: LMCity.PACK_V }));
     world.calls.length = 0;
     const g4 = await LMCity.link(core, [rA, far], null, roadsToTyped);
     check('link: über 90 km entfernt – keine Verbindung, Stadt gemeldet', g4.unlinked.includes('cfar') && g4.links === 0, JSON.stringify(g4));
+  }
+  // ---- Stadtgrenze: Wege (Nominatim reverse, Overpass is_in, Kreis) ----
+  {
+    const pl = { name: 'Teststadt B', lat: nlat(60), lon: nlon(160), place: 'town' }, pk = 'pt:' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3);
+    const clear = () => { mem.delete(pk); mem.delete('city:r222'); };
+    clear(); world.reverseCalls = 0; world.isinCalls = 0;
+    const c1 = await LMCity.resolve(pl);
+    check('resolve: zuerst Nominatim „reverse“ (eine Abfrage), kein Overpass is_in', c1.id === 'r222' && !c1.approx && world.reverseCalls === 1 && world.isinCalls === 0 && LMCity.lastResolve.how === 'Nominatim reverse', JSON.stringify([c1.id, world.reverseCalls, world.isinCalls, LMCity.lastResolve]));
+    clear(); world.noReverse = true; world.reverseCalls = 0; world.isinCalls = 0;
+    const c2 = await LMCity.resolve(pl);
+    check('resolve: fällt reverse aus (429), springt Overpass is_in ein; der Grund wird gemerkt', c2.id === 'r222' && !c2.approx && world.isinCalls === 1 && /is_in/.test(LMCity.lastResolve.how) && LMCity.lastResolve.why.some(w => /reverse.*429/.test(w)), JSON.stringify(LMCity.lastResolve));
+    clear(); world.offline = true;
+    const c3 = await LMCity.resolve(pl); world.offline = false;
+    check('resolve: ohne Antwort beider Wege ein Kreis, mit zwei Gründen', c3.approx && LMCity.lastResolve.why.length === 2 && LMCity.lastResolve.how === 'Kreis', JSON.stringify(LMCity.lastResolve));
+    check('resolve: der Kreis wird nicht gemerkt (weder die Stadt noch der Ortsschlüssel)', !mem.has('city:' + c3.id) && !mem.has(pk));
+    world.noReverse = false;
+    const c4 = await LMCity.resolve(pl);
+    check('resolve: beim nächsten Versuch kommt die echte Grenze', c4.id === 'r222' && !c4.approx);
+    clear(); mem.set(pk, { id: c3.id }); mem.set('city:' + c3.id, Object.assign({}, c3, { v: LMCity.PACK_V }));
+    const c5 = await LMCity.resolve(pl);
+    check('resolve: ein früher gemerkter Kreis wird übergangen und neu gesucht', c5.id === 'r222' && !c5.approx);
+    // reverse trifft keine Stadt (Punkt im Nichts): Overpass ohne Treffer, dann Kreis
+    const nowhere = await LMCity.resolve({ name: 'Nirgendwo', lat: 50.3, lon: 8.3, place: '' });
+    check('resolve: nirgends eine Grenze → Kreis von 3 km, beide Gründe genannt', nowhere.approx && Math.abs(nowhere.area - Math.PI * 9) < 0.1 && LMCity.lastResolve.why.length === 2, JSON.stringify(LMCity.lastResolve));
+    // Suche liefert Beziehung, Art und Einwohner mit
+    const oldFetch = global.fetch;
+    global.fetch = async (u, i) => /nominatim.*search/.test(u) ? ({ ok: true, status: 200, json: async () => [{ name: 'Bochum', lat: '51.48', lon: '7.21', osm_type: 'relation', osm_id: 62649, addresstype: 'city', type: 'administrative', extratags: { population: '365.000' }, address: { state: 'Nordrhein-Westfalen', country: 'Deutschland' }, display_name: 'Bochum' }, { name: 'Bochum', lat: '51.40', lon: '7.10', osm_type: 'node', osm_id: 7, addresstype: 'village', type: 'village', address: { state: 'Xy', country: 'Deutschland' }, display_name: 'Bochum' }] }) : oldFetch(u, i);
+    const sr = await LM.search('Bochum'); global.fetch = oldFetch;
+    check('search: Beziehung, Art und Einwohner stehen im Treffer (für die Grenzsuche)', sr[0].nrel === 62649 && sr[0].nplace === 'city' && sr[0].npop === 365000 && sr[1].nrel === 0 && sr[1].nplace === '', JSON.stringify(sr));
+  }
+  // ---- Mehrere Overpass-Server: bevorzugter Server, parallele Anfrage bei Hänger, sofortiger Ersatz bei Fehler ----
+  {
+    LM.setHedge(40);
+    const q = LM.qRoads({ s: nlat(20), w: nlon(20), n: nlat(22), e: nlon(22) });
+    world.hang = 'overpass-api.de'; world.calls.length = 0; LM.net.log.length = 0;
+    const j = await LM.overpass(q, null, 1);
+    check('overpass: hängt der erste Server, antwortet nach kurzer Wartezeit der zweite und die Antwort gilt', j.elements.length > 20 && LM.net.log.some(l => /private\.coffee ok/.test(l)) && LM.prefServer() === 1, LM.net.log.join(' | '));
+    world.calls.length = 0;
+    await LM.overpass(q, null, 1);
+    check('overpass: der schnelle Server kommt beim nächsten Mal zuerst dran (nur eine Abfrage)', world.calls.length === 1 && world.calls[0].includes('private.coffee'), world.calls.join());
+    world.hang = ''; world.dead = 'private.coffee'; world.calls.length = 0; LM.net.log.length = 0;
+    const j2 = await LM.overpass(q, null, 1);
+    check('overpass: antwortet der bevorzugte Server mit Fehler, geht es sofort mit dem nächsten weiter (Fehler steht im Protokoll)', j2.elements.length > 20 && world.calls.length === 2 && LM.net.log.some(l => /private\.coffee Antwort 504/.test(l)) && LM.net.log.some(l => / ok /.test(l)), LM.net.log.join(' | '));
+    world.dead = ''; LM.setHedge(8000);
   }
   // ---- Überlastete Server: Antwort 200 mit Hinweis "runtime error" ist kein Ergebnis ----
   {
@@ -338,7 +391,7 @@ const gridCore = () => {
   const lines = []; LM.search = async () => [{ name: 'Teststadt A', sub: 'x', lat: nlat(60), lon: nlon(60) }];
   mem.delete('pt:' + nlat(60).toFixed(3) + ',' + nlon(60).toFixed(3));
   const rep = await LMCity.probe('Teststadt A', t => lines.push(t));
-  check('probe: Bericht mit Fläche, Kacheln, Schätzung und Firmen', rep.est.nodes > 5000 && rep.est.tiles === tilesA.length && rep.firmsSample > 10 && lines.some(l => /Schätzung/.test(l)) && lines.some(l => /Kachel/.test(l)), lines.join(' | '));
+  check('probe: Bericht mit Fläche, Kacheln, Schätzung und Firmen', rep.est.nodes > 5000 && rep.est.tiles === tilesA.length && rep.firmsSample > 10 && lines.some(l => /Schätzung/.test(l)) && lines.some(l => /Kachel/.test(l)) && lines.some(l => /Grenze über: /.test(l)) && lines.some(l => /Kachel.*\[.* ok \d/.test(l)), lines.join(' | '));
 
   console.log('\n' + ok + ' Prüfungen ok, ' + bad + ' Fehler'); process.exit(bad ? 1 : 0);
 })().catch(e => { console.log('FEHLER', e && e.stack || e); process.exit(1); });

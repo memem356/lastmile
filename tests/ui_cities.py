@@ -99,7 +99,7 @@ async def main():
             await wait_for(pg, "document.getElementById('dlgB').textContent.includes('Teststadt:')", 15000)
             t = await pg.evaluate(DLG)
             ok('A4 Stadt bestimmt: Name, Fläche, Einwohner, Bestellungen pro Tag', 'Teststadt:' in t and re.search(r'1[78],\d km²', t) and '120 000 Einwohner' in t and 'ca. 40 Bestellungen pro Tag' in t, t[:300])
-            ok('A5 Grenze von Overpass/Nominatim geholt (nicht der Ersatzkreis)', W.calls['isin'] == 1 and W.calls['lookup'] == 1 and 'keine genaue Stadtgrenze' not in t, str(W.calls))
+            ok('A5 Grenze mit einer einzigen Nominatim-Abfrage (reverse) geholt, ohne Overpass-is_in (nicht der Ersatzkreis)', W.calls['reverse'] == 1 and W.calls['isin'] == 0 and 'keine genaue Stadtgrenze' not in t, str(W.calls))
             go = await pg.evaluate("[document.querySelector('#dlgB .btn.primary').textContent, document.querySelector('#dlgB .btn.primary').disabled]")
             ok('A6 Knopf "Stadt laden und bauen (5.000,00 €)" ist frei', go[0].startswith('Stadt laden und bauen') and '5.000,00' in go[0] and not go[1], str(go))
             ok('A7 noch nichts abgebucht, Center nicht gebaut', await pg.evaluate("[__lm.cash(), __lm.cen.centers().length].join()") == '300000,0')

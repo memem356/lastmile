@@ -160,7 +160,7 @@ async def main():
 
             async def overpass(route, request):
                 await route.fulfill(status=200, headers={'content-type': 'application/json', 'access-control-allow-origin': '*'}, body=json.dumps(FAKE))
-            await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
+            await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pg, errs, started = await start_game(ctx, 'Tim Tour', 'tourui@example.de')
             ok('T0 Spiel startet', started)
             await pg.evaluate("Math.random = () => 0.5; __lm.cen.auto(false); __lm.drivers().forEach(d => { d.rest = 'on'; }); __lm.setCash(500000)")
@@ -328,7 +328,7 @@ async def main():
             ok('U44 Esc schließt den Planer', not await vis(pg, '#planner') and await vis(pg, '#tourNew'))
 
             ctx2 = await newctx(b, (390, 800))
-            await ctx2.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
+            await ctx2.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pm, errs_m, started_m = await start_game(ctx2, 'Tim Handy', 'tourui2@example.de')
             ok('M0 Handy: Spiel startet', started_m)
             await pm.evaluate("Math.random = () => 0.5; __lm.cen.auto(false); __lm.drivers().forEach(d => { d.rest = 'on'; }); __lm.setCash(500000)")

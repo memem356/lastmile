@@ -146,7 +146,7 @@ async def main():
                 ovp['n'] += 1; ovp['bodies'].append(request.post_data or '')
                 if ovp['fail']: return await route.abort()
                 await route.fulfill(status=200, headers={'content-type': 'application/json', 'access-control-allow-origin': '*'}, body=json.dumps(FAKE))
-            await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
+            await ctx.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pg, errs, started = await start_game(ctx, 'Tim Center', 'ce@example.de')
             ok('A0 Spiel startet', started)
             ok('A1 Ohne Center: keine Ansicht-Umschaltung, Lieferdienst-Ansicht', await pg.evaluate("document.getElementById('viewSeg').hidden") and await vis(pg, '#hqOrders') and not await vis(pg, '#cenOrders') and not await vis(pg, '#cenSide'))
@@ -476,7 +476,7 @@ async def main():
             ok('G13 Kaputte Bestellungen entfallen, Menge/Name/Art begrenzt, Nummernzähler liegen über allen Nummern', bad['dropped'] == [] and bad['o5'] == {'n': 30, 'name': 80, 'kind': 4} and bad['seq'] and bad['vanSeq'] and bad['orderSeq'], str(bad))
             # v3 anwenden: neues Konto
             ctx3 = await newctx(b)
-            await ctx3.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
+            await ctx3.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pg3, errs3, st3 = await start_game(ctx3, 'Tim Alt', 'alt@example.de'); ok('G14 Zweites Konto startet', st3)
             ap = await pg3.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=3; delete sv.centers; delete sv.corders; delete sv.vanSeq; delete sv.cstats;
               __lm.save.applySave(__lm.save.normalizeSave(JSON.parse(JSON.stringify(sv)))); return {c:__lm.cen.centers().length, view:__lm.cen.view(), seg:document.getElementById('viewSeg').hidden} }""")
@@ -496,7 +496,7 @@ async def main():
                 ovp2['n'] += 1
                 if ovp2['fail']: return await route.abort()
                 await route.fulfill(status=200, headers={'content-type': 'application/json', 'access-control-allow-origin': '*'}, body=json.dumps(FAKE))
-            await ctx4.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass2)
+            await ctx4.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass2)
             pg4, errs4, st4 = await start_game(ctx4, 'Tim Offline', 'off@example.de'); ok('H0 Konto ohne Firmendaten startet', st4)
             await pg4.evaluate(POI_BUILD)
             await wait_for(pg4, "__lm.cen.firmState()!=='loading'", 30000)
@@ -516,7 +516,7 @@ async def main():
 
             # ================= I: Handy =================
             ctx5 = await newctx(b, (390, 780))
-            await ctx5.route(re.compile(r'https://(overpass-api\.de|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
+            await ctx5.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pg5, errs5, st5 = await start_game(ctx5, 'Tim Handy', 'hy2@example.de'); ok('I0 Spiel am Handy startet', st5)
             await pg5.evaluate(POI_BUILD)
             await pg5.evaluate("__lm.absence(0); __lm.cen.buyVan(0); __lm.cen.buyVan(0); __lm.cen.hire(0); __lm.cen.hire(0); __lm.cen.hire(0); for (let i=0;i<10;i++) __lm.cen.spawn(0)")
