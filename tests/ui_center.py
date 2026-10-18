@@ -37,6 +37,12 @@ async def fbhandler(route, request):
 async def newctx(b, vw=(1000, 900)):
     ctx = await b.new_context(viewport={'width': vw[0], 'height': vw[1]})
     await ctx.route(FB, fbhandler)
+
+    # Wie im echten Spiel: eine geladene Stadt reicht 1800 m weit (die eingebaute Demo-Karte nur 750 m)
+    async def wide(route, request):
+        body = open(REPO + '/index.html', encoding='utf-8').read().replace('"radius":750', '"radius":1800', 1)
+        await route.fulfill(status=200, headers={'content-type': 'text/html; charset=utf-8'}, body=body)
+    await ctx.route(re.compile(r'http://127\.0\.0\.1:8397/index\.html.*'), wide)
     return ctx
 
 
@@ -196,13 +202,14 @@ async def main():
             ok('C1 Reiter: Hub 1, Center 1 (gewählt), Spiel, Partner', tabs == ['Hub 1', 'Center 1*', 'Spiel', 'Partner'], str(tabs))
             rows = await pg.evaluate(ROWS, '#tab-ce')
             ok('C2 Sechs Verbesserungen des Centers', [r['name'] for r in rows] == ['Stellplätze', 'Stopps je Transporter', 'Liefergebiet', 'Navigation', 'Wartungsvertrag', 'Schnellbeladung'], str([r['name'] for r in rows]))
-            ZMAX = await pg.evaluate("__lm.fx.ZMAX")
+            ZMAX = await pg.evaluate("__lm.fx.ZMAXC")
             sl, st, zn = by(rows, 'Stellplätze'), by(rows, 'Stopps'), by(rows, 'Liefergebiet')
             ok('C3 Stellplätze: 9 Segmente (4 bis 20), Stufe 1, 4 Plätze und 6 Fahrer', (sl['total'], sl['fill'], sl['label']) == (9, 1, 'Stufe 1 von 9') and '4 Stellplätze' in sl['now'] and 'bis zu 6 Fahrer' in sl['now'], str(sl))
             ok('C4 Stopps: 11 Segmente (10 bis 30), Stufe 1, bis zu 10 Stopps', (st['total'], st['fill'], st['label']) == (11, 1, 'Stufe 1 von 11') and 'bis zu 10 Stopps' in st['now'], str(st))
-            ok('C5 Liefergebiet: ZMAX+1 Segmente, nennt das Center', (zn['total'], zn['fill']) == (ZMAX + 1, 1) and 'Center' in zn['now'], str(zn))
-            ok('C6 Kosten am Knopf: 800 €, 300 €, 250 € (Gebiet)', (sl['btn'], st['btn'], zn['btn']) == ('800,00 €', '300,00 €', '250,00 €'), '%s %s %s' % (sl['btn'], st['btn'], zn['btn']))
+            ok('C5 Liefergebiet: 3 Segmente (1200, 1500, 1800 m), nennt das Center und 1200 m', ZMAX == 2 and (zn['total'], zn['fill']) == (3, 1) and 'Center' in zn['now'] and '1200 m' in zn['now'], str(zn))
+            ok('C6 Kosten am Knopf: 800 €, 300 €, 400 € (Gebiet)', (sl['btn'], st['btn'], zn['btn']) == ('800,00 €', '300,00 €', '400,00 €'), '%s %s %s' % (sl['btn'], st['btn'], zn['btn']))
             ok('C7 Kopf nennt Plätze, Fahrer, Gebiet', '0 von 4 Stellplätzen' in await txt(pg, '#ceInfo') and '0 von 6 Fahrern' in await txt(pg, '#ceInfo') and 'Liefergebiet' in await txt(pg, '#ceInfo'), await txt(pg, '#ceInfo'))
+            ok('C7b Liefergebiet des Centers startet bei 1200 m, doppelt so groß wie bei einem Hub (600 m)', await pg.evaluate("[__lm.fx.zr(__lm.cen.centers()[0]), __lm.fx.zr(__lm.hubs()[0])]") == [1200, 600], str(await pg.evaluate("[__lm.fx.zr(__lm.cen.centers()[0]), __lm.fx.zr(__lm.hubs()[0])]")))
             c0 = await pg.evaluate("__lm.cash()"); v0 = await pg.evaluate("__lm.value()")
             for k in range(8): await pg.evaluate("__lm.cen.upg('slots', 0)")
             await pg.wait_for_timeout(500)
@@ -215,7 +222,11 @@ async def main():
             st = by(await pg.evaluate(ROWS, '#tab-ce'), 'Stopps')
             ok('C10 Zehn Ausbauten: 30 Stopps, Max.', (st['fill'], st['max']) == (11, True) and await pg.evaluate("__lm.cen.cStops(__lm.cen.centers()[0])") == 30, str(st))
             ok('C11 Kosten 300 bis 1200 in 100er-Schritten = 7.500 €', abs(c0 - 7500 - await pg.evaluate("__lm.cash()")) < 8, str(c0 - await pg.evaluate("__lm.cash()")))
-            await pg.evaluate("""()=>{ for (const id of ['zone','zone','zone','zone','nav','nav','nav','service','quick']) __lm.cen.upg(id, 0); }""")
+            cz = await pg.evaluate("__lm.cash()")
+            await pg.evaluate("for (let i=0;i<4;i++) __lm.cen.upg('zone', 0)")
+            zr2 = await pg.evaluate("[__lm.fx.zr(__lm.cen.centers()[0]), __lm.cen.centers()[0].up.zone, __lm.fx.zr(__lm.hubs()[0])]")
+            ok('C11b Liefergebiet 1200 → 1500 → 1800 m (die Karte reicht nicht weiter), Kosten 400 + 900 €, Hub unverändert', zr2 == [1800, 2, 600] and abs(cz - 1300 - await pg.evaluate("__lm.cash()")) < 8, '%s %s' % (zr2, cz - await pg.evaluate("__lm.cash()")))
+            await pg.evaluate("""()=>{ for (const id of ['nav','nav','nav','service','quick']) __lm.cen.upg(id, 0); }""")
             ok('C12 Alle Ausbauten gekauft, nichts davon im ersten Hub', await pg.evaluate("JSON.stringify(Object.keys(__lm.hubs()[0].up).sort())") == '[]' and await pg.evaluate("Object.keys(__lm.cen.centers()[0].up).sort().join()") == 'nav,quick,service,slots,stops,zone', await pg.evaluate("Object.keys(__lm.cen.centers()[0].up).sort().join()"))
             await pg.screenshot(path=OUT + 'cen_upg.png')
             # Zurücksetzen für die weiteren Tests: neues Center zum Vergleich daneben
@@ -311,7 +322,7 @@ async def main():
                 if (x.firm&&(x.n<2||x.n>12)) bad.push('Menge Firma '+x.n); if(!x.firm&&(x.n<1||x.n>4)) bad.push('Menge Privat '+x.n);
                 const exp=Math.round(LMC.pay(x.n,x.firm)*1.1*10)/10; if (Math.abs(x.pay-exp)>1e-9) bad.push('Lohn '+x.pay+' '+exp); if (!Number.isInteger(x.node)||x.node<0) bad.push('Knoten'); }
               return {bad:bad.slice(0,6), nbad:bad.length, firms:o.filter(x=>x.firm).length, priv:o.filter(x=>!x.firm).length, avgF:o.filter(x=>x.firm).reduce((a,x)=>a+x.pay,0)/Math.max(1,o.filter(x=>x.firm).length), avgP:o.filter(x=>!x.firm).reduce((a,x)=>a+x.pay,0)/Math.max(1,o.filter(x=>!x.firm).length)}}""", sorted(EXPECT_FIRMS))
-            ok('E9 Kunden liegen im Liefergebiet (120 bis 600 m), Firmen sind echte Firmen, Menge und Lohn stimmen', chk['nbad'] == 0, str(chk))
+            ok('E9 Kunden liegen im Liefergebiet (120 m bis zum Radius), Firmen sind echte Firmen, Menge und Lohn stimmen', chk['nbad'] == 0, str(chk))
             ok('E10 Firmen zahlen im Schnitt mehr als Privatkunden', chk['avgF'] > 1.5 * chk['avgP'], '%.1f vs %.1f' % (chk['avgF'], chk['avgP']))
             ok('E11 Hub-Bestellungen bleiben getrennt (keine Center-Bestellung im HQ-System)', await pg.evaluate("__lm.orders()") < 20 and await pg.evaluate("document.querySelectorAll('#olist li').length") == await pg.evaluate("__lm.orders()"))
             # Verfall

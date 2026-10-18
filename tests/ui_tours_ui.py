@@ -214,7 +214,8 @@ async def main():
             ok('U14 Pfeil nach unten tauscht zurück', [s['name'] for s in await pg.evaluate(STOPS)] == names)
             await pg.locator('#plStops .pstop').nth(1).locator('button[aria-label="Aus der Tour nehmen"]').click(); await pg.wait_for_timeout(300)
             ok('U15 Kreuz nimmt den Stopp heraus, die Nummern rücken nach', [s['n'] for s in await pg.evaluate(STOPS)] == ['1', '2'] and len(await pg.evaluate(STOPS)) == 2)
-            await add(pg, A[1])
+            miss = await pg.evaluate("ids=>ids.filter(i=>!document.querySelector('#colist li[data-id=\"'+i+'\"]').classList.contains('intour'))", A)   # je nach Lage ist es die zweite oder dritte, die der Stopp-Kreuz entfernt hat
+            await add(pg, miss[0])
             await pg.click('#plOpt'); await pg.wait_for_timeout(400)
             ok('U16 "Reihenfolge optimieren" meldet das Ergebnis', 'Reihenfolge' in await txt(pg, '#plInfo'), await txt(pg, '#plInfo'))
             await add(pg, Rr[0]); await pg.wait_for_timeout(200)
