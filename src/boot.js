@@ -219,6 +219,16 @@
       go.disabled = false;
     };
   }
+  // Ein anderer Tab mit einer älteren Version hält den Kartenspeicher fest: Hinweis auf der Startseite
+  function dbNote() {
+    LM.onBlocked(() => {
+      const host = document.querySelector('#start .card'); if (!host || document.getElementById('dbNote')) return;
+      const p = document.createElement('p'); p.className = 'note'; p.id = 'dbNote';
+      p.textContent = 'Lastmile ist noch in einem anderen Tab oder Fenster in einer älteren Version geöffnet. Schließe es und lade diese Seite neu, sonst werden Karten nicht zwischengespeichert.';
+      host.insertBefore(p, host.querySelector('.foot'));
+    });
+  }
+  dbNote();
   probeUi();
   start();
 })();

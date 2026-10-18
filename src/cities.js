@@ -100,7 +100,8 @@ const LMCity = (function () {
 
   async function nominatimPolygon(rel) {
     const url = 'https://nominatim.openstreetmap.org/lookup?osm_ids=R' + rel + '&format=jsonv2&polygon_geojson=1&polygon_threshold=0.0003&accept-language=de';
-    const r = await fetch(url);
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 45000);
+    let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error('Stadtgrenze nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
     if (!r.ok) throw new Error('Stadtgrenze nicht erreichbar (' + r.status + ')');
     const j = await r.json(), x = j && j[0], g = x && fromGeoJSON(x.geojson);
     if (!g) throw new Error('Keine Stadtgrenze gefunden');
@@ -431,7 +432,9 @@ const LMCity = (function () {
   async function probe(name, log) {
     const say = t => log && log(t), t0 = Date.now(); say('Suche „' + name + '“ …');
     const hits = await LM.search(name); if (!hits.length) throw new Error('Ort nicht gefunden');
-    const pl = hits[0], city = await resolve(pl);
+    const pl = hits[0]; say('Gefunden: ' + pl.name + (pl.sub ? ', ' + pl.sub : '') + '. Suche die Stadtgrenze …');
+    const city = await resolve(pl);
+    if (LM.dbBlocked && LM.dbBlocked()) say('Hinweis: Lastmile ist noch in einem anderen Tab oder Fenster in einer älteren Version geöffnet. Der Kartenspeicher ist deshalb blockiert, alles wird neu geladen (langsamer). Bitte die anderen Tabs schließen und diese Seite neu laden.');
     let pts = 0; for (const r of city.rings) pts += r.length / 2;
     say(city.name + ': ' + (city.approx ? 'keine Grenzdaten, Näherungskreis' : 'Stadtgrenze mit ' + city.rings.length + ' Ringen und ' + pts + ' Punkten') + ', Fläche ' + city.area.toFixed(1) + ' km²');
     const tiles = tilesOf(city, TILE_ROADS), sorted = tiles.slice().sort((a, b) => dist(city.lat, city.lon, (a.s + a.n) / 2, (a.w + a.e) / 2) - dist(city.lat, city.lon, (b.s + b.n) / 2, (b.w + b.e) / 2));

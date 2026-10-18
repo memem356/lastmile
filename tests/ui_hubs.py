@@ -186,10 +186,15 @@ async def main():
             ok('B11 ... und klappt seinen Hub auf', (await pg.evaluate(BOXES))[1]['open'])
             await pg.keyboard.press('Escape')
             # Kündigen: Gruppe aktualisiert sich
-            await pg.click('#dlist .hubbox:nth-child(2) .dcard >> nth=0'); await wait_vis(pg, '#winDrv')
+            # ein Fahrer mit Fahrt kann nicht gekündigt werden (Knopf gesperrt): die erste Karte eines freien Fahrers nehmen
+            for k in range(6):
+                await pg.click('#dlist .hubbox:nth-child(2) .dcard >> nth=%d' % k); await wait_vis(pg, '#winDrv')
+                if await pg.evaluate("!document.getElementById('dwFBtn').disabled"): break
+                await pg.keyboard.press('Escape'); await pg.wait_for_timeout(300)
+            fired = (await txt(pg, '#winT')).split(' · ')[0]
             await pg.click('#dwFBtn'); await pg.click('#dwFBtn'); await pg.wait_for_timeout(400)
             bx = await pg.evaluate(BOXES)
-            ok('B12 Kündigung nimmt den Fahrer aus seiner Gruppe', not any('Fahrer 1' in x['cards'] for x in bx) and len(bx[1]['cards']) == 2, str([x['cards'] for x in bx]))
+            ok('B12 Kündigung nimmt den Fahrer aus seiner Gruppe', fired.startswith('Fahrer ') and not any(fired in x['cards'] for x in bx) and len(bx[1]['cards']) == 2, fired + str([x['cards'] for x in bx]))
             ok('B13 Keine Skriptfehler', not errs, str(errs[:3]))
             await pg.close(); await ctx.close()
 

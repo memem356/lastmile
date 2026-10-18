@@ -15,7 +15,8 @@ const LM = (function () {
   // ---------- Suche ----------
   async function search(q) {
     const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&q=' + encodeURIComponent(q);
-    const r = await fetch(url);
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+    let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error('Suche nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
     if (!r.ok) throw new Error('Suche nicht erreichbar (' + r.status + ')');
     const j = await r.json(), seen = new Set(), out = [];
     for (const x of j) {
@@ -226,13 +227,23 @@ const LM = (function () {
 
   // ---------- Cache (IndexedDB) ----------
   const idOf = p => p.lat.toFixed(3) + ',' + p.lon.toFixed(3);
-  let dbp = null;
+  let dbp = null, dbBlocked = false, dbCb = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
       try {
-        const rq = indexedDB.open('lastmile', 2);
+        const rq = indexedDB.open('lastmile', 2); let late = false, tm = null;
         rq.onupgradeneeded = () => { const d = rq.result; for (const n of ['cities', 'packs']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); };   // packs: Stadtgebiete, Kacheln, Firmen
-        rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+        // Hält ein anderer Tab noch die ältere Version des Spiels offen, wartet das Öffnen ewig: nach kurzer Zeit ohne Zwischenspeicher weitermachen (alles wird dann neu geladen)
+        rq.onblocked = () => {
+          dbBlocked = true; if (dbCb) { try { dbCb(); } catch (e) { /* Anzeige ist nur ein Hinweis */ } }
+          if (!tm) tm = setTimeout(() => { late = true; rej(new Error('Zwischenspeicher blockiert')); setTimeout(() => { if (late) dbp = null; }, 20000); }, 2500);   // später erneut versuchen
+        };
+        rq.onsuccess = () => {
+          const d = rq.result; clearTimeout(tm); dbBlocked = false;
+          d.onversionchange = () => { d.close(); dbp = null; };                       // eine spätere Version darf übernehmen
+          if (late) { late = false; dbp = Promise.resolve(d); } else res(d);
+        };
+        rq.onerror = () => { clearTimeout(tm); rej(rq.error); };
       } catch (e) { rej(e); }
     });
     return dbp;
@@ -270,5 +281,6 @@ const LM = (function () {
   }
 
   return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
-    overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW };
+    overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
+    dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; } };
 })();
