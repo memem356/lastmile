@@ -143,6 +143,123 @@
           }
         }
       }
+    },
+    "clans": {
+      "$cid": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).exists() && ((!data.exists() && newData.child('o').val() === auth.uid) || data.child('o').val() === auth.uid)",
+        ".validate": "$cid.matches(/^[A-Za-z0-9]{12,24}$/) && newData.hasChildren(['n', 'k', 'o', 't'])",
+        "n": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Za-zÄÖÜäöüß0-9_-][A-Za-zÄÖÜäöüß0-9 _-]+[A-Za-zÄÖÜäöüß0-9_-]$/) && !newData.val().matches(/^.*  .*$/) && newData.val().length <= 16 && newData.parent().child('k').val() === newData.val().toLowerCase().replace(' ', '_') && (!data.exists() || newData.val() === data.val())"
+        },
+        "k": {
+          ".validate": "newData.isString() && (!root.child('clannames').child(newData.val()).exists() || root.child('clannames').child(newData.val()).val() === $cid)"
+        },
+        "o": {
+          ".validate": "newData.isString() && (data.exists() ? (newData.val() === data.val() || root.child('members').child($cid).child(newData.val()).exists()) : newData.val() === auth.uid)"
+        },
+        "t": {
+          ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() === now)"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "clannames": {
+      "$key": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((newData.exists() && !data.exists() && root.child('clans').child(newData.val()).child('o').val() === auth.uid && root.child('clans').child(newData.val()).child('k').val() === $key) || (!newData.exists() && data.exists() && (root.child('clans').child(data.val()).child('o').val() === auth.uid || !root.child('clans').child(data.val()).exists())))",
+        ".validate": "newData.isString() && $key.matches(/^[a-zäöüß0-9_-][a-zäöüß0-9_-]+[a-zäöüß0-9_-]$/) && $key.length <= 16"
+      }
+    },
+    "clansecret": {
+      "$cid": {
+        ".read": "auth != null && root.child('members').child($cid).child(auth.uid).exists()",
+        ".write": "auth != null && root.child('clans').child($cid).child('o').val() === auth.uid",
+        ".validate": "newData.isString() && newData.val().matches(/^[A-Z2-9]{8}$/)"
+      }
+    },
+    "clancodes": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((newData.exists() && !data.exists() && root.child('clans').child(newData.val()).child('o').val() === auth.uid) || (!newData.exists() && data.exists() && (root.child('clans').child(data.val()).child('o').val() === auth.uid || !root.child('clans').child(data.val()).exists())))",
+        ".validate": "$code.matches(/^[A-Z2-9]{8}$/) && newData.isString() && root.child('clansecret').child(newData.val()).val() === $code"
+      }
+    },
+    "clanof": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists() && (!data.exists() || newData.val() === data.val() || !root.child('members').child(data.val()).child($uid).exists())",
+        ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{12,24}$/)"
+      }
+    },
+    "members": {
+      "$cid": {
+        ".read": "auth != null && root.child('members').child($cid).child(auth.uid).exists()",
+        "$uid": {
+          ".write": "auth != null && root.child('users').child(auth.uid).exists() && ((auth.uid === $uid && (data.exists() || root.child('clans').child($cid).exists())) || (!newData.exists() && root.child('clans').child($cid).child('o').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['n', 't', 'k']) && root.child('clanof').child($uid).val() === $cid && newData.child('k').val() === root.child('clansecret').child($cid).val()",
+          "n": {
+            ".validate": "newData.isString() && newData.val() === root.child('users').child($uid).child('name').val()"
+          },
+          "t": {
+            ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() === now)"
+          },
+          "k": {
+            ".validate": "newData.isString() && newData.val().length === 8"
+          },
+          "a": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= root.child('board').child('_global').child('all').child($uid).child('g').val()"
+          },
+          "d": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= root.child('board').child('_global').child('day').child($uid).child('g').val()"
+          },
+          "pd": {
+            ".validate": "newData.isNumber() && newData.val() === root.child('board').child('_global').child('day').child($uid).child('p').val()"
+          },
+          "w": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= root.child('board').child('_global').child('week').child($uid).child('g').val()"
+          },
+          "pw": {
+            ".validate": "newData.isNumber() && newData.val() === root.child('board').child('_global').child('week').child($uid).child('p').val()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "clanboard": {
+      "$scope": {
+        ".read": "auth != null",
+        ".indexOn": [
+          "p",
+          "g"
+        ],
+        "$cid": {
+          ".write": "auth != null && root.child('users').child(auth.uid).exists() && (root.child('members').child($cid).child(auth.uid).exists() || (!newData.exists() && root.child('clans').child($cid).child('o').val() === auth.uid))",
+          ".validate": "($scope === 'all' || $scope === 'day' || $scope === 'week') && newData.hasChildren(['n', 'g', 'm', 'p', 't'])",
+          "n": {
+            ".validate": "newData.isString() && newData.val() === root.child('clans').child($cid).child('n').val()"
+          },
+          "g": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('m').val() * ($scope === 'all' ? 100000000 : ($scope === 'day' ? 869000 : 6053000))"
+          },
+          "m": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 12 && newData.val() % 1 === 0"
+          },
+          "p": {
+            ".validate": "newData.isNumber() && ($scope === 'all' ? newData.val() === 0 : ($scope === 'day' ? (newData.val() <= (now - 7200000) / 86400000 && newData.val() > (now - 7200000) / 86400000 - 1) : (newData.val() <= ((now - 7200000) / 86400000 + 3) / 7 && newData.val() > ((now - 7200000) / 86400000 + 3) / 7 - 1))) && (!data.exists() || newData.val() >= data.val())"
+          },
+          "t": {
+            ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
     }
   }
 }

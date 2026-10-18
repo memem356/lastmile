@@ -132,9 +132,10 @@
       'Konto: E-Mail-Adresse und Passwort verwaltet Google Firebase Authentication (Google). Das Spiel selbst sieht dein Passwort nie. Die E-Mail wird für die Bestätigung und das Zurücksetzen des Passworts genutzt.',
       'Datenbank (Google Firebase Realtime Database): Spielername (für andere sichtbar), Kontokennung, Zeitpunkt der Registrierung, der benutzte Einladungscode und die Spielstände, die du selbst in die Cloud lädst. Die E-Mail-Adresse steht nicht in der Datenbank.',
       'Online-Modus: dein Online-Unternehmen (Spielstand), eine Sitzungskennung, Zeitstempel des Servers und Ranglisteneinträge mit Name, Stadt, Wachstum, Lieferungen, Ruf und Zeitraum. Die Ranglisten sind für alle angemeldeten Spieler sichtbar.',
+      'Clans: Clan-Name, Leiter, Mitgliederliste (nur für Mitglieder sichtbar: Name und Beitrag zum Wachstum des Clans), geheimer Beitrittscode und die Clan-Wertung. Clan-Name und Clan-Wertung sind für alle angemeldeten Spieler sichtbar.',
       'Keine Werbung, keine Tracking-Cookies, keine Analyse-Dienste. Damit du angemeldet bleibst, speichert dein Browser eine Anmeldemarke im lokalen Speicher; „Abmelden“ löscht sie.',
       'Beim Aufruf der Seite und bei jeder Verbindung zu den genannten Diensten (GitHub Pages, Google Firebase, OpenStreetMap-Dienste) wird technisch deine IP-Adresse an die jeweiligen Server übermittelt.',
-      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge und das Konto selbst.',
+      'Löschen: Im Konto-Fenster entfernt „Konto löschen“ Profil, Namen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto selbst. Als Leiter gibst du die Leitung dabei an das dienstälteste Mitglied ab; bist du allein im Clan, wird er aufgelöst.',
       'Kontakt zum Betreiber dieses Hobby-Projekts: über die Projektseite github.com/memem356/lastmile.'
     ];
     for (const t of items) ul.appendChild(mk('li', '', t));
@@ -159,6 +160,9 @@
       row.append(chk, again); root.append(vm.m, row);
     } else root.appendChild(mk('p', 'accmsg ok', 'E-Mail-Adresse bestätigt.'));
 
+    const cn = mk('section', ''); cn.appendChild(mk('h4', '', 'Clan')); const chost = mk('div', ''); cn.appendChild(chost); root.appendChild(cn);
+    LMClan.render(chost);
+
     const cs = mk('section', ''); cs.appendChild(mk('h4', '', 'Cloud-Sicherung (nur für dich sichtbar)'));
     cs.appendChild(mk('p', 'note', 'Lade Solo-Spielstände hoch, um sie auf einem anderen Gerät weiterzuspielen. Beim Laden bleibt der bisherige Stand auf diesem Gerät als Sicherung erhalten.'));
     const box = mk('div', ''); box.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:10px'; cs.appendChild(box); root.appendChild(cs);
@@ -171,7 +175,7 @@
     const del = mk('details', ''); del.appendChild(mk('summary', '', 'Konto löschen …'));
     const dm = msgBox(), dp = field('Passwort zur Bestätigung', { type: 'password', name: 'password', auto: 'current-password' });
     const dgo = btn('Konto endgültig löschen', 'danger', () => run(dgo, dm, async () => { await L.deleteAccount(dp.i.value); note = 'Dein Konto und alle Daten dazu wurden gelöscht.'; tab = 'login'; view = 'main'; render(true); updateBar(); }));
-    const dw = mk('div', 'accform'); dw.style.marginTop = '10px'; dw.append(mk('p', 'note', 'Löscht Profil, Spielernamen, Cloud-Spielstände und das Konto. Das lässt sich nicht rückgängig machen. Spielstände auf diesem Gerät bleiben erhalten.'), dp.w, dm.m, dgo);
+    const dw = mk('div', 'accform'); dw.style.marginTop = '10px'; dw.append(mk('p', 'note', 'Löscht Profil, Spielernamen, Cloud-Spielstände, Online-Unternehmen, Ranglisteneinträge, deine Clan-Mitgliedschaft und das Konto. Das lässt sich nicht rückgängig machen. Spielstände auf diesem Gerät bleiben erhalten.'), dp.w, dm.m, dgo);
     del.appendChild(dw); root.appendChild(del);
     return root;
   }

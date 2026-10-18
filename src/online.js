@@ -47,7 +47,15 @@ const LMO = (function () {
     CLOCK: 'Die Serverzeit konnte nicht gelesen werden.',
     SUPERSEDED: 'Dein Unternehmen wird jetzt in einem anderen Tab oder auf einem anderen Gerät gespielt. Diese Sitzung wurde beendet, damit nichts doppelt gezählt wird.',
     CORRUPT: 'Der gespeicherte Online-Stand ist beschädigt und wurde nicht verändert. Bitte melde das dem Betreiber.',
-    RULES_ONLINE: 'Die Datenbank ist noch nicht für den Online-Modus eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.'
+    RULES_ONLINE: 'Die Datenbank ist noch nicht für den Online-Modus eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.',
+    RULES_CLAN: 'Die Datenbank ist noch nicht für Clans eingerichtet (neue Sicherheitsregeln fehlen). Bitte melde das dem Betreiber.',
+    CLAN_HAVE: 'Du bist schon in einem Clan. Verlasse ihn zuerst.',
+    CLAN_BAD_CODE: 'Diesen Clan-Code gibt es nicht (oder der Code wurde erneuert).',
+    CLAN_NAME_TAKEN: 'Dieser Clan-Name ist schon vergeben.',
+    CLAN_FULL: 'Dieser Clan ist voll (höchstens 12 Mitglieder).',
+    CLAN_OWNER_LEAVE: 'Als Leiter kannst du den Clan erst verlassen, wenn du die Leitung übergeben oder den Clan aufgelöst hast.',
+    CLAN_NOT_OWNER: 'Das darf nur der Leiter des Clans.',
+    CLAN_GONE: 'Du bist in keinem Clan (mehr).'
   };
   class OErr extends Error {
     constructor(code, detail) { super(TEXT[code] || ('Unbekannter Fehler (' + code + ')')); this.code = code; this.detail = detail || ''; }
@@ -77,7 +85,7 @@ const LMO = (function () {
   }
 
   // ---------- Sitzung ----------
-  let sess = null, profile = null, offset = 0, base = null, refreshing = null, dead = false;
+  let sess = null, profile = null, offset = 0, clockAt = 0, base = null, refreshing = null, dead = false;
   const subs = new Set();
   const emit = () => { for (const f of subs) { try { f(state()); } catch (e) { console.error(e); } } };
   function persist() { if (sess) ls.set(LSK, JSON.stringify({ uid: sess.uid, email: sess.email, refreshToken: sess.refreshToken, idToken: sess.idToken, exp: sess.exp, verified: !!sess.verified, name: profile ? profile.name : (sess.name || null) })); else ls.del(LSK); }
@@ -153,9 +161,10 @@ const LMO = (function () {
       if (typeof v !== 'number') throw oerr('CLOCK');
       if (!best || t1 - t0 < best.rtt) best = { offset: v - Math.round((t0 + t1) / 2), rtt: t1 - t0 };
     }
-    offset = best.offset; emit();
+    offset = best.offset; clockAt = Date.now(); emit();
     return best;
   }
+  const ensureClock = async () => { if (!clockAt) await syncClock(1); };
   const serverNow = () => Date.now() + offset;
 
   // ---------- Namen ----------
@@ -295,6 +304,15 @@ const LMO = (function () {
     // Erst alle Daten, dann das Konto: scheitert ein Schritt, bleibt das Konto bestehen und es kann erneut versucht werden.
     // Ohne Profil (unterbrochene Registrierung) darf der Server manche Löschungen ablehnen, weil es nichts zu löschen gibt.
     const lenient = !key, del = async p => { try { await db('DELETE', p); } catch (e) { if (!(lenient && e.code === 'PERMISSION_DENIED')) throw e; } };
+    // Clan zuerst verlassen: der Leiter gibt die Leitung ab (oder löst den Clan auf, wenn er allein ist). Ohne die Clan-Regeln gibt es keinen Clan.
+    try {
+      const cm = await clanMine({ code: false });
+      if (cm) {
+        if (cm.isOwner && cm.members.length > 1) await clanTransfer(cm.members.find(x => x.uid !== uid).uid, cm);
+        await clanLeave();
+      }
+    } catch (e) { if (e.code !== 'RULES_CLAN' && !lenient) throw e; }
+    try { await db('DELETE', 'clanof/' + uid); } catch (e) { if (e.code !== 'PERMISSION_DENIED') throw e; }
     // Ranglisteneinträge (Städte der Online-Unternehmen und weltweit), dann Sitzungen, Stände, Uhr
     let metas = {}; try { metas = await db('GET', 'savemeta/' + uid) || {}; } catch (e) { if (!lenient) throw e; }
     for (const slot of Object.keys(metas)) if (slot.startsWith('o_')) for (const sc of ['all', 'day', 'week']) await del('board/' + slot.slice(2) + '/' + sc + '/' + uid);
@@ -436,6 +454,155 @@ const LMO = (function () {
     return { rank: i < 0 ? null : i + 1, total: rows.length, full: rows.length >= 100 };
   }
 
+  // ---------- Clans ----------
+  // Ein Clan hat einen Leiter, einen geheimen Beitrittscode (8 Zeichen) und höchstens 12 Mitglieder (es zählen die zuerst beigetretenen).
+  // clans/<id>: Name, Leiter · members/<id>/<uid>: Mitglied samt Beitrag zur Wertung · clanof/<uid>: eigener Clan
+  // clanboard/<Zeitraum>/<id>: Wertung (Summe der Beiträge) · clancodes/<Code>: Clan-Id · clansecret/<id>: der Code, nur für Mitglieder
+  const CLAN_CAP = 12, CODE_CH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', ID_CH = 'abcdefghijkmnpqrstuvwxyz23456789', SCOPES = ['all', 'day', 'week'];
+  const rnd = (alpha, n) => { const a = new Uint8Array(n); try { crypto.getRandomValues(a); } catch (e) { for (let i = 0; i < n; i++) a[i] = Math.floor(Math.random() * 256); } return Array.from(a, b => alpha[b % alpha.length]).join(''); };
+  const fmtCode = c => 'CL-' + c.slice(0, 4) + '-' + c.slice(4);
+  const normCode = s => { s = String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return s.length === 10 && s.startsWith('CL') ? s.slice(2) : s; };
+  const ruleErr = (e, code) => e && e.code === 'PERMISSION_DENIED' ? oerr(code || 'RULES_CLAN') : e;
+  const lastPut = {}; // zuletzt geschriebene Wertung je Zeitraum, damit nichts unnötig neu geschrieben wird
+  async function clanMine(o) {
+    needProfile(); const uid = sess.uid; o = o || {};
+    await ensureClock();
+    let cid; try { cid = await db('GET', 'clanof/' + uid); } catch (e) { throw ruleErr(e); }
+    if (!cid) return null;
+    let mem; try { mem = await db('GET', 'members/' + cid); } catch (e) { if (e.code !== 'PERMISSION_DENIED') throw e; mem = undefined; }
+    if (!mem || !mem[uid]) { try { await db('DELETE', 'clanof/' + uid); } catch (e) {} return null; } // entfernt worden oder Clan aufgelöst: Zeiger aufräumen
+    const [cl, code] = await Promise.all([db('GET', 'clans/' + cid), o.code === false ? null : db('GET', 'clansecret/' + cid)]);
+    if (!cl) { // Auflösung wurde unterbrochen: eigenen Rest wegräumen
+      try { await db('DELETE', 'members/' + cid + '/' + uid); await db('DELETE', 'clanof/' + uid); } catch (e) {}
+      return null;
+    }
+    const members = Object.keys(mem).map(u => { const x = mem[u] || {}; return { uid: u, name: String(x.n || '?'), t: +x.t || 0, k: x.k, a: x.a, d: x.d, pd: x.pd, w: x.w, pw: x.pw }; })
+      .sort((x, y) => x.t - y.t || (x.uid < y.uid ? -1 : 1));
+    return { cid, name: cl.n, key: cl.k, owner: cl.o, isOwner: cl.o === uid, code: typeof code === 'string' ? code : null, members, cap: CLAN_CAP };
+  }
+  async function undoAll(done) { for (const p of done.slice().reverse()) { try { await db('DELETE', p); } catch (e) {} } }
+  async function clanCreate(rawName) {
+    needProfile(); const uid = sess.uid, name = tidyName(rawName);
+    const bad = checkName(name); if (bad) { const e = oerr('BAD_NAME'); e.message = bad.replace('Der Name', 'Der Clan-Name').replace('Dieser Name', 'Dieser Clan-Name'); throw e; }
+    if (await clanMine({ code: false })) throw oerr('CLAN_HAVE');
+    const key = nameKey(name);
+    let taken; try { taken = await db('GET', 'clannames/' + key); } catch (e) { throw ruleErr(e); }
+    if (taken) throw oerr('CLAN_NAME_TAKEN');
+    const cid = rnd(ID_CH, 16), code = rnd(CODE_CH, 8), done = [];
+    const put = async (path, val, onDenied) => { try { await db('PUT', path, val); done.push(path); } catch (e) { await undoAll(done); throw ruleErr(e, onDenied || 'PERMISSION_DENIED'); } };
+    await put('clans/' + cid, { n: name, k: key, o: uid, t: SV }, 'CLAN_NAME_TAKEN');
+    await put('clannames/' + key, cid, 'CLAN_NAME_TAKEN');
+    await put('clansecret/' + cid, code);
+    await put('clancodes/' + code, cid);
+    await put('clanof/' + uid, cid);
+    await put('members/' + cid + '/' + uid, { n: profile.name, t: SV, k: code });
+    return clanMine();
+  }
+  async function clanJoin(rawCode) {
+    needProfile(); const uid = sess.uid, code = normCode(rawCode);
+    if (!/^[A-Z2-9]{8}$/.test(code)) throw oerr('CLAN_BAD_CODE');
+    if (await clanMine({ code: false })) throw oerr('CLAN_HAVE');
+    let cid; try { cid = await db('GET', 'clancodes/' + code); } catch (e) { throw ruleErr(e); }
+    if (!cid) throw oerr('CLAN_BAD_CODE');
+    let cl; try { cl = await db('GET', 'clans/' + cid); } catch (e) { throw ruleErr(e); }
+    if (!cl) throw oerr('CLAN_BAD_CODE');
+    try { await db('PUT', 'clanof/' + uid, cid); } catch (e) { throw ruleErr(e, 'PERMISSION_DENIED'); }
+    try { await db('PUT', 'members/' + cid + '/' + uid, { n: profile.name, t: SV, k: code }); }
+    catch (e) { try { await db('DELETE', 'clanof/' + uid); } catch (e2) {} throw ruleErr(e, 'CLAN_BAD_CODE'); }
+    // Platz prüfen: wer nach den ersten 12 beigetreten ist, tritt wieder aus
+    const m = await clanMine({ code: false });
+    if (!m || m.members.findIndex(x => x.uid === uid) >= CLAN_CAP) {
+      try { await db('DELETE', 'members/' + cid + '/' + uid); await db('DELETE', 'clanof/' + uid); } catch (e) {}
+      throw oerr('CLAN_FULL');
+    }
+    return clanMine();
+  }
+  async function clanLeave() {
+    const m = await clanMine({ code: false }); if (!m) return;
+    if (m.isOwner && m.members.length > 1) throw oerr('CLAN_OWNER_LEAVE');
+    if (m.isOwner) return clanDisband(m);
+    await db('DELETE', 'members/' + m.cid + '/' + sess.uid); await db('DELETE', 'clanof/' + sess.uid);
+    for (const sc of SCOPES) delete lastPut[sc];
+  }
+  // Auflösen (Leiter): erst Wertung und Mitglieder, ganz zuletzt der Clan selbst (er belegt, wer Leiter ist). Die Zeiger der anderen Mitglieder räumen diese selbst auf.
+  async function clanDisband(m) {
+    m = m || await clanMine(); if (!m) throw oerr('CLAN_GONE'); if (!m.isOwner) throw oerr('CLAN_NOT_OWNER');
+    const uid = sess.uid;
+    for (const sc of SCOPES) await db('DELETE', 'clanboard/' + sc + '/' + m.cid);
+    for (const x of m.members) if (x.uid !== uid) await db('DELETE', 'members/' + m.cid + '/' + x.uid);
+    await db('DELETE', 'members/' + m.cid + '/' + uid); await db('DELETE', 'clanof/' + uid);
+    if (m.code) await db('DELETE', 'clancodes/' + m.code);
+    await db('DELETE', 'clansecret/' + m.cid); await db('DELETE', 'clannames/' + m.key); await db('DELETE', 'clans/' + m.cid);
+    for (const sc of SCOPES) delete lastPut[sc];
+  }
+  async function clanKick(uid2) {
+    const m = await clanMine({ code: false }); if (!m) throw oerr('CLAN_GONE'); if (!m.isOwner) throw oerr('CLAN_NOT_OWNER');
+    if (uid2 === sess.uid) throw oerr('CLAN_OWNER_LEAVE');
+    await db('DELETE', 'members/' + m.cid + '/' + uid2);
+  }
+  async function clanTransfer(uid2, m) {
+    m = m || await clanMine({ code: false }); if (!m) throw oerr('CLAN_GONE'); if (!m.isOwner) throw oerr('CLAN_NOT_OWNER');
+    await db('PUT', 'clans/' + m.cid + '/o', uid2);
+  }
+  // Neuer Code, der alte gilt nicht mehr (bisherige Mitglieder bleiben)
+  async function clanRenew() {
+    const m = await clanMine(); if (!m) throw oerr('CLAN_GONE'); if (!m.isOwner) throw oerr('CLAN_NOT_OWNER');
+    const code = rnd(CODE_CH, 8);
+    await db('PUT', 'clansecret/' + m.cid, code);
+    try { await db('PUT', 'clancodes/' + code, m.cid); }
+    catch (e) { try { await db('PUT', 'clansecret/' + m.cid, m.code); } catch (e2) {} throw e; }
+    if (m.code) { try { await db('DELETE', 'clancodes/' + m.code); } catch (e) {} }
+    return code;
+  }
+  async function clanMyId() { needProfile(); try { return await db('GET', 'clanof/' + sess.uid); } catch (e) { throw ruleErr(e); } }
+  // Beiträge der Mitglieder zusammenzählen: Tag und Woche nur, wenn der Beitrag aus dem laufenden Zeitraum stammt
+  function clanRows(m, ms) {
+    const pd = period('day', ms), pw = period('week', ms), total = { all: 0, day: 0, week: 0 };
+    const rows = m.members.map((x, i) => {
+      const r = { uid: x.uid, name: x.name, all: +x.a || 0, day: x.pd === pd ? (+x.d || 0) : 0, week: x.pw === pw ? (+x.w || 0) : 0, owner: x.uid === m.owner, counts: i < CLAN_CAP };
+      if (r.counts) { total.all += r.all; total.day += r.day; total.week += r.week; }
+      return r;
+    }).sort((a, b) => b.all - a.all || a.name.localeCompare(b.name));
+    return { rows, total, count: Math.min(m.members.length, CLAN_CAP) };
+  }
+  // Eigenen Beitrag aus den (schon geprüften) weltweiten Ranglisteneinträgen übernehmen und die Wertung des Clans schreiben.
+  // Liefert { m, rows, total, count } oder null, wenn man in keinem Clan ist.
+  async function clanRefresh() {
+    needProfile(); const uid = sess.uid, name = profile.name;
+    const m = await clanMine(); if (!m) return null;
+    const gl = {}; await Promise.all(SCOPES.map(async sc => { gl[sc] = await db('GET', 'board/_global/' + sc + '/' + uid); }));
+    const me = m.members.find(x => x.uid === uid), want = {};
+    const num = v => typeof v === 'number' ? v : undefined;
+    if (num(gl.all && gl.all.g) !== undefined) want.a = gl.all.g;
+    if (num(gl.day && gl.day.g) !== undefined) { want.d = gl.day.g; want.pd = gl.day.p; }
+    if (num(gl.week && gl.week.g) !== undefined) { want.w = gl.week.g; want.pw = gl.week.p; }
+    let firstErr = null;
+    if (me && Object.keys(want).some(k => me[k] !== want[k])) {
+      try { await db('PUT', 'members/' + m.cid + '/' + uid, Object.assign({ n: name, t: me.t, k: m.code || me.k }, want)); Object.assign(me, want); }
+      catch (e) { firstErr = e; }
+    }
+    const ms = serverNow(), res = clanRows(m, ms);
+    for (const sc of SCOPES) {
+      const g = r2(res.total[sc]), p = period(sc, ms), lp = lastPut[sc];
+      if (g <= 0 && !lp) continue;
+      if (lp && lp.cid === m.cid && lp.g === g && lp.m === res.count && lp.p === p && lp.n === m.name && ms - lp.at < 1800000) continue;
+      try { await db('PUT', 'clanboard/' + sc + '/' + m.cid, { n: m.name, g, m: res.count, p, t: SV }); lastPut[sc] = { cid: m.cid, g, m: res.count, p, n: m.name, at: ms }; }
+      catch (e) { if (!firstErr) firstErr = e; }
+    }
+    return Object.assign({ m, err: firstErr }, res);
+  }
+  // Clan-Rangliste: Gesamt nach Summe, Tag und Woche nur Einträge des laufenden Zeitraums
+  async function clanTop(scope, n) {
+    needProfile(); n = n || 25; await ensureClock();
+    const path = 'clanboard/' + scope; let j;
+    try {
+      j = scope === 'all' ? await db('GET', path, undefined, { query: { orderBy: '"g"', limitToLast: n } })
+        : await db('GET', path, undefined, { query: { orderBy: '"p"', equalTo: period(scope) } });
+    } catch (e) { throw ruleErr(e); }
+    return Object.keys(j || {}).map(cid => { const e = j[cid] || {}; return { cid, name: String(e.n || '?'), g: +e.g || 0, m: +e.m || 0, t: e.t }; })
+      .filter(x => x.g > 0).sort((a, b) => b.g - a.g || a.name.localeCompare(b.name)).slice(0, n);
+  }
+
   // ---------- Start ----------
   function init() {
     const raw = ls.get(LSK); if (!raw) return;
@@ -459,6 +626,7 @@ const LMO = (function () {
     world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, period, ckOf },
     company: { open: companyOpen, push: companyPush, remove: companyRemove },
     board: { submit: boardSubmit, top: boardTop, rank: boardRank, mine: boardMine },
+    clan: { cap: CLAN_CAP, fmtCode, myId: clanMyId, mine: clanMine, create: clanCreate, join: clanJoin, leave: clanLeave, disband: clanDisband, kick: clanKick, transfer: clanTransfer, renew: clanRenew, refresh: clanRefresh, rows: clanRows, top: clanTop },
     _db: db
   };
 })();

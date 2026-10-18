@@ -319,6 +319,9 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
 #dlgB .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 #dlgB button.btn { width: 100%; text-align: left; padding: 10px 12px; }
 #dlgB .row button.btn { width: auto; text-align: center; }
+#dlgB .nrow button.btn, #dlgB .cl button.btn { width: auto; text-align: center; }
+#dlgB p.accmsg { font-size: 13px; }
+#dlgB p.accmsg.err { color: var(--warn); } #dlgB p.accmsg.ok { color: var(--ok); }
 .ach { display: grid; grid-template-columns: 22px 1fr; gap: 0 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .ach:first-of-type { border-top: 0; }
 .ach .mk { grid-row: 1 / span 2; color: var(--muted); font: 500 16px var(--font-mono); }
@@ -364,6 +367,7 @@ button.btn.danger { border-color: var(--warn); color: var(--warn); }
 .chip svg { flex: none; }
 .chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .chip.alert { border-color: #e0402a; color: #e0402a; }
+.dlg h4 { margin: 0 0 6px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
 .rkbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
 .rk { width: 100%; border-collapse: collapse; font-size: 13px; }
 .rk th { text-align: left; font: 500 11px var(--font-mono); color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--line); }
@@ -680,6 +684,7 @@ const ESSEN = /*DATA*/null;
 /*ENGINE*/
 /*LOADER*/
 /*ONLINE*/
+/*CLAN*/
 
 const $ = id => document.getElementById(id);
 const MODES = {
@@ -2643,6 +2648,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (!ONLINE || halted) return;
     try { onNet.rank = await LMO.board.rank(CK); onNet.rankAt = Date.now(); } catch (e) { /* bleibt beim alten Wert */ }
     syncOnChip();
+    try { await LMO.clan.refresh(); } catch (e) { /* ohne Clan oder ohne Verbindung nichts zu tun */ }
   }
   function syncOnChip() {
     if (!ONLINE) return;
@@ -2663,9 +2669,11 @@ function startGame(DATA, MODEKEY, PRE) {
         for (const [k, label] of items) { const x = mk('button', null, label); x.type = 'button'; x.setAttribute('aria-pressed', String(k === cur())); x.onclick = () => { set(k); for (const y of sg.children) y.setAttribute('aria-pressed', String(y === x)); load(); }; sg.appendChild(x); }
         parent.appendChild(sg); return sg;
       };
-      seg(bar, [['day', 'Heute'], ['week', 'Woche'], ['all', 'Gesamt']], () => rkView.scope, k => { rkView.scope = k; metricBar.hidden = k !== 'all' || rkView.area !== 'city'; });
-      seg(bar, [['city', DATA.name], ['world', 'Weltweit']], () => rkView.area, k => { rkView.area = k; metricBar.hidden = rkView.scope !== 'all' || k !== 'city'; });
-      const metricBar = bar2; metricBar.hidden = rkView.scope !== 'all' || rkView.area !== 'city';
+      const scopeSeg = seg(bar, [['day', 'Heute'], ['week', 'Woche'], ['all', 'Gesamt']], () => rkView.scope, k => { rkView.scope = k; syncBars(); });
+      seg(bar, [['city', DATA.name], ['world', 'Weltweit'], ['clans', 'Clans'], ['myclan', 'Mein Clan']], () => rkView.area, k => { rkView.area = k; syncBars(); });
+      const metricBar = bar2;
+      const syncBars = () => { metricBar.hidden = rkView.scope !== 'all' || rkView.area !== 'city'; scopeSeg.hidden = rkView.area === 'myclan'; };
+      syncBars();
       seg(bar2, [['g', 'Wachstum'], ['l', 'Lieferungen'], ['r', 'Ruf']], () => rkView.metric, k => { rkView.metric = k; });
       let seq = 0;
       async function load() {
@@ -2674,6 +2682,16 @@ function startGame(DATA, MODEKEY, PRE) {
         try {
           if (!onNet.push && !onNet.err) await cloudPush(false);
           else if (!halted && Date.now() - onNet.push > 20000) await cloudPush(false);
+          if (my !== seq) return;
+          if (rkView.area === 'myclan') { msg.textContent = ''; const host = mk('div'); out.appendChild(host); LMClan.render(host); return; }
+          if (rkView.area === 'clans') {
+            const myId = await LMO.clan.myId().catch(() => null), t = await LMClan.table(scope, myId);
+            if (my !== seq) return;
+            msg.textContent = t.rows.length ? '' : 'Noch keine Clans in dieser Wertung. Gründe unter „Mein Clan“ den ersten.';
+            if (t.rows.length) out.appendChild(t.node);
+            out.appendChild(mk('p', 'note', 'Gewertet wird die Summe des Wachstums aller Mitglieder (höchstens 12 je Clan).' + (scope === 'day' ? ' Heute zählt ab 04:00 Uhr (Winterzeit 03:00 Uhr).' : '')));
+            return;
+          }
           const rows = await LMO.board.top(world ? '_global' : CK, scope, metric, 25);
           if (my !== seq) return;
           msg.textContent = rows.length ? '' : 'Noch keine Einträge. Sobald dein Unternehmen wächst, erscheinst du hier.';
