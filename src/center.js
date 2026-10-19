@@ -78,25 +78,35 @@ const LMC = (function () {
     return { rows, back, end, dur: end - dep, late, wait, drive: drive + back, door };
   }
   // Reihenfolge: Nächster-Nachbar und Sortierung nach Fensterbeginn als Startlösungen, dann 2-opt und Umhängen. cost(order) -> Zahl (kleiner ist besser).
-  function optimize(n, cost, dist, startFrom) {
+  // lim (optional): { maxEvals, until } begrenzt die Rechenarbeit (Anzahl Bewertungen, Uhrzeit in Millisekunden). Bei Erreichen zählt das beste bisher gefundene Ergebnis.
+  // Bei vielen Stopps (30) sind es sonst über 1000 Bewertungen je Runde.
+  function optimize(n, cost0, dist, startFrom, lim) {
     if (n < 2) return n ? [0] : [];
+    const maxE = lim && lim.maxEvals > 0 ? lim.maxEvals : Infinity, until = lim && lim.until > 0 ? lim.until : Infinity;
+    let evals = 0, out = false;
+    const cost = o => { evals++; return cost0(o); };
+    const over = () => { if (!out && (evals >= maxE || (until < Infinity && (evals & 15) === 0 && Date.now() > until))) out = true; return out; };
     const nn = []; { const left = new Set(); for (let i = 0; i < n; i++) left.add(i); let cur = -1; while (left.size) { let b = -1, bd = Infinity; for (const i of left) { const d = dist(cur, i); if (d < bd) { bd = d; b = i; } } nn.push(b); left.delete(b); cur = b; } }
     const cands = [nn]; if (startFrom) cands.push(startFrom.slice());
     let best = null, bc = Infinity;
-    for (const o0 of cands) {
-      let o = o0.slice(), c = cost(o), improved = true, rounds = 0;
-      while (improved && rounds++ < 40) {
+    const init = cands.map(o0 => { const c0 = cost(o0); if (c0 < bc) { bc = c0; best = o0.slice(); } return c0; });   // die Startlösungen zählen immer, auch wenn die Grenze früh greift
+    for (let ci = 0; ci < cands.length; ci++) {
+      let o = cands[ci].slice(), c = init[ci], improved = true, rounds = 0;
+      rounds: while (improved && rounds++ < 40) {
         improved = false;
         for (let i = 0; i < n - 1; i++) for (let j = i + 1; j < n; j++) {            // 2-opt: Teilstück umdrehen
+          if (over()) break rounds;
           const q = o.slice(0, i).concat(o.slice(i, j + 1).reverse(), o.slice(j + 1)), qc = cost(q);
           if (qc < c - 1e-9) { o = q; c = qc; improved = true; }
         }
         for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) {        // Stopp i an Stelle j setzen
+          if (over()) break rounds;
           const q = o.slice(); const x = q.splice(i, 1)[0]; q.splice(j, 0, x); const qc = cost(q);
           if (qc < c - 1e-9) { o = q; c = qc; improved = true; }
         }
       }
       if (c < bc) { bc = c; best = o; }
+      if (out) break;
     }
     return best;
   }

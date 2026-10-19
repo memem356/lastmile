@@ -2586,7 +2586,24 @@ function startGame(DATA, MODEKEY, PRE) {
     const lc = c.lc || (c.lc = new Map()), key = a * N + b, hit = lc.get(key); if (hit) return hit;
     const leg = a === b ? null : E.returnLeg('van', a, b, cenAvoid(c));
     const r = leg ? { t: leg.time / slowF(traffic.load), len: leg.len } : { t: 0, len: 0 };
-    if (lc.size > 4000) lc.clear(); lc.set(key, r); return r;
+    if (lc.size > 40000) lc.clear(); lc.set(key, r); return r;
+  }
+  // Schnelle Fahrzeitschätzung für die Suche im Tourenplaner (ohne Routenberechnung): Luftlinie mal Faktor. Der Faktor wird an einigen echten Fahrten
+  // des Centers geeicht (höchstens 10 Routen, danach zwischengespeichert). Grund: 30 Stopps brauchen sonst Tausende Routen (je Route einige Millisekunden).
+  // Die Suche rechnet mit der Schätzung, das Ergebnis wird danach mit echten Fahrzeiten geprüft.
+  const LEGF = new WeakMap();
+  const crow = (a, b) => Math.hypot(nx[a] - nx[b], ny[a] - ny[b]);
+  function legFactor(c) {
+    const av = cenAvoid(c), hit = LEGF.get(c); if (hit && hit.av === av) return hit.f;
+    const ci = centers.indexOf(c), nodes = [c.node]; for (const o of corders) if (o.c === ci && nodes.length < 80) nodes.push(o.node);
+    const rs = [], n = nodes.length;
+    for (let i = 0; i < 24 && rs.length < 10 && n > 1; i++) {
+      const a = nodes[(i * 7) % n], b = nodes[(i * 13 + 5) % n], d = a === b ? 0 : crow(a, b); if (d < 400) continue;
+      const t = neutralLeg(c, a, b).t; if (t > 0) rs.push(t / d);
+    }
+    let f = 0.14;                                              // Rückfall: etwa 7 m/s Luftlinie
+    if (rs.length >= 3) { rs.sort((p, q) => p - q); f = rs[rs.length >> 1]; }
+    LEGF.set(c, { av, f }); return f;
   }
   // Vorhersage einer Tour: Abfahrt (nach dem Beladen), Ankunft je Stopp, Rückkehr
   function planCalc(c, drv, day, k, ids) {
@@ -2839,15 +2856,22 @@ function startGame(DATA, MODEKEY, PRE) {
   // Bestellungen, die zu dieser Abfahrt passen: gleicher Tag, rechtzeitig vor Annahmeschluss, noch frei (oder schon in der bearbeiteten Tour)
   const tpCand = () => corders.filter(o => o.c === tp.ci && (o.state === 'open' || (tp.edit && o.state === 'tour' && o.tour === tp.edit)) && LMC.canJoin(o.created, o.day, tp.day, tp.k));
   // Fahrplan einer Reihenfolge (nur Rechnung, ohne Spielzustand zu ändern)
-  function mkEval(c, drv, day, k) {
-    const pm = speedMult(cenPs(drv)), quick = !!hl(c, 'quick');
+  // fast (Zahl > 0): Schätzung statt echter Routen (Sekunden je Meter Luftlinie, siehe legFactor) und Verkehrsfaktor in 2-Minuten-Stufen – nur für die Suche
+  function mkEval(c, drv, day, k, fast) {
+    const pm = speedMult(cenPs(drv)), quick = !!hl(c, 'quick'), so = new Map(), rm = new Map();
+    const sOf = o => { let s = so.get(o); if (!s) so.set(o, s = { id: o.id, ws: wsA(o), we: weA(o), n: o.n, firm: o.firm, node: o.node }); return s; };
+    const base = LMC.depA(day, k), ld = LMC.loadA(day, k);
+    const rush = fast ? t => { const q = Math.floor(t / 120); let v = rm.get(q); if (v === undefined) { v = slowF(rushProfile(q * 120 + 60 - START).load); rm.set(q, v); } return v; } : t => slowF(rushProfile(t - START).load);
+    const leg = fast ? (a, b) => (a === b ? 0 : fast * crow(a, b)) : (a, b) => neutralLeg(c, a, b).t;
     return ords => {
-      const stops = ords.map(o => ({ id: o.id, ws: wsA(o), we: weA(o), n: o.n, firm: o.firm, node: o.node }));
-      const dep = Math.max(LMC.depA(day, k), LMC.loadA(day, k) + LMC.loadTime(stops, quick));
-      const sc = LMC.schedule(dep, stops, (a, b, t) => neutralLeg(c, a ? a.node : c.node, b ? b.node : c.node).t * slowF(rushProfile(t - START).load) / pm);
+      const stops = ords.map(sOf);
+      const dep = Math.max(base, ld + LMC.loadTime(stops, quick));
+      const sc = LMC.schedule(dep, stops, (a, b, t) => leg(a ? a.node : c.node, b ? b.node : c.node) * rush(t) / pm);
       return { stops, dep, sc, cost: sc.dur + 20 * sc.late };
     };
   }
+  // Wie viele Stopps und Kandidaten noch mit echten Routen gerechnet werden (sonst Schätzung); Grenzen für die Arbeit der Suche
+  const SUG = { exact: 9, K: 16, chunks: 3, ms: 1500, optMs: 700, evals: 15000 };
   function bestInsert(ev, ords, o) {
     let best = null;
     for (let i = 0; i <= ords.length; i++) { const r = ev(ords.slice(0, i).concat([o], ords.slice(i))); if (!best || r.cost < best.r.cost - 1e-9) best = { i, r }; }
@@ -2863,7 +2887,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function tpOpen(ci, edit) {
     const c = centers[ci]; if (!c) return;
     const sl = tpSlots(); if (!sl.length) return;
-    tp.open = true; tp.ci = ci; tp.err = ''; tp.info = ''; tp.edit = 0; tp.stops = []; tp.pathSig = ''; tp.path = null;
+    tp.open = true; tp.ci = ci; tp.err = ''; tp.info = ''; tp.edit = 0; tp.stops = []; tp.pathSig = ''; tp.path = null; tpLegs.clear();
     if (edit) { tp.edit = edit.id; tp.day = edit.day; tp.k = edit.k; tp.van = edit.van; tp.drv = edit.drv; tp.stops = edit.stops.filter(id => orderById2(id)); }
     else {
       // Vorbelegung: die Abfahrt, zu der die meisten freien Bestellungen zeitlich passen (Fenster noch offen oder in der nächsten Stunde nach der Ankunft)
@@ -2876,7 +2900,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if ($('planner').scrollIntoView) setTimeout(() => $('planner').scrollIntoView({ block: 'nearest' }), 50);
   }
   function tpClose() {
-    if (!tp.open) return; tp.open = false; tp.stops = []; tp.path = null; tp.pathSig = ''; tp.err = tp.info = '';
+    if (!tp.open) return; tp.open = false; tp.stops = []; tp.path = null; tp.pathSig = ''; tp.err = tp.info = ''; tpLegs.clear();
     $('planner').hidden = true; $('tourNew').hidden = uiView !== 'cen'; cenOrdersDirty = true; tourSig = ''; dirty = true;
   }
   function tpToggle(id) {
@@ -2887,7 +2911,7 @@ function startGame(DATA, MODEKEY, PRE) {
       const c = tpC(), o = orderById2(id), drv = tpDrv();
       if (!o || !tpCand().some(x => x.id === id)) return false;
       if (tp.stops.length >= cStops(c)) { tp.err = 'Ein Transporter fährt höchstens ' + cStops(c) + ' Stopps.'; tpDirty = true; return true; }
-      if (drv) { const ords = tp.stops.map(orderById2).filter(Boolean); tp.stops.splice(bestInsert(mkEval(c, drv, tp.day, tp.k), ords, o).i, 0, id); }
+      if (drv) { const ords = tp.stops.map(orderById2).filter(Boolean); tp.stops.splice(bestInsert(mkEval(c, drv, tp.day, tp.k, ords.length >= 8 ? legFactor(c) : 0), ords, o).i, 0, id); }
       else tp.stops.push(id);
     }
     tp.err = tp.info = ''; tpDirty = cenOrdersDirty = dirty = true; return true;
@@ -2899,9 +2923,11 @@ function startGame(DATA, MODEKEY, PRE) {
   function tpOptimize() {
     const c = tpC(), drv = tpDrv(), ords = tp.stops.map(orderById2).filter(Boolean);
     if (!c || !drv || ords.length < 2) return;
-    const ev = mkEval(c, drv, tp.day, tp.k), dist = (a, b) => neutralLeg(c, a < 0 ? c.node : ords[a].node, ords[b].node).t;
-    const before = ev(ords), best = LMC.optimize(ords.length, order => ev(order.map(i => ords[i])).cost, dist, ords.map((_, i) => i));
-    tp.stops = best.map(i => ords[i].id); const after = ev(best.map(i => ords[i]));
+    const fast = ords.length > 8 ? legFactor(c) : 0, ev = mkEval(c, drv, tp.day, tp.k), evS = fast ? mkEval(c, drv, tp.day, tp.k, fast) : ev;
+    const dist = fast ? (a, b) => fast * crow(a < 0 ? c.node : ords[a].node, ords[b].node) : (a, b) => neutralLeg(c, a < 0 ? c.node : ords[a].node, ords[b].node).t;
+    const before = ev(ords), best = LMC.optimize(ords.length, order => evS(order.map(i => ords[i])).cost, dist, ords.map((_, i) => i), fast ? { maxEvals: SUG.evals, until: Date.now() + SUG.optMs } : null);
+    const after = ev(best.map(i => ords[i]));
+    if (!fast || after.cost < before.cost - 1e-9) tp.stops = best.map(i => ords[i].id);       // mit Schätzung gesucht: nur übernehmen, wenn es mit echten Fahrzeiten besser ist
     tp.info = after.cost < before.cost - 1 ? 'Reihenfolge verbessert: ' + fmtHM(before.sc.dur) + ' → ' + fmtHM(after.sc.dur) + (before.sc.late > after.sc.late ? ', weniger Verspätung' : '') : 'Die Reihenfolge war schon gut.';
     tp.err = ''; tpDirty = dirty = true;
   }
@@ -2909,25 +2935,51 @@ function startGame(DATA, MODEKEY, PRE) {
   function tpSuggest() {
     const c = tpC(), drv = tpDrv(); if (!c) return;
     if (!drv || !tp.van) { tp.err = 'Wähle erst einen freien Transporter und Fahrer.'; tp.info = ''; tpDirty = true; return; }
-    const ev = mkEval(c, drv, tp.day, tp.k), max = cStops(c);
-    let ords = tp.stops.map(orderById2).filter(Boolean), pool = tpCand().filter(o => !tp.stops.includes(o.id)), added = 0;
-    const near = ords.length ? ords[0] : null;
+    const max = cStops(c), t0 = Date.now(), until = t0 + SUG.ms;
+    const ords0 = tp.stops.map(orderById2).filter(Boolean); let ords = ords0.slice(), pool = tpCand().filter(o => !tp.stops.includes(o.id)), limited = false;
+    // Viele Kandidaten oder Stopps: mit Schätzung suchen (siehe legFactor), nur die nächstgelegenen Kandidaten je Runde genau durchrechnen, am Ende mit echten Fahrzeiten prüfen
+    const fast = pool.length + ords.length > SUG.exact ? legFactor(c) : 0, ev = mkEval(c, drv, tp.day, tp.k, fast), evX = fast ? mkEval(c, drv, tp.day, tp.k) : ev;
+    const dmin = new Map(); if (fast) for (const o of pool) { let d = crow(o.node, c.node); for (const s of ords) d = Math.min(d, crow(o.node, s.node)); dmin.set(o, d); }
     while (ords.length < max && pool.length) {
       const cur = ords.length ? ev(ords) : null; let pick = null;
-      for (const o of pool) {
-        const b = bestInsert(ev, ords, o);
-        if (b.r.sc.dur > LMC.MAXTOUR - 900) continue;                                              // Reserve für Verzögerungen
-        if (cur && (b.r.sc.late > cur.sc.late + 1 || b.r.sc.wait > cur.sc.wait + 1200)) continue;  // keine neue Verspätung, kein langes Warten
-        if (!cur && b.r.sc.late > 1) continue;
-        const inc = b.r.cost - (cur ? cur.cost : 0);
-        if (!pick || inc < pick.inc - 1e-9) pick = { o, b, inc };
+      let cands = pool;
+      if (fast) {                                                                       // Fenster, die sicher nicht passen, fallen weg; dann nach Entfernung zur Tour sortiert
+        const dep = cur ? cur.dep : LMC.depA(tp.day, tp.k), endT = cur ? cur.sc.end : Infinity;
+        cands = pool.filter(o => weA(o) >= dep && (!cur || wsA(o) <= endT + 1200));
+        if (cands.length > SUG.K) cands = cands.slice().sort((p, q) => dmin.get(p) - dmin.get(q) || p.id - q.id);
+      }
+      const span = fast ? SUG.K * SUG.chunks : cands.length;
+      for (let from = 0; from < cands.length && from < span && !pick; from += (fast ? SUG.K : cands.length)) {
+        for (const o of (fast ? cands.slice(from, from + SUG.K) : cands)) {
+          const b = bestInsert(ev, ords, o);
+          if (b.r.sc.dur > LMC.MAXTOUR - 900) continue;                                              // Reserve für Verzögerungen
+          if (cur && (b.r.sc.late > cur.sc.late + 1 || b.r.sc.wait > cur.sc.wait + 1200)) continue;  // keine neue Verspätung, kein langes Warten
+          if (!cur && b.r.sc.late > 1) continue;
+          const inc = b.r.cost - (cur ? cur.cost : 0);
+          if (!pick || inc < pick.inc - 1e-9) pick = { o, b, inc };
+        }
       }
       if (!pick) break;
-      ords.splice(pick.b.i, 0, pick.o); pool = pool.filter(x => x !== pick.o); added++;
+      ords.splice(pick.b.i, 0, pick.o); pool = pool.filter(x => x !== pick.o);
+      if (fast) for (const o of pool) dmin.set(o, Math.min(dmin.get(o), crow(o.node, pick.o.node)));
+      if (fast && Date.now() > until && ords.length < max && pool.length) { limited = true; break; }
     }
+    if (ords.length > ords0.length && ords.length > 1) {
+      const dist = fast ? (a, b) => fast * crow(a < 0 ? c.node : ords[a].node, ords[b].node) : (a, b) => neutralLeg(c, a < 0 ? c.node : ords[a].node, ords[b].node).t;
+      const best = LMC.optimize(ords.length, order => ev(order.map(i => ords[i])).cost, dist, ords.map((_, i) => i), fast ? { maxEvals: SUG.evals, until: Date.now() + SUG.optMs } : null);
+      ords = best.map(i => ords[i]);
+    }
+    let r = ords.length ? evX(ords) : null;
+    if (fast && r) {                                                                    // Prüfung mit echten Fahrzeiten: neu Hinzugefügtes, das nicht passt, wieder herausnehmen
+      const lateBase = ords0.length ? evX(ords0).sc.late : 0; let guard = 0;
+      while (ords.length > ords0.length && guard++ < 12 && (r.sc.dur > LMC.MAXTOUR - 900 || r.sc.late > lateBase + 1)) {
+        const mine = ords.map((o, i) => ({ i, late: r.sc.rows[i].late, new: !ords0.includes(o) })).filter(x => x.new).sort((p, q) => q.late - p.late || q.i - p.i);
+        ords.splice(mine[0].i, 1); r = ords.length ? evX(ords) : null;
+      }
+    }
+    const added = ords.length - ords0.length;
     if (!added) { tp.err = ''; tp.info = tp.stops.length ? 'Keine weitere Bestellung passt noch dazu (Fenster, Wartezeit, Stopp-Grenze, 8 Stunden).' : 'Für diese Abfahrt gibt es keine passende Bestellung.'; tpDirty = true; return; }
-    if (ords.length > 1) { const best = LMC.optimize(ords.length, order => ev(order.map(i => ords[i])).cost, (a, b) => neutralLeg(c, a < 0 ? c.node : ords[a].node, ords[b].node).t, ords.map((_, i) => i)); ords = best.map(i => ords[i]); }
-    tp.stops = ords.map(o => o.id); tp.err = ''; tp.info = 'Vorschlag: ' + added + (added === 1 ? ' Bestellung' : ' Bestellungen') + ' ergänzt, zurück etwa ' + clk(ev(ords).sc.end) + '.';
+    tp.stops = ords.map(o => o.id); tp.err = ''; tp.info = 'Vorschlag: ' + added + (added === 1 ? ' Bestellung' : ' Bestellungen') + ' ergänzt, zurück etwa ' + clk(r.sc.end) + '.' + (limited ? ' Für weitere Bestellungen noch einmal „Vorschlag“ drücken.' : '');
     tpDirty = cenOrdersDirty = dirty = true;
   }
   function tpSave() {
@@ -2942,12 +2994,17 @@ function startGame(DATA, MODEKEY, PRE) {
     if (sel._sig !== sig) { sel._sig = sig; sel.textContent = ''; for (const r of rows) { const o = document.createElement('option'); o.value = r[0]; o.textContent = r[1]; o.disabled = !!r[2]; sel.appendChild(o); } }
     if (sel.value !== String(val)) sel.value = String(val);
   }
+  let tpLegs = new Map();                                    // Wegstücke der Karten-Linie des Planers (nur neue Stücke werden berechnet, sonst bei 30 Stopps jedes Mal 31 Routen)
   function tpPathUpdate() {
     const c = tpC(), sig = tp.ci + ':' + tp.stops.join(',');
     if (!c || sig === tp.pathSig) return; tp.pathSig = sig; tp.path = []; let prev = c.node;
     for (const id of tp.stops.concat([0])) {
       const o = id ? orderById2(id) : null, nd = o ? o.node : c.node;
-      if (nd !== prev) { const leg = E.returnLeg('van', prev, nd, cenAvoid(c)); if (leg) tp.path.push(leg); }
+      if (nd !== prev) {
+        const key = tp.ci + ':' + prev + '>' + nd; let leg = tpLegs.get(key);
+        if (leg === undefined) { leg = E.returnLeg('van', prev, nd, cenAvoid(c)); if (tpLegs.size > 400) tpLegs.clear(); tpLegs.set(key, leg); }
+        if (leg) tp.path.push(leg);
+      }
       prev = nd;
     }
     dirty = true;
