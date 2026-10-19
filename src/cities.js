@@ -448,33 +448,43 @@ const LMCity = (function () {
   async function gather(core, refs, progress, toTyped) {
     const typed = core.roads && core.roads.lat ? core.roads : toTyped(core.roads);
     const cc = cityOf(Object.assign({ id: 'core', name: 'Kernkarte', lat: core.ref.lat, lon: core.ref.lon }, circle(core.ref.lat, core.ref.lon, core.radius || 750)));
-    const parts = [partOf(cc, typed.lat, typed.lon)], uf = [0], list = [], links = [], unlinked = [], seen = new Set();
+    const parts = [partOf(cc, typed.lat, typed.lon)], uf = [0], list = [], links = [], unlinked = [], seen = new Set(), anchors = new Map();
     const find = i => { while (uf[i] !== i) { uf[i] = uf[uf[i]]; i = uf[i]; } return i; };
     const add = part => { const k = parts.length; parts.push(part); uf.push(k); for (let j = 0; j < k; j++) if (find(j) !== find(k) && touches(parts[j], part)) uf[find(j)] = find(k); return k; };
     for (const r of refs) {
       if (!r || seen.has(r.id)) continue; seen.add(r.id);
       const city = await resolve(r); if (r.pop && !city.pop) city.pop = r.pop;
+      city.isl = r.isl || '';
       const res = await loadCity(city, progress); list.push(res);
       const k = add(partOf(city, res.pack.la, res.pack.lo));
-      if (find(k) === find(0)) continue;
+      // Woran die Stadt hängen muss: an der Kernkarte; eine Insel (Center in einer fernen Stadt, ohne Verbindung zur Kernkarte) nur an ihrer ersten Stadt
+      let root = 0;
+      if (r.isl) { if (!anchors.has(r.isl)) { anchors.set(r.isl, k); continue; } root = anchors.get(r.isl); }
+      if (find(k) === find(root)) continue;
       let best = null;                                                  // die nächste Stadt (oder die Kernkarte) der verbundenen Gruppe
-      for (let j = 0; j < parts.length; j++) if (parts[j].city && !parts[j].link && find(j) === find(0)) { const c = closestPair(parts[j].city, city); if (!best || c.d < best.c.d) best = { j, c }; }
+      for (let j = 0; j < parts.length; j++) if (parts[j].city && !parts[j].link && find(j) === find(root)) { const c = closestPair(parts[j].city, city); if (!best || c.d < best.c.d) best = { j, c }; }
       if (best && best.c.d <= LINK_MAX) {
         const link = linkOf(parts[best.j].city, city, best.c), pk = await loadRoads(link, progress, LM.qLink);
-        links.push({ city: link, pack: pk }); add(partOf(link, pk.la, pk.lo, true));
+        links.push({ city: link, pack: pk, root }); add(partOf(link, pk.la, pk.lo, true));
       }
-      if (find(k) !== find(0)) {
+      if (find(k) !== find(root)) {
         unlinked.push(city.id);
-        for (const l of links.splice(0)) { if (find(parts.findIndex(q => q.city === l.city)) !== find(0)) await store.del('pack:' + l.city.id); else links.push(l); }   // eine Verbindung, die nicht trägt, wird nicht gemerkt (ein neuer Versuch lädt sie neu)
+        for (const l of links.splice(0)) { if (find(parts.findIndex(q => q.city === l.city)) !== find(l.root)) await store.del('pack:' + l.city.id); else links.push(l); }   // eine Verbindung, die nicht trägt, wird nicht gemerkt (ein neuer Versuch lädt sie neu)
       }
     }
     return { list, links, unlinked, typed };
   }
   // Für den Kauf einer Stadt: alles laden und verbinden, ohne das Spiel zusammenzusetzen. Ergebnis { unlinked: [Kennungen], links: Anzahl, nodes: Straßenknoten aller Städte }
-  async function link(core, refs, progress, toTyped) {
-    const g = await gather(core, refs, progress, toTyped); let nodes = 0;
+  // want: Punkt { lat, lon } (z. B. ein Klick auf die Karte); near ist der nächste Straßenpunkt der geladenen Städte { lat, lon, d (m) } oder null
+  async function link(core, refs, progress, toTyped, want) {
+    const g = await gather(core, refs, progress, toTyped); let nodes = 0, near = null;
     for (const x of g.list) nodes += x.pack.ids.length; for (const x of g.links) nodes += x.pack.ids.length;
-    return { unlinked: g.unlinked, links: g.links.length, nodes };
+    if (want) {
+      let bd = Infinity, bi = -1, bp = null;
+      const kx = Math.cos(want.lat * Math.PI / 180); for (const x of g.list) { const la = x.pack.la, lo = x.pack.lo, y0 = want.lat * 1e5, x0 = want.lon * 1e5; for (let i = 0; i < la.length; i++) { const dy = la[i] - y0, dx = (lo[i] - x0) * kx, d = dy * dy + dx * dx; if (d < bd) { bd = d; bi = i; bp = x.pack; } } }
+      if (bp) near = { lat: bp.la[bi] / 1e5, lon: bp.lo[bi] / 1e5, d: dist(want.lat, want.lon, bp.la[bi] / 1e5, bp.lo[bi] / 1e5) };
+    }
+    return { unlinked: g.unlinked, links: g.links.length, nodes, near };
   }
 
   // ---------- Alles für den Spielstart ----------
@@ -491,9 +501,9 @@ const LMCity = (function () {
     const cities = list.map(x => {
       const c = x.city;
       return { id: c.id, name: c.name, lat: c.lat, lon: c.lon, rel: c.rel, place: c.place, pop: c.pop, approx: c.approx, area: c.area, level: c.level, rings: c.rings, bbox: c.bbox,
-        firms: x.firms || [], firmsFailed: x.firms === null, homes: synthHomes(x.pack, c, { skip }), dem: demand(c), nodes: x.pack.ids.length, unlinked: bad.has(c.id) };
+        firms: x.firms || [], firmsFailed: x.firms === null, homes: synthHomes(x.pack, c, { skip }), dem: demand(c), nodes: x.pack.ids.length, unlinked: bad.has(c.id), isl: c.isl || '' };
     });
-    const nr = list.map(x => ({ id: x.city.id, name: x.city.name, lat: x.city.lat, lon: x.city.lon, rel: x.city.rel || 0, place: x.city.place || '', pop: x.city.pop || 0, ap: x.city.approx ? 1 : 0 }));
+    const nr = list.map(x => ({ id: x.city.id, name: x.city.name, lat: x.city.lat, lon: x.city.lon, rel: x.city.rel || 0, place: x.city.place || '', pop: x.city.pop || 0, ap: x.city.approx ? 1 : 0, isl: x.city.isl || '' }));
     return { roads, cities, refs: nr, stats: { nodes: roads.lat.length, ways: roads.wc.length, kept: roads.kept, dropped: roads.dropped, links: g.links.length } };
   }
 

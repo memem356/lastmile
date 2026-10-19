@@ -82,7 +82,8 @@ function createEngine(D) {
 
   // Raster für die Suche nach dem nächsten Knoten (Zellen von 120 m). Das Ergebnis ist exakt das gleiche wie beim Durchsuchen aller Knoten
   // (bei gleichem Abstand gewinnt der kleinere Index), nur ohne jedes Mal alle Knoten zu prüfen.
-  const CELL = 120, GX = Math.max(1, Math.floor((maxX - minX) / CELL) + 1), GY = Math.max(1, Math.floor((maxY - minY) / CELL) + 1);
+  // Bei sehr großer Ausdehnung (Center in weit entfernten Städten) wachsen die Zellen mit, damit das Raster höchstens ca. 6 Millionen Zellen hat.
+  const CELL = Math.max(120, Math.ceil(Math.sqrt(Math.max(0, maxX - minX) * Math.max(0, maxY - minY) / 6e6))), GX = Math.max(1, Math.floor((maxX - minX) / CELL) + 1), GY = Math.max(1, Math.floor((maxY - minY) / CELL) + 1);
   const cellStart = new Int32Array(GX * GY + 1), cellItems = new Int32Array(N);
   {
     const cid = new Int32Array(N);
@@ -168,7 +169,9 @@ function createEngine(D) {
   }
 
   // größte stark zusammenhängende Gruppe (nur dort kann man überall hin und wieder zurück); Kosaraju mit Zahlenfeldern
-  function largestScc(net) {
+  // rects: Rechtecke von Inseln (Städte weit entfernter Center, ohne Straßenverbindung zur Kernkarte): dort zählt zusätzlich die größte Gruppe innerhalb des Rechtecks,
+  // sofern sie nicht schon die größte Gruppe der Karte ist. So lassen sich Kunden, Center und Touren auch auf einer Insel platzieren (Routen zwischen Gruppen gibt es nicht).
+  function largestScc(net, rects) {
     const n = N, { start, to } = net, seen = new Uint8Array(n), order = new Int32Array(n), st = new Int32Array(n), it = new Int32Array(n); let on = 0;
     for (let s = 0; s < n; s++) {
       if (seen[s]) continue;
@@ -198,13 +201,32 @@ function createEngine(D) {
     }
     let best = 0; for (let c = 1; c < cc; c++) if (size[c] > size[best]) best = c;
     const ok = new Uint8Array(n); for (let v = 0; v < n; v++) ok[v] = comp[v] === best ? 1 : 0;
+    for (const r of rects || []) {
+      const cnt = new Map();
+      for (let v = 0; v < n; v++) { const la = R.lat[v] / 1e5, lo = R.lon[v] / 1e5; if (la >= r.s && la <= r.n && lo >= r.w && lo <= r.e) cnt.set(comp[v], (cnt.get(comp[v]) || 0) + 1); }
+      let bc = -1, bn = 0; for (const [c, k] of cnt) if (k > bn) { bn = k; bc = c; }
+      if (bc >= 0 && bc !== best && bn >= 20) for (let v = 0; v < n; v++) if (comp[v] === bc) ok[v] = 1;
+    }
     return { ok, size: size[best] };
   }
 
   const HUB = proj(D.hub.lat, D.hub.lon); // Lastmile-Hub im Zentrum
   const nets = {};
+  // Inseln: Städte mit Kennung isl (Center ohne Straßenverbindung zur Kernkarte); je Insel ein Rechteck um alle ihre Städte
+  const islands = (() => {
+    const m = new Map();
+    for (const c of D.cities || []) {
+      if (!c || !c.isl || !c.bbox) continue;
+      const r = m.get(c.isl) || { s: Infinity, w: Infinity, n: -Infinity, e: -Infinity };
+      r.s = Math.min(r.s, c.bbox.s); r.w = Math.min(r.w, c.bbox.w); r.n = Math.max(r.n, c.bbox.n); r.e = Math.max(r.e, c.bbox.e); m.set(c.isl, r);
+    }
+    const out = [...m.values()];
+    // Gibt es Inseln, zählt auch die Startregion (Kreis der Kernkarte) als eigenes Gebiet: sonst könnte eine große Insel die Startregion aus dem befahrbaren Netz drängen
+    if (out.length) { const r = (D.radius || 1000) * 1.1, dla = r / 110574, dlo = r / (111320 * Math.cos(D.ref.lat * Math.PI / 180)); out.push({ s: D.ref.lat - dla, n: D.ref.lat + dla, w: D.ref.lon - dlo, e: D.ref.lon + dlo }); }
+    return out;
+  })();
   for (const kind of ['bike', 'car']) {
-    const net = buildNet(kind), scc = largestScc(net);
+    const net = buildNet(kind), scc = largestScc(net, islands);
     nets[kind] = Object.assign(net, { ok: scc.ok, size: scc.size, depot: nearest(HUB.x, HUB.y, scc.ok) });
   }
   eA = eA.slice(0, EN); eB = eB.slice(0, EN); eC = eC.slice(0, EN); eHead = eNext = null;   // Kantenzahl steht fest, Hilfsfelder werden nicht mehr gebraucht

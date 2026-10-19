@@ -855,7 +855,7 @@ function startGame(DATA, MODEKEY, PRE) {
     xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l,
     // Fulfillment Center: Bau, Transporter, Fahrerpool (Stellplätze + pool), Bestellungen je Transporter und Tag, Anteil Firmenkunden, Mindestabstand zum Kunden (m)
     cen: { build: 5000, gap: 250, van: 600, vanSell: 0.5, hire: 40, pool: 2, perVan: 14, firmShare: 0.3, minDist: 120, presP: 0.5, presF: 0.7, capVan: 40, capAll: 700,
-      maxCities: 6, cityCost: [3000, 6000, 10000, 15000, 22000], nearKm: 45, nearShow: 9, maxNodes: 1200000,     // Städte eines Centers: die erste gehört zum Bau, jede weitere kostet nach Reihenfolge
+      maxCities: 6, cityCost: [3000, 6000, 10000, 15000, 22000], nearKm: 45, nearShow: 9, farKm: 600, fitKm: 150, maxNodes: 1200000,     // Städte eines Centers: die erste gehört zum Bau, jede weitere kostet nach Reihenfolge
       slots: [4, 6, 8, 10, 12, 14, 16, 18, 20], slotCost: [800, 1100, 1500, 2000, 2600, 3300, 4100, 5000],
       stops: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], stopCost: [300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200], xp: [0, 10, 25, 50, 85] }
   };
@@ -1009,7 +1009,15 @@ function startGame(DATA, MODEKEY, PRE) {
   function target(x, y, s) { return { u: U0 + x * KU + cam.w, v: yv(y), z: zOfS(s) }; }
   function fitTarget() {
     let a = Infinity, b2 = -Infinity, c = Infinity, d = -Infinity;
-    const cz = uiView === 'cen' ? cityZones() : [];
+    let cz = uiView === 'cen' ? cityZones() : [];
+    if (cz.length > 1) {                                       // Ansicht Center: gewähltes Center; bei „Alle“ nur dann alle zusammen, wenn sie nah beieinander liegen (ein Center in einer fernen Stadt würde sonst alles winzig machen)
+      const f = $('cenSel').value, ci = f && f !== 'all' ? Number(f) : -1, mine = c => cz.filter(z => c.cities.some(r => r.id === z.ct.id));
+      if (ci >= 0 && centers[ci] && mine(centers[ci]).length) cz = mine(centers[ci]);
+      else {
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; for (const z of cz) { x0 = Math.min(x0, z.ct.mask.x0); x1 = Math.max(x1, z.ct.mask.x1); y0 = Math.min(y0, z.ct.mask.y0); y1 = Math.max(y1, z.ct.mask.y1); }
+        const cc = centers[cenIdx()]; if (Math.max(x1 - x0, y1 - y0) > CFG.cen.fitKm * 1000 && cc && mine(cc).length) cz = mine(cc);
+      }
+    }
     if (cz.length) for (const z of cz) { const k = z.ct.mask; a = Math.min(a, k.x0); b2 = Math.max(b2, k.x1); c = Math.min(c, k.y0); d = Math.max(d, k.y1); }
     else for (const h of hubs) { const R = zr(h) * 1.12; a = Math.min(a, h.x - R); b2 = Math.max(b2, h.x + R); c = Math.min(c, h.y - R); d = Math.max(d, h.y + R); }
     a = Math.max(a, bounds.minX); b2 = Math.min(b2, bounds.maxX); c = Math.max(c, bounds.minY); d = Math.min(d, bounds.maxY);
@@ -2290,7 +2298,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function refitCenterOrders() { for (const o of corders) { o.ws = simOf(o.day, o.wh[0]); o.we = simOf(o.day, o.wh[1]); } cenOrdersDirty = true; dirty = true; }
   const homeNode = h => h.node === undefined ? (h.node = E.nearest(h.x, h.y, nets.car.ok)) : h.node;
 
-  const placeText = () => placing === 'cen' ? 'Klicke auf die Karte, um das neue Fulfillment Center zu platzieren. <kbd>Esc</kbd> bricht ab.' : 'Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.';
+  const placeText = () => placing === 'cen' ? 'Klicke auf die Karte, um das neue Fulfillment Center zu platzieren, auch in einer anderen Stadt (herauszoomen und klicken). <kbd>Esc</kbd> bricht ab.' : 'Klicke auf die Karte, um den neuen Hub zu platzieren. <kbd>Esc</kbd> bricht ab.';
   function startPlacing(kind) {
     placing = kind; ghost = null; $('placeBan').innerHTML = placeText(); $('placeBan').hidden = false; cv.classList.add('placing');
     setView(kind === 'cen' ? 'cen' : 'hq'); closeWin(); dirty = true;
@@ -2298,14 +2306,21 @@ function startGame(DATA, MODEKEY, PRE) {
   const newCenter = (n, cities) => ({ x: nx[n], y: ny[n], node: n, up: {}, rep: 3, cities, vans: [], drv: [], tours: [], zk: '', zc: [], zh: [], zf: [] });
   function placeCenter(x, y) {
     if (cash < CFG.cen.build) return endPlacing();
-    const n = E.hubNode('van', x, y);
-    if (Math.hypot(nx[n] - x, ny[n] - y) > 150) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
-    if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return flash('Das liegt außerhalb der geladenen Karte.');
+    const n = E.hubNode('van', x, y), inMap = x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY, near = inMap && Math.hypot(nx[n] - x, ny[n] - y) <= 150;
+    if (DEMO) {                                                      // die Demo-Karte kennt nur diese eine Stadt
+      if (Math.hypot(nx[n] - x, ny[n] - y) > 150) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
+      if (!inMap) return flash('Das liegt außerhalb der geladenen Karte.');
+    }
+    if (!near) {
+      if (inMap && cityAtXY(x, y)) return flash('Dort gibt es keine Straße. Wähle einen Punkt an einer Straße.');
+      return openFarCity(x, y);                                      // außerhalb der geladenen Städte: die Stadt unter dem Klick bestimmen und laden
+    }
     if (centers.some(c => Math.hypot(c.x - nx[n], c.y - ny[n]) < CFG.cen.gap)) return flash('Zu nah an einem anderen Center (mindestens ' + CFG.cen.gap + ' m Abstand).');
     const ct = cityAtXY(nx[n], ny[n]);
     if (!ct) {
       if (!cityRT.size && !DEMO) return openHomeCity(n);            // erstes Center auf einer echten Karte: die Stadt wird erst bestimmt und geladen
-      return flash('Dort liegt keine deiner Städte. Baue das Center in einer Stadt, die schon zu einem deiner Center gehört, oder schalte die Stadt zuerst bei einem Center frei.');
+      if (!DEMO) return openFarCity(x, y);                          // Stadt, die noch zu keinem Center gehört (z. B. ein Randstück der Kernkarte)
+      return flash('Dort liegt keine Stadt, die zu einem deiner Center gehört.');
     }
     spend('cen', CFG.cen.build);
     centers.push(newCenter(n, [cityRef(ct)]));
@@ -2357,12 +2372,12 @@ function startGame(DATA, MODEKEY, PRE) {
   function addCity(src) {
     if (cityRT.has(src.id)) return cityRT.get(src.id);
     const ct = { id: src.id, name: src.name, lat: src.lat, lon: src.lon, rel: src.rel || 0, place: src.place || '', pop: src.pop || 0, approx: !!src.approx, area: src.area || 0, dem: src.dem || 28, core: !!src.core,
-      firmsRaw: src.firms || [], homesRaw: src.homes || [], firmsFailed: !!src.firmsFailed, unlinked: !!src.unlinked, nodes: src.nodes || 0, P: [], mask: null, h: null, f: null, fk: -1, outline: null };
+      isl: src.isl || '', firmsRaw: src.firms || [], homesRaw: src.homes || [], firmsFailed: !!src.firmsFailed, unlinked: !!src.unlinked, nodes: src.nodes || 0, P: [], mask: null, h: null, f: null, fk: -1, outline: null };
     for (const r of src.rings) { const P = ringXY(r); if (areaXY(P) < 0) { for (let a = 0, b = P.length - 2; a < b; a += 2, b -= 2) { let t = P[a]; P[a] = P[b]; P[b] = t; t = P[a + 1]; P[a + 1] = P[b + 1]; P[b + 1] = t; } } ct.P.push(P); }
     buildMask(ct); cityRT.set(ct.id, ct); cityVer++; cityZoneCache = null;
     return ct;
   }
-  const cityRef = ct => ({ id: ct.id, name: ct.name, lat: ct.lat, lon: ct.lon, rel: ct.rel, place: ct.place, pop: ct.pop, ap: ct.approx ? 1 : 0 });
+  const cityRef = ct => Object.assign({ id: ct.id, name: ct.name, lat: ct.lat, lon: ct.lon, rel: ct.rel, place: ct.place, pop: ct.pop, ap: ct.approx ? 1 : 0 }, ct.isl ? { isl: ct.isl } : {});
   // Die Stadt an einem Punkt unter den Städten der Center (ohne Center: unter allen geladenen, das ist die Demo-Stadt)
   const cityAtXY = (x, y) => {
     if (!centers.length) { for (const ct of cityRT.values()) if (inCityXY(ct, x, y)) return ct; return null; }
@@ -2716,8 +2731,10 @@ function startGame(DATA, MODEKEY, PRE) {
     sl.value = Array.from(sl.options).some(o => o.value === keep) ? keep : 'all';
     sl.hidden = $('cenSelL').hidden = centers.length < 2; cenOrdersDirty = true;
   }
-  $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setView(b.dataset.v); });
-  $('cenSel').onchange = () => { cenOrdersDirty = true; dirty = true; };
+  // Nach dem Wechsel der Ansicht oder des Centers zur Gegend fliegen, falls sie nicht im Bild ist (ein Center kann in einer fernen Stadt stehen)
+  function showSeen() { const t = fitTarget(); let du = t.u - cam.u; du -= Math.round(du); if (Math.abs(du) * cam.K > cw / 2 || Math.abs(t.v - cam.v) * cam.K > ch / 2) flyTo(t, 700); }
+  $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { setView(b.dataset.v); if (!placing) showSeen(); } });
+  $('cenSel').onchange = () => { cenOrdersDirty = true; dirty = true; showSeen(); };
 
   // Liste der Center-Bestellungen: nach Tag und Fenster sortiert
   const colist = $('colist'); let coRows = [];
@@ -3144,14 +3161,14 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   // Lädt die Stadt (Straßen und Firmen), prüft die Straßenverbindung zu den anderen Städten und zur Kernkarte (große Straßen dazwischen werden bei Bedarf mitgeladen)
   // und zeigt den Fortschritt im Dialog. refs: alle Städte der Center nach dem Kauf, in der Reihenfolge des Spielstands.
-  async function loadAndApply(ui, city, price, apply, refs) {
+  async function loadAndApply(ui, city, price, apply, refs, want) {
     ui.go.disabled = true; ui.cancel.textContent = 'Abbrechen'; ui.bar.hidden = false; ui.fill.style.width = '3%'; ui.msg.textContent = 'Straßen werden geprüft …';
     let res;
     try {
       res = await LMCity.link(DATA, refs(city), p => {
         if (!ui.alive || !p.total) return; ui.msg.textContent = p.text;
         ui.fill.style.width = Math.round(3 + 97 * (p.phase === 'roads' ? 0.55 * p.done / p.total : p.phase === 'firms' ? 0.55 + 0.2 * p.done / p.total : 0.75 + 0.22 * p.done / p.total)) + '%';
-      }, roadsToTyped);
+      }, roadsToTyped, want);
     } catch (e) {
       if (!ui.alive) return; console.error(e);
       ui.msg.textContent = 'Das Laden ist nicht gelungen: ' + ((e && e.message) || e) + ' Bereits geladene Teile bleiben gespeichert, ein neuer Versuch geht schneller.';
@@ -3161,13 +3178,14 @@ function startGame(DATA, MODEKEY, PRE) {
     if (res.nodes > CFG.cen.maxNodes) { ui.msg.textContent = 'Mit dieser Stadt wäre die Karte zu groß für den Browser (' + nf(1).format(res.nodes / 1e6) + ' Mio. Straßenpunkte, erlaubt sind ' + nf(1).format(CFG.cen.maxNodes / 1e6) + ' Mio.). Sie kann nicht freigeschaltet werden, es wurde nichts abgebucht.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
     if (res.unlinked.includes(city.id)) { ui.msg.textContent = city.name + ' ist über die Straßen nicht zu erreichen: In den Kartendaten fehlt die Verbindung zu deinen anderen Städten. Die Stadt kann nicht freigeschaltet werden, es wurde nichts abgebucht.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
     if (cash < price) { ui.msg.textContent = 'Das Geld reicht nicht mehr (' + eur(price) + ' nötig). Die Stadt ist geladen und bleibt gespeichert.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
+    if (want && (!res.near || res.near.d > 1500)) { ui.msg.textContent = 'In der Nähe deines Klicks gibt es in dieser Stadt keine Straße (' + (res.near ? Math.round(res.near.d) + ' m entfernt' : 'keine Straßendaten') + '). Es wurde nichts abgebucht. Wähle einen anderen Punkt.'; ui.go.disabled = true; ui.bar.hidden = true; return; }
     ui.fill.style.width = '100%'; ui.msg.textContent = 'Fertig. Der Spielstand wird gesichert und das Spiel startet neu …'; ui.cancel.disabled = true;
-    apply();
+    apply(res.near);
     saveNow(true); let okk = true; try { okk = await cloudPush(true); } catch (e) { okk = false; }
     if (ONLINE && !okk) { ui.msg.textContent = 'Der Spielstand konnte nicht in der Cloud gesichert werden. Bitte Verbindung prüfen; das Spiel versucht es weiter. Danach bitte die Seite neu laden (F5).'; ui.cancel.disabled = false; return; }
     location.reload();
   }
-  function cityDlg(title, intro, resolveCity, price, goLabel, apply, refs, afterResolve) {
+  function cityDlg(title, intro, resolveCity, price, goLabel, apply, refs, afterResolve, want) {
     const ui = { alive: true, city: null };
     openDlg(title, b => {
       b.appendChild(mk('p', null, intro));
@@ -3175,7 +3193,7 @@ function startGame(DATA, MODEKEY, PRE) {
       const row = mk('div', 'row'); ui.go = mk('button', 'btn primary', goLabel + ' (' + eur(price) + ')'); ui.go.type = 'button'; ui.go.disabled = true;
       ui.cancel = mk('button', 'btn', 'Abbrechen'); ui.cancel.type = 'button'; ui.cancel.onclick = closeDlg;
       row.append(ui.go, ui.cancel); b.append(ui.info, ui.msg, ui.bar, row);
-      ui.go.onclick = () => loadAndApply(ui, ui.city, price, () => apply(ui.city), refs);
+      ui.go.onclick = () => loadAndApply(ui, ui.city, price, near => apply(ui.city, near), refs, want);
     }, { onClose: () => { ui.alive = false; } });
     resolveCity().then(city => {
       if (!ui.alive) return; ui.city = city; ui.info.textContent = city.name + ': ' + cityInfoText(city);
@@ -3194,6 +3212,23 @@ function startGame(DATA, MODEKEY, PRE) {
         spend('cen', CFG.cen.build); centers.push(newCenter(n, [cityRef(city)]));
         log('Neues Fulfillment Center ' + centers.length + ' in ' + city.name + ', ' + seur(-CFG.cen.build), true); cenStruct = cenOrdersDirty = true; dirty = true;
       }, city => [cityRef(city)]);
+  }
+  // Center in einer anderen Stadt (Klick auf die Karte außerhalb der geladenen Städte): Die Stadt unter dem Klick wird bestimmt und ganz geladen.
+  // Das Center ist eine Insel: ohne Straßenverbindung zur Startregion, seine Städte hängen nur untereinander zusammen (Kennung isl an den Städten).
+  function openFarCity(x, y) {
+    if (Math.hypot(x, y) > CFG.cen.farKm * 1000) return flash('Zu weit weg: Ein Center darf höchstens ' + CFG.cen.farKm + ' km von deinem Startort entfernt stehen.');
+    endPlacing(); const w = E.unproj(x, y);
+    const refsOf = city => { const out = []; centers.forEach(k => { for (const r of k.cities) out.push(r); }); out.push(Object.assign(cityRef(city), { isl: city.id })); return out; };
+    cityDlg('Fulfillment Center in einer anderen Stadt',
+      'Das Center wird in der Stadt unter deinem Klick gebaut und bedient zuerst diese Stadt. Es hat keine Straßenverbindung zu deiner Startregion: Seine Fahrer und Transporter gehören nur zu ihm. Weitere Städte kannst du später dazukaufen.',
+      () => LMCity.resolve({ name: 'Gewählter Ort', lat: w.lat, lon: w.lon, place: 'city' }), CFG.cen.build, 'Stadt laden und bauen',
+      (city, near) => {
+        const q = E.proj(near.lat, near.lon), n = E.hubNode('van', q.x, q.y);              // n gilt nur bis zum Neustart; danach wird der Platz neu an die nächste Straße gelegt
+        spend('cen', CFG.cen.build); const c = newCenter(n, [Object.assign(cityRef(city), { isl: city.id })]); c.x = q.x; c.y = q.y; centers.push(c);
+        log('Neues Fulfillment Center ' + centers.length + ' in ' + city.name + ', ' + seur(-CFG.cen.build), true); cenStruct = cenOrdersDirty = true; dirty = true;
+      }, refsOf,
+      (ui, city) => { if (cityRT.has(city.id)) { ui.msg.textContent = city.name + ' gehört schon zu einem deiner Center. Klicke dort auf eine Straße.'; ui.go.disabled = true; } },
+      { lat: w.lat, lon: w.lon });
   }
   // Stadt zu einem Center hinzufügen: Liste der Städte in der Nähe, dann Bestätigung und Laden
   function openAddCity(ci) {
@@ -3225,9 +3260,9 @@ function startGame(DATA, MODEKEY, PRE) {
     cityDlg(p.name + ' freischalten', 'Das Center ' + cenName(ci) + ' bedient dann auch ' + p.name + ' (' + Math.round(p.dist / 1000) + ' km entfernt, ca. ' + driveMin(p.dist) + ' min Fahrt).',
       () => LMCity.resolve({ name: p.name, lat: p.lat, lon: p.lon, place: p.place, pop: p.pop }), price, 'Stadt laden und freischalten',
       city => {
-        spend('cen', price); c.cities.push(cityRef(city));
+        spend('cen', price); c.cities.push(Object.assign(cityRef(city), c.cities[0] && c.cities[0].isl ? { isl: c.cities[0].isl } : {}));
         log(cenName(ci) + ' bedient jetzt auch ' + city.name + ', ' + seur(-price), true); cenStruct = true; dirty = true;
-      }, city => { const out = []; centers.forEach((k, i) => { for (const r of k.cities) out.push(r); if (i === ci) out.push(cityRef(city)); }); return out; });
+      }, city => { const out = []; centers.forEach((k, i) => { for (const r of k.cities) out.push(r); if (i === ci) out.push(Object.assign(cityRef(city), c.cities[0] && c.cities[0].isl ? { isl: c.cities[0].isl } : {})); }); return out; });
   }
   // Städte-Block im Reiter eines Centers
   let citSig = '';
@@ -3493,7 +3528,7 @@ function startGame(DATA, MODEKEY, PRE) {
     if (k === 'a' || k === 'A') { if (uiView === 'hq') { ensurePlans(); const b = fastestFree(); if (b !== null) assign(b); } }
     else if (k === 'ArrowDown') { e.preventDefault(); if (uiView === 'cen') cycleCenOrder(1); else cycleOrder(1); }
     else if (k === 'ArrowUp') { e.preventDefault(); if (uiView === 'cen') cycleCenOrder(-1); else cycleOrder(-1); }
-    else if ((k === 'v' || k === 'V') && centers.length) setView(uiView === 'cen' ? 'hq' : 'cen');
+    else if ((k === 'v' || k === 'V') && centers.length) { setView(uiView === 'cen' ? 'hq' : 'cen'); if (!placing) showSeen(); }
     else if (k === 'f' || k === 'F') flyTo(fitTarget(), 700);
     else if ((k === 'w' || k === 'W') && baseOn()) showWorld();
     else if (k === 'h' || k === 'H') $('heatBtn').click();
@@ -3789,7 +3824,7 @@ function startGame(DATA, MODEKEY, PRE) {
     const out = [], seen = new Set();
     for (const r of arr(src)) {
       if (!isObj(r) || typeof r.id !== 'string' || !r.id || r.id.length > 40 || seen.has(r.id) || !isFinite(r.lat) || !isFinite(r.lon)) continue; seen.add(r.id);
-      out.push({ id: r.id, name: String(r.name || 'Stadt').slice(0, 60), lat: r.lat, lon: r.lon, rel: Math.round(num(r.rel, 0, 0)), place: String(r.place || '').slice(0, 12), pop: Math.round(num(r.pop, 0, 0)), ap: r.ap ? 1 : 0 });
+      out.push({ id: r.id, name: String(r.name || 'Stadt').slice(0, 60), lat: r.lat, lon: r.lon, rel: Math.round(num(r.rel, 0, 0)), place: String(r.place || '').slice(0, 12), pop: Math.round(num(r.pop, 0, 0)), ap: r.ap ? 1 : 0 }); if (typeof r.isl === 'string' && r.isl) out[out.length - 1].isl = r.isl.slice(0, 40);
       if (out.length >= CFG.cen.maxCities) break;
     }
     return out;

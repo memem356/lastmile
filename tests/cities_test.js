@@ -341,6 +341,35 @@ const gridCore = () => {
     world.calls.length = 0;
     const g4 = await LMCity.link(core, [rA, far], null, roadsToTyped);
     check('link: über 90 km entfernt – keine Verbindung, Stadt gemeldet', g4.unlinked.includes('cfar') && g4.links === 0, JSON.stringify(g4));
+    // ---- Inseln: ein Center in einer fernen Stadt braucht keine Straßenverbindung zur Kernkarte ----
+    {
+      for (const k of [...mem.keys()]) if (/link/.test(k)) mem.delete(k);
+      const rCi = Object.assign({}, rC, { isl: 'r333' }), rBi = Object.assign({}, rB, { isl: 'r333' });
+      world.calls.length = 0; world.hwQueries.length = 0;
+      const gi = await LMCity.gather(core, [rA, rCi], null, roadsToTyped);
+      check('gather: Insel – die erste Stadt der Insel braucht keine Verbindung zur Kernkarte (nichts geladen, nichts gemeldet)', gi.unlinked.length === 0 && gi.links.length === 0 && gi.list.length === 2 && gi.list[1].city.isl === 'r333' && gi.list[0].city.isl === '' && !world.hwQueries.some(h => !h.includes('residential')), JSON.stringify([gi.unlinked, gi.links.length]));
+      const Pi = await LMCity.prepare(core, [rA, rCi], null, roadsToTyped);
+      check('prepare: Insel – Stadt trägt isl und gilt nicht als getrennt; die Verweise behalten isl', Pi.cities[1].isl === 'r333' && Pi.cities[1].unlinked === false && Pi.refs[1].isl === 'r333' && Pi.refs[0].isl === '' && Pi.stats.links === 0, JSON.stringify([Pi.cities.map(c => c.isl), Pi.refs.map(r => r.isl), Pi.stats.links]));
+      const ei = createEngine(Object.assign({}, ESSEN, { v: 1, name: 'Essen', tz: 'Europe/Berlin', radius: 750, ref: { lat: 51.4510, lon: 7.0140 }, hub: { lat: 51.4513, lon: 7.0147 }, roads: Pi.roads, cities: Pi.cities, elev: null }));
+      const qa3 = ei.proj(nlat(60), nlon(60)), qc3 = ei.proj(nlat(200), nlon(200)), na3 = ei.hubNode('van', qa3.x, qa3.y), nc3 = ei.hubNode('van', qc3.x, qc3.y);
+      check('Engine: A und die Insel C sind befahrbar, der Klick in C trifft einen Knoten in C', ei.nets.car.ok[na3] === 1 && ei.nets.car.ok[nc3] === 1 && Math.hypot(ei.nx[nc3] - qc3.x, ei.ny[nc3] - qc3.y) < 100 && Math.hypot(ei.nx[na3] - qa3.x, ei.ny[na3] - qa3.y) < 100, JSON.stringify([na3, nc3]));
+      const qc4 = ei.proj(nlat(230), nlon(230)), nc4 = ei.hubNode('van', qc4.x, qc4.y);
+      check('Engine: Fahrt innerhalb der Insel möglich, zwischen Kernkarte und Insel nicht (null)', ei.returnLeg('van', nc3, nc4, 1) && ei.returnLeg('van', na3, nc3, 1) === null);
+      const wi = await LMCity.link(core, [rA, rCi], null, roadsToTyped, { lat: nlat(200) + 0.0001, lon: nlon(200) + 0.0002 });
+      check('link: nächster Straßenpunkt zum Klick (innerhalb eines Gitterschritts)', wi.near && wi.near.d < 60 && Math.abs(wi.near.lat - nlat(200)) < 0.0004 && wi.unlinked.length === 0 && wi.links === 0, JSON.stringify(wi.near));
+      const wf = await LMCity.link(core, [rA, rCi], null, roadsToTyped, { lat: 55.0, lon: 7.0 });
+      check('link: Klick weit weg von allen geladenen Straßen: near.d sehr groß', wf.near && wf.near.d > 100000, JSON.stringify(wf.near));
+      check('link: ohne Klickpunkt gibt es kein near', (await LMCity.link(core, [rA, rCi], null, roadsToTyped)).near === null);
+      // Weitere Stadt derselben Insel muss an die Insel angeschlossen sein (B berührt A, aber nicht C)
+      world.calls.length = 0; world.hwQueries.length = 0;
+      const gb = await LMCity.gather(core, [rA, rCi, rBi], null, roadsToTyped);
+      check('gather: weitere Stadt der Insel (B) wird mit der Insel (C) verbunden, auch wenn sie die Kernkarte berührt', gb.unlinked.length === 0 && gb.links.length === 1 && gb.links[0].city.id === 'link:r222~r333', JSON.stringify([gb.unlinked, gb.links.map(l => l.city.id)]));
+      for (const k of [...mem.keys()]) if (/link/.test(k)) mem.delete(k);
+      world.noLink = true;
+      const gn = await LMCity.gather(core, [rA, rCi, rBi], null, roadsToTyped);
+      check('gather: fehlt die Verbindung zur Insel, wird die Stadt gemeldet (nicht die Kernkarte)', gn.unlinked.length === 1 && gn.unlinked[0] === 'r222', JSON.stringify(gn.unlinked));
+      world.noLink = false; for (const k of [...mem.keys()]) if (/link/.test(k)) mem.delete(k);
+    }
   }
   // ---- Stadtgrenze: Wege (Nominatim reverse, Overpass is_in, Kreis) ----
   {

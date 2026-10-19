@@ -190,6 +190,9 @@ async def main():
             await pC.fill('#accBody input[name=newname]', 'Cara Cool'); await btn(pC,'#accBody','Neuen Namen speichern',800)
             ok('derselbe Name wird abgelehnt', 'anderen Namen' in await txt(pC), (await txt(pC))[:200].replace('\n',' | '))
             await pC.fill('#accBody input[name=newname]', 'Cara Neu'); await btn(pC,'#accBody','Neuen Namen speichern',2500); t=await txt(pC)
+            for _ in range(20):
+                if 'Dein neuer Name ist' in t: break
+                await pC.wait_for_timeout(500); t=await txt(pC)
             ok('umbenannt: Hinweis und neuer Name', 'Cara Neu' in t and 'wurde vom Betreiber gesperrt' not in t and 'Dein neuer Name ist' in t, t[:200].replace('\n',' | '))
             ok('Konto zeigt den neuen Namen', await pC.evaluate("LMO.state().name")=='Cara Neu' and not await pC.evaluate("LMO.state().blocked"))
             try: await pC.wait_for_function("!document.getElementById('onChip').innerText.includes('Name ändern')", timeout=8000)

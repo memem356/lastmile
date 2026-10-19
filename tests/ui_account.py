@@ -98,6 +98,8 @@ async def main():
             await pg.fill('input[name=password]', 'geheim123'); await pg.fill('input[name=code]', CODE.lower()); await pg.check('#authBody .chk input')
             await pg.click('button >> text=Konto erstellen')
             ok('Registriert: Startort-Wahl statt Menü', await wait_vis(pg, '#pickMain') and not await vis(pg,'#authBox'))
+            try: await pg.wait_for_function("n=>document.getElementById('pickWho').innerText.includes('Angemeldet als '+n) && document.getElementById('pickNote').innerText.includes(n)", arg=name, timeout=6000)
+            except Exception: pass
             ok('Willkommen-Hinweis und Name', 'Willkommen' in await pg.inner_text('#pickNote') and name in await pg.inner_text('#pickNote') and ('Angemeldet als '+name) in await pg.inner_text('#pickWho'), await pg.inner_text('#pickNote'))
             st=ctl('state'); ok('Mock: Konto, Profil, Namen, Einladung, Bestätigungsmail', len(st['USERS'])==1 and len(st['DB']['users'])==1 and len(st['DB']['names'])==1 and len(st['DB']['redeemed'])==1 and st['MAILS'][0]['type']=='VERIFY_EMAIL')
             ok('Noch kein Unternehmen in der Cloud', not st['DB'].get('saves'))
