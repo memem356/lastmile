@@ -261,6 +261,30 @@
         }
       }
     },
+    "citystore": {
+      "$kind": {
+        "$key": {
+          ".read": "auth != null && root.child('users').child(auth.uid).exists()",
+          ".write": "auth != null && (newData.exists() ? (root.child('users').child(auth.uid).exists() && newData.child('t').val() === now && (!data.exists() || (data.child('v').isNumber() && data.child('v').val() < newData.child('v').val()))) : root.child('admins').child(auth.uid).exists())",
+          ".validate": "(($kind === 's' && $key.matches(/^-?[0-9]{1,3}_[0-9]{3}_-?[0-9]{1,3}_[0-9]{3}$/)) || ($kind === 'c' && $key.matches(/^(r[0-9]{1,12}|pt_-?[0-9]{1,3}_[0-9]{3}_-?[0-9]{1,3}_[0-9]{3})$/)) || ($kind === 'p' && $key.matches(/^(r[0-9]{1,12}|link_r[0-9]{1,12}_r[0-9]{1,12})$/)) || ($kind === 'f' && $key.matches(/^r[0-9]{1,12}$/))) && newData.hasChildren(['v', 't', 'd'])",
+          "v": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 20 && newData.val() % 1 === 0"
+          },
+          "t": {
+            ".validate": "newData.isNumber() && newData.val() === now"
+          },
+          "d": {
+            ".validate": "newData.isString() && newData.val().length >= 40 && newData.val().length <= 7000000"
+          },
+          "n": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
     "admins": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"

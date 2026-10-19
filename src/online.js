@@ -141,7 +141,7 @@ const LMO = (function () {
     if (o.auth !== false) q.push('auth=' + encodeURIComponent(await fresh()));
     if (o.shallow) q.push('shallow=true');
     if (o.query) for (const k of Object.keys(o.query)) q.push(k + '=' + encodeURIComponent(o.query[k]));
-    const r = await http(b + '/' + path.split('/').map(encodeURIComponent).join('/') + '.json' + (q.length ? '?' + q.join('&') : ''), { method, body: body === undefined ? undefined : JSON.stringify(body), keepalive: !!o.keepalive });
+    const r = await http(b + '/' + path.split('/').map(encodeURIComponent).join('/') + '.json' + (q.length ? '?' + q.join('&') : ''), { method, body: body === undefined ? undefined : JSON.stringify(body), keepalive: !!o.keepalive }, o.ms);
     if (r.status === 401 || r.status === 403) {
       const msg = String((r.json && r.json.error) || '');
       // Abgelaufener Zugangsschlüssel (z. B. nach langer Pause oder bei falsch gehender Uhr): einmal erneuern und wiederholen

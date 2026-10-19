@@ -354,7 +354,7 @@ const LM = (function () {
     } catch (e) { return null; }
   }
 
-  return { search, nomGet, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
+  return { FORMAT, search, nomGet, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
     overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
     dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref, servers: () => OVERPASS.slice(), host };
 })();

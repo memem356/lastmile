@@ -5,6 +5,7 @@
   const el = { q: $('q'), form: $('searchForm'), btn: $('searchBtn'), res: $('results'), msg: $('searchMsg'), chips: $('chips'),
     status: $('status'), st: $('statusT'), si: $('statusI'), sb: $('statusBtns'), bar: $('statusBar'), retry: $('statusRetry'), back: $('statusBack'), extra: $('statusExtra') };
   const ckOf = (lat, lon) => LMO.world.ckOf(lat, lon);
+  if (typeof LMStore !== 'undefined' && typeof LMCity !== 'undefined') LMCity.setRemote(LMStore);       // gemeinsamer Kartenspeicher für Städte (src/citystore.js)
   const key = p => p.lat.toFixed(3) + ',' + p.lon.toFixed(3);
   const errMsg = e => (typeof LMMod !== 'undefined' && LMMod.errText) ? LMMod.errText(e) : String((e && e.message) || e);
   const PROBE = new URLSearchParams(location.search).get('probe');
@@ -100,9 +101,17 @@
       else {
         status(name + ': Gespeicherte Karte wird gesucht …', 8);
         data = await LM.getCached(place);
+        const sk = ckOf(place.lat, place.lon);
+        if (data && typeof LMStore !== 'undefined') LMStore.put('s', sk, data, { v: LM.FORMAT, n: name });     // schon auf dem Gerät: dem gemeinsamen Speicher anbieten (einmalig)
+        if (!data && typeof LMStore !== 'undefined') {                                                 // schon einmal von jemandem geladen? Dann fertig vom gemeinsamen Speicher holen
+          status(name + ': Gemeinsamer Kartenspeicher wird gefragt …', 12);
+          const sh = await LMStore.get('s', sk, { v: LM.FORMAT });
+          if (sh) { sh.ref = { lat: place.lat, lon: place.lon }; sh.hub = { lat: place.lat, lon: place.lon }; if (place.name) sh.name = place.name; if (place.sub !== undefined) sh.sub = place.sub; data = sh; LM.saveCity(place, data); }
+        }
         if (!data) {
           data = await LM.loadCity(place, (step, text) => status(name + ': ' + text + ' … (beim ersten Mal bis zu einer Minute, danach ist die Karte gespeichert)', step === 1 ? 25 : step === 2 ? 60 : 82));
           LM.saveCity(place, data);
+          if (typeof LMStore !== 'undefined') LMStore.put('s', sk, data, { v: LM.FORMAT, n: name });
         }
         if (!data.tz && data.ref) { const tz = await LM.fetchTz(data.ref.lat, data.ref.lon); if (tz) { data.tz = tz; LM.saveCity(place, data); } }
         status(name + ': Straßennetz und Routen werden berechnet …', 90);

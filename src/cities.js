@@ -14,6 +14,12 @@ const LMCity = (function () {
   const FIRM_CAP = 3000;                            // höchstens so viele Firmen je Stadt
   const LATM = 110574, lonM = lat => 111320 * Math.cos(lat * Math.PI / 180);
   const store = { get: id => LM.dbGet(id), put: (id, d) => LM.dbPut(id, d), del: id => LM.dbDel(id), keys: p => LM.dbKeys(p) };   // in Tests austauschbar
+  // Gemeinsamer Kartenspeicher (src/citystore.js, wird beim Start eingehängt): get(Art, Schlüssel, ctx) liefert ein fertiges Paket oder null, put(…) legt ein frisch geladenes im Hintergrund ab.
+  // Ohne ihn (und bei jedem Fehler) wird wie bisher live geladen. Genutzt für Stadtgrenze (c), Straßenpaket (p) und Firmen (f).
+  let remote = null;
+  const setRemote = r => { remote = r; };
+  const rget = async (kind, id, ctx) => { if (!remote) return null; try { return await remote.get(kind, id, ctx); } catch (e) { return null; } };
+  const rput = (kind, id, obj, ctx) => { if (!remote) return; try { Promise.resolve(remote.put(kind, id, obj, ctx)).catch(() => {}); } catch (e) { /* nur Beiwerk */ } };
   const dist = (la1, lo1, la2, lo2) => Math.hypot((la2 - la1) * LATM, (lo2 - lo1) * lonM((la1 + la2) / 2));
 
   // ---------- Stadtgrenzen: Ringe aus Int32Array [Breite, Länge, …] in 1e-5 Grad; innen = ungerade Zahl von Überquerungen (Löcher zählen von selbst) ----------
@@ -170,11 +176,21 @@ const LMCity = (function () {
   // Die Verwaltungsgrenze (Stadt oder Gemeinde) um einen Ort. pl: { name, lat, lon, place?, rel?, pop? }. Ohne Grenzdaten: Kreis (approx).
   // Wege, in dieser Reihenfolge: Beziehung bekannt → Grenze dazu; sonst Nominatim „reverse“; sonst Overpass is_in. Ein Kreis wird NICHT gemerkt (der nächste Versuch fragt neu).
   async function resolve(pl) {
-    const pk = 'pt:' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3), why = [];
+    const pk = 'pt:' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3), why = [], rk = pl.rel ? 'r' + pl.rel : pk;
     let p = null, how = '';
-    const cached = c => { lastResolve.how = 'Zwischenspeicher'; lastResolve.why = []; return c; };
+    // Auch ein schon auf diesem Gerät gespeicherter Treffer wird (einmalig, im Hintergrund) dem gemeinsamen Speicher angeboten: Das Spiel startet nach dem Laden einer Stadt neu, dabei kann die Ablage verloren gehen.
+    const share = c => { rput('c', rk, c, { v: PACK_V, n: c.name }); if (c.id !== rk) rput('c', c.id, c, { v: PACK_V, n: c.name }); };
+    const cached = c => { lastResolve.how = 'Zwischenspeicher'; lastResolve.why = []; share(c); return c; };
     if (pl.rel) { const c = await store.get('city:r' + pl.rel); if (c && c.v === PACK_V && !c.approx) return cached(c); }
     else { const hit = await store.get(pk); if (hit && hit.id) { const c = await store.get('city:' + hit.id); if (c && c.v === PACK_V && !c.approx) return cached(c); } }
+    const rc = await rget('c', rk, { v: PACK_V });                    // schon einmal bestimmt und geteilt?
+    if (rc) {
+      const c2 = cityOf(Object.assign({}, rc, { lat: pl.lat || rc.lat, lon: pl.lon || rc.lon, pop: pl.pop || rc.pop, place: pl.place || rc.place || '' }));
+      if (plausible({ g: { area: c2.area, rings: c2.rings } }, pl.lat, pl.lon)) {
+        await store.put('city:' + c2.id, c2); if (!pl.rel) await store.put(pk, { id: c2.id });
+        lastResolve.how = 'gemeinsamer Speicher'; lastResolve.why = []; return c2;
+      }
+    }
     if (pl.rel) {
       try { p = await polygonOf(pl.rel, why); how = 'Beziehung R' + pl.rel + (p.viaOverpass ? ' (über Overpass)' : ''); if (!plausible(p, pl.lat, pl.lon)) { why.push('Grenze R' + pl.rel + ' unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; } }
       catch (e) { why.push('Overpass R' + pl.rel + ': ' + e.message); p = null; }
@@ -206,7 +222,10 @@ const LMCity = (function () {
       how = 'Kreis';
     }
     lastResolve.how = how; lastResolve.why = why;
-    if (!city.approx) { await store.put('city:' + city.id, city); if (!pl.rel) await store.put(pk, { id: city.id }); }
+    if (!city.approx) {
+      await store.put('city:' + city.id, city); if (!pl.rel) await store.put(pk, { id: city.id });
+      share(city);
+    }
     return city;
   }
 
@@ -280,8 +299,13 @@ const LMCity = (function () {
 
   async function loadRoads(city, progress, qf) {
     const t0 = Date.now(), pk = 'pack:' + city.id;
-    const have = await store.get(pk);
-    if (have && have.v === PACK_V && have.cityId === city.id) return have;
+    const have = await store.get(pk), shared = !city.approx && (!qf || city.link);     // eigene Abfragen (Tests) und Kreisnäherungen werden nicht geteilt
+    if (have && have.v === PACK_V && have.cityId === city.id) { if (shared) rput('p', city.id, have, { v: PACK_V, city, n: city.name }); return have; }
+    if (shared && remote) {
+      progress && progress({ phase: city.link ? 'link' : 'roads', done: 0, total: 1, text: city.name + ': gemeinsamer Kartenspeicher wird gefragt' });
+      const rp = await rget('p', city.id, { v: PACK_V, city });
+      if (rp) { await store.put(pk, rp); return rp; }
+    }
     const TS = roadTile(city), tiles = tilesOf(city, TS), parts = new Array(tiles.length), net0 = LM.net.bytes;
     const tasks = tiles.map((t, i) => async () => {
       const key = tileKey(city, 'r', TS, t.k);
@@ -292,6 +316,7 @@ const LMCity = (function () {
     await pool(tasks, 2, (d, n) => progress && progress({ phase: city.link ? 'link' : 'roads', done: d, total: n, text: city.name + ': Straßen ' + d + ' von ' + n + ' Kacheln' }));
     const m = merge(parts), pack = Object.assign(m, { v: PACK_V, cityId: city.id, stats: { nodes: m.ids.length, ways: m.wc.length, tiles: tiles.length, ms: Date.now() - t0, bytes: LM.net.bytes - net0 } });
     await store.put(pk, pack);
+    if (shared) rput('p', city.id, pack, { v: PACK_V, city, n: city.name });
     for (const t of tiles) store.del(tileKey(city, 'r', TS, t.k));      // Kacheln werden nicht mehr gebraucht
     return pack;
   }
@@ -311,7 +336,8 @@ const LMCity = (function () {
   }
   async function loadFirms(city, progress) {
     const fk = 'firms:' + city.id, have = await store.get(fk);
-    if (have && have.v === PACK_V && Array.isArray(have.firms)) return have.firms;
+    if (have && have.v === PACK_V && Array.isArray(have.firms)) { if (!city.approx) rput('f', city.id, have, { v: PACK_V, city, n: city.name }); return have.firms; }
+    if (!city.approx) { const rf = await rget('f', city.id, { v: PACK_V, city }); if (rf) { await store.put(fk, { v: PACK_V, firms: rf.firms }); return rf.firms; } }
     const FS = firmTile(city), tiles = tilesOf(city, FS), parts = new Array(tiles.length), seen = new Set();
     const tasks = tiles.map((t, i) => async () => {
       const key = tileKey(city, 'f', FS, t.k); let c = await store.get(key);
@@ -322,6 +348,7 @@ const LMCity = (function () {
     let all = []; for (const raw of parts) all = all.concat(firmsOf({ elements: raw }, city, seen));
     if (all.length > FIRM_CAP) { const step = all.length / FIRM_CAP, pick = []; for (let i = 0; i < FIRM_CAP; i++) pick.push(all[Math.floor(i * step)]); all = pick; }
     await store.put(fk, { v: PACK_V, firms: all });
+    if (!city.approx) rput('f', city.id, { v: PACK_V, firms: all }, { v: PACK_V, city, n: city.name });
     for (const t of tiles) store.del(tileKey(city, 'f', FS, t.k));
     return all;
   }
@@ -571,6 +598,6 @@ const LMCity = (function () {
   }
 
   return { joinWays, overpassPolygon, roadTile, firmTile, PACK_V, TILE_ROADS, TILE_FIRMS, FIRM_CAP, store, nearby, resolve, tilesOf, tileTouches, inRings, inCity, fromGeoJSON, circle, ringArea, boxOf, cityOf,
-    compactTile, merge, forEngine, withCore, lastResolve, synthHomes, demand, prepare, link, gather, closestPair, linkOf, touches, partOf, loadRoads, loadFirms, loadCity, cached, probe, dist };
+    setRemote, compactTile, merge, forEngine, withCore, lastResolve, synthHomes, demand, prepare, link, gather, closestPair, linkOf, touches, partOf, loadRoads, loadFirms, loadCity, cached, probe, dist };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = LMCity;

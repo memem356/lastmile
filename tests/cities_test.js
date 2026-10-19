@@ -506,5 +506,70 @@ const gridCore = () => {
       check('große Stadt: Firmen in Kacheln von 10000 m', keys.some(k => /^tile:rbig:f10000:/.test(k)), keys.join(' '));
     }
   }
+  // ---- Gemeinsamer Kartenspeicher (src/citystore.js) im Zusammenspiel mit dem Stadtlader ----
+  {
+    const DB = new Map(), dbCalls = [];
+    const fakeLMO = { state: () => ({ signedIn: true, hasProfile: true }), _db: async (m, p) => { throw new Error('ersetzt'); } };
+    const mkRemote = () => {
+      const lmo = { state: fakeLMO.state, _db: async (method, p, body) => {
+        dbCalls.push(method + ' ' + p); const mm = p.match(/^citystore\/([a-z])\/([^/]+)(\/v)?$/); const key = mm[1] + '/' + mm[2];
+        if (method === 'GET') { const r = DB.get(key); return r === undefined ? null : (mm[3] ? r.v : JSON.parse(JSON.stringify(r))); }
+        if (DB.has(key)) { const e = new Error('verweigert'); e.code = 'PERMISSION_DENIED'; throw e; }
+        DB.set(key, JSON.parse(JSON.stringify(body))); return body;
+      } };
+      return new Function('LMO', 'CompressionStream', 'DecompressionStream', src('citystore.js') + '\nreturn LMStore;')(lmo, CompressionStream, DecompressionStream);
+    };
+    const mkLC = () => {
+      const inst = new Function(code)(), mm = new Map(); inst.LM.sleep = () => Promise.resolve();
+      Object.assign(inst.LMCity.store, { get: async k => mm.has(k) ? mm.get(k) : null, put: async (k, v) => { mm.set(k, v); }, del: async k => { mm.delete(k); }, keys: async pf => [...mm.keys()].filter(k => k.startsWith(pf)) });
+      return { L: inst.LMCity, mm };
+    };
+    const quiet = () => new Promise(r => setTimeout(r, 120));
+    const place = { name: 'Teststadt A', lat: nlat(60), lon: nlon(60), place: 'city' };
+    // Spieler 1: lädt live, der Speicher bekommt die Pakete
+    const S1 = mkRemote(), P1 = mkLC(); P1.L.setRemote(S1);
+    world.calls.length = 0; const c1 = await P1.L.resolve(place), live1 = world.calls.length;
+    const pk1 = await P1.L.loadRoads(c1), fm1 = await P1.L.loadFirms(c1);
+    for (let i = 0; i < 40 && DB.size < 4; i++) await quiet();
+    check('Speicher: Spieler 1 lädt live (Abfragen nötig)', live1 > 0 && world.calls.length > live1);
+    check('Speicher: Stadtgrenze (Ortsschlüssel und Beziehungsnummer), Straßen und Firmen abgelegt', ['c/r111', 'c/pt_51_424_6_986', 'p/r111', 'f/r111'].every(k => DB.has(k)), [...DB.keys()].join());
+    check('Speicher: Einträge haben Format 2 und Namen', DB.get('p/r111').v === 2 && DB.get('p/r111').n === 'Teststadt A' && DB.get('f/r111').v === 2 && DB.get('c/r111').v === 2);
+    // Spieler 2: frischer Zwischenspeicher, kein einziger Zugriff auf Overpass oder Nominatim
+    const S2 = mkRemote(), P2 = mkLC(); P2.L.setRemote(S2); world.calls.length = 0;
+    const c2 = await P2.L.resolve(place), pk2 = await P2.L.loadRoads(c2), fm2 = await P2.L.loadFirms(c2);
+    check('Speicher: Spieler 2 braucht keine Abfrage an die Kartenserver', world.calls.length === 0, world.calls.length);
+    check('Speicher: Stadtgrenze gleich (Kennung, Fläche, Ringe)', c2.id === c1.id && Math.abs(c2.area - c1.area) < 1e-9 && c2.rings.length === c1.rings.length && c2.rings[0].every((v, i) => v === c1.rings[0][i]) && !c2.approx && P2.L.lastResolve.how === 'gemeinsamer Speicher', P2.L.lastResolve.how);
+    check('Speicher: Straßenpaket gleich (Knoten, Wege, Namen)', pk2.ids.length === pk1.ids.length && pk2.wc.length === pk1.wc.length && pk2.wi.length === pk1.wi.length && pk2.ids.every((v, i) => v === pk1.ids[i]) && pk2.wi.every((v, i) => v === pk1.wi[i]) && pk2.s.join() === pk1.s.join() && pk2.cityId === 'r111');
+    check('Speicher: Firmen gleich', fm2 && fm1 && fm2.length === fm1.length && JSON.stringify(fm2) === JSON.stringify(fm1) && fm2.length > 0, fm2 && fm2.length);
+    check('Speicher: Spieler 2 hat alles auch im eigenen Zwischenspeicher', P2.mm.has('pack:r111') && P2.mm.has('firms:r111') && P2.mm.has('city:r111') && await P2.L.cached('r111'));
+    check('Speicher: Spieler 2 legt nichts neu ab', S2.stats().up === 0 && S2.stats().hit === 3, JSON.stringify(S2.stats()));
+    // Das Paket aus dem Speicher ergibt dieselbe Karte wie das live geladene
+    const e1 = createEngine({ roads: P1.L.forEngine(pk1), ref: { lat: nlat(60), lon: nlon(60) }, hub: { lat: nlat(60), lon: nlon(60) }, pois: [], homes: [] }), e2 = createEngine({ roads: P2.L.forEngine(pk2), ref: { lat: nlat(60), lon: nlon(60) }, hub: { lat: nlat(60), lon: nlon(60) }, pois: [], homes: [] });
+    const hn = (e, i, jj) => { const q = e.proj(nlat(i), nlon(jj)); return e.hubNode('van', q.x, q.y); };
+    const ra = e1.returnLeg('van', hn(e1, 40, 40), hn(e1, 80, 80), 0), rb = e2.returnLeg('van', hn(e2, 40, 40), hn(e2, 80, 80), 0);
+    check('Speicher: Engine mit dem Paket aus dem Speicher: gleiche Knotenzahl und gleiche Route', e1.N === e2.N && e1.N > 8000 && ra && rb && ra.len === rb.len && ra.len > 500, e1.N + ' ' + e2.N + ' ' + (ra && ra.len) + ' ' + (rb && rb.len));
+    // Beschädigter Eintrag: live laden, nichts überschreiben
+    const bC = await P1.L.resolve({ name: 'Teststadt B', lat: nlat(60), lon: nlon(160), place: 'town' });
+    for (let i = 0; i < 30 && !DB.has('c/r222'); i++) await quiet();
+    DB.set('p/r222', { v: 2, t: 1, d: 'H4sIAAAAAAAAA' + 'x'.repeat(80) });
+    const S3 = mkRemote(), P3 = mkLC(); P3.L.setRemote(S3); world.calls.length = 0;
+    const c3 = await P3.L.resolve({ name: 'Teststadt B', lat: nlat(60), lon: nlon(160), place: 'town' }), pk3 = await P3.L.loadRoads(c3);
+    check('Speicher: kaputter Eintrag wird ignoriert, es wird live geladen', world.calls.length > 0 && pk3.ids.length > 8000 && pk3.cityId === 'r222' && S3.stats().bad === 1, JSON.stringify(S3.stats()));
+    const len0 = DB.get('p/r222').d.length; await quiet(); check('Speicher: kaputter Eintrag wird nicht überschrieben (einmal beschreibbar)', DB.get('p/r222').d.length === len0 && DB.get('p/r222').t === 1);
+    // Unplausible Grenze im Speicher (Ort liegt nicht darin): ignoriert
+    { const bogus = Object.assign({}, c1, { rings: [Int32Array.from([5100000, 600000, 5100000, 610000, 5110000, 610000, 5110000, 600000, 5100000, 600000])] });
+      DB.set('c/r111', { v: 2, t: 1, d: await S1.encode(bogus) }); DB.delete('c/pt_51_424_6_986');
+      const P4 = mkLC(), S4 = mkRemote(); P4.L.setRemote(S4); world.calls.length = 0; const c4 = await P4.L.resolve(Object.assign({ rel: 111 }, place));
+      check('Speicher: Grenze, die den Ort nicht enthält, wird verworfen (live bestimmt)', world.calls.length > 0 && P4.L.inRings(c4.rings, place.lat, place.lon) && P4.L.lastResolve.how !== 'gemeinsamer Speicher', P4.L.lastResolve.how); }
+    // Kreisnäherung und fehlende Verbindung: nichts wird geteilt
+    { const before = DB.size, P5 = mkLC(), S5 = mkRemote(); P5.L.setRemote(S5); world.offline = true;
+      const cX = await P5.L.resolve({ name: 'Irgendwo', lat: 52.5, lon: 13.4, place: 'city' }); world.offline = false; await quiet();
+      check('Speicher: Kreisnäherung wird nicht geteilt', cX.approx && DB.size === before, DB.size + ' ' + before); }
+    // ohne eingehängten Speicher bleibt alles wie vorher
+    { const P6 = mkLC(); world.calls.length = 0; const c6 = await P6.L.resolve(place); check('ohne Speicher: wie bisher (live)', world.calls.length > 0 && c6.id === 'r111'); }
+    // ein Speicher, der nur Fehler wirft, ändert nichts
+    { const P7 = mkLC(); P7.L.setRemote({ get: async () => { throw new Error('kaputt'); }, put: async () => { throw new Error('kaputt'); } });
+      const c7 = await P7.L.resolve(place), pk7 = await P7.L.loadRoads(c7); check('ohne Zugriff auf den Speicher: Fehler werden verschluckt, live geladen', c7.id === 'r111' && pk7.ids.length === pk1.ids.length); }
+  }
   console.log('\n' + ok + ' Prüfungen ok, ' + bad + ' Fehler'); process.exit(bad ? 1 : 0);
 })().catch(e => { console.log('FEHLER', e && e.stack || e); process.exit(1); });
