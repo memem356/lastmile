@@ -39,7 +39,7 @@ const LMC = (function () {
     if (!firm) { const r = rnd(); return r < 0.5 ? 1 : r < 0.8 ? 2 : r < 0.95 ? 3 : 4; }
     return 2 + Math.floor(rnd() * 6) + Math.floor(rnd() * 6);        // 2 bis 12, meist um 7
   }
-  const pay = (n, firm) => Math.round((firm ? 7 + 1.9 * n : 4 + 1.6 * n) * 10) / 10;
+  const pay = (n, firm) => Math.round((firm ? 8.5 + 1.9 * n : 5.5 + 1.6 * n) * 10) / 10;
   const dwell = (n, firm) => (firm ? 120 : 60) + 28 * n;              // Sekunden an der Tür
   const loadSec = n => 15 + 12 * n;                                  // Sekunden zum Beladen im Center
   // Note der Lieferung (1 bis 5). late: Sekunden nach dem Fensterende, negativ oder 0 = im Fenster.

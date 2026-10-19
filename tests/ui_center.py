@@ -333,7 +333,7 @@ async def main():
             ok('E13 Verfall: eigener Ruf des Centers sinkt, Kasse unberührt, Protokoll nennt es', e['rep1'] < e['rep0'] and abs(e['dc']) < 8 and 'verfallen' in e['log'] and 'Center 2' in e['log'], str(e)[:200])
             ok('E14 Ruf von Center 1 und das globale Ruf-System bleiben unverändert', await pg.evaluate("__lm.cen.centers()[0].rep") == 3)
             # Abwesenheit
-            await pg.evaluate("__lm.absence(0)")                        # Uhr wieder an die echte Weltzeit hängen (die Tests davor setzen eine falsche Uhrzeit)
+            await pg.evaluate("__lm.absence(0); __lm.cen.auto(false)")  # Uhr wieder an die echte Weltzeit hängen (die Tests davor setzen eine falsche Uhrzeit); kein Zulauf, kein Mindestbestand
             ab = await pg.evaluate("""()=>{ const o=__lm.cen.orders(); o.length=0; __lm.cen.centers()[1].drv[0].sick={left:500}; __lm.cen.spawn(1); __lm.cen.spawn(1);
               const x=__lm.cen.spawn(1); x.wh=[8,10]; x.day=Math.floor(__lm.cen.absT()/86400)-1; x.ws=__lm.cen.simOf(x.day,8); x.we=__lm.cen.simOf(x.day,10);
               const rep0=__lm.cen.centers()[1].rep, ex0=__lm.cen.stats.expired, oid=x.id; __lm.absence(60);
@@ -342,7 +342,7 @@ async def main():
             ok('E15b Was in der Abwesenheit verfallen wäre, entfällt ohne Abzug (Ruf und Verfälle unverändert)', ab['gone'] and ab['rep'] == 0 and ab['ex'] == 0, str(ab))
             rep0 = await pg.evaluate("__lm.cen.centers()[1].rep")
             await pg.evaluate("__lm.absence(300)")
-            ok('E16 Längere Abwesenheit: offene Center-Bestellungen entfallen ohne Abzug, Kranke sind gesund', await pg.evaluate("__lm.cen.orders().length") == 0 and await pg.evaluate("__lm.cen.centers()[1].rep") == rep0 and await pg.evaluate("__lm.cen.centers()[1].drv.every(d=>!d.sick)"))
+            ok('E16 Längere Abwesenheit (2,5 Spielstunden): offene Center-Bestellungen bleiben, nur Verfallenes entfällt ohne Abzug, Kranke sind gesund', await pg.evaluate("__lm.cen.orders().length") == 2 and await pg.evaluate("__lm.cen.centers()[1].rep") == rep0 and await pg.evaluate("__lm.cen.centers()[1].drv.every(d=>!d.sick)"))
             ok('E17 Ruf wurde auch durch die Abwesenheit nicht verändert, keine Verfälle', await pg.evaluate("__lm.cen.stats.expired") == 1)
             await pg.evaluate("__lm.cen.setView('cen'); __lm.world.setHour(10, 3)")
             ok('Z2 Keine Skriptfehler bis hier', not errs, str(errs[:3]))
@@ -463,6 +463,7 @@ async def main():
               os:__lm.cen.orders().map(o=>[o.id,o.c,o.firm,o.name,o.n,o.pay,o.day,o.wh.join('-'),Math.abs(o.ws-__lm.cen.simOf(o.day,o.wh[0]))<1,Math.abs(o.we-__lm.cen.simOf(o.day,o.wh[1]))<1,o.state]).sort(), vs:__lm.cen.vanSeq(), st:{n:__lm.cen.stats.n,o:__lm.cen.stats.ontime,l:__lm.cen.stats.late,e:__lm.cen.stats.expired}, hd:__lm.drivers().map(d=>d.id), v:Math.round(__lm.value())})"""
             before = await pg.evaluate(SNAP)
             nov = ovp['n']
+            await pg.add_init_script('window.__LM_NOAUTO = true')           # kein Zulauf und kein Mindestbestand nach dem Laden (die Zahlen sollen gleich bleiben)
             await pg.reload(); ok('G0 Neu geladen', await wait_app(pg))
             await pg.evaluate("__lm.cen.auto(false)")
             await pg.wait_for_timeout(1500)
@@ -474,13 +475,13 @@ async def main():
             ok('G4 Unternehmenswert unverändert', abs(bj['v'] - aj['v']) < 20, '%s %s' % (bj['v'], aj['v']))
             ok('G5 Ansicht und Umschalter nach dem Laden: Umschalter da', not await pg.evaluate("document.getElementById('viewSeg').hidden"))
             s5 = await pg.evaluate("(()=>{const s=__lm.save.snapshot(); return {v:s.v, c:s.centers.length, keys:Object.keys(s.centers[1]).sort().join(','), ko:s.corders.length, st:s.cstats}})()")
-            ok('G6 Spielstand hat Version 5 mit Centern (samt Städten), Center-Bestellungen und Zählern', s5['v'] == 5 and 'cities' in s5['keys'] and s5['c'] == 2 and s5['ko'] == 7 and s5['st']['n'] == 11, str(s5))
+            ok('G6 Spielstand hat Version 6 mit Centern (samt Städten), Center-Bestellungen und Zählern', s5['v'] == 6 and 'cities' in s5['keys'] and s5['c'] == 2 and s5['ko'] == 7 and s5['st']['n'] == 11, str(s5))
             # Alter Stand (v3) ohne Center
             mig = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=3; delete sv.centers; delete sv.corders; delete sv.vanSeq; delete sv.cstats;
               const n=__lm.save.normalizeSave(JSON.parse(JSON.stringify(sv))); return {v:n.v, from:n.from, c:n.centers.length, o:n.corders.length, vs:n.vanSeq, st:n.cstats, hubs:n.hubs.length, drivers:n.drivers.length} }""")
-            ok('G7 Alter Stand v3: wird zu v5 mit null Centern, Hubs und Fahrer bleiben', mig['v'] == 5 and mig['from'] == 3 and mig['c'] == 0 and mig['o'] == 0 and mig['vs'] == 1 and mig['st'] == {'n': 0, 'ontime': 0, 'late': 0, 'expired': 0, 'pay': 0} and mig['hubs'] >= 1 and mig['drivers'] >= 1, str(mig))
-            fut = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=6; try { __lm.save.normalizeSave(sv); return 'angenommen'; } catch(e) { return e.future ? 'future' : 'fehler'; } }""")
-            ok('G8 Version 6 wird als zu neu abgelehnt', fut == 'future', fut)
+            ok('G7 Alter Stand v3: wird zu v6 mit null Centern, Hubs und Fahrer bleiben', mig['v'] == 6 and mig['from'] == 3 and mig['c'] == 0 and mig['o'] == 0 and mig['vs'] == 1 and mig['st'] == {'n': 0, 'ontime': 0, 'late': 0, 'expired': 0, 'pay': 0} and mig['hubs'] >= 1 and mig['drivers'] >= 1, str(mig))
+            fut = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=7; try { __lm.save.normalizeSave(sv); return 'angenommen'; } catch(e) { return e.future ? 'future' : 'fehler'; } }""")
+            ok('G8 Version 7 wird als zu neu abgelehnt', fut == 'future', fut)
             # Beschädigte Center-Daten
             bad = await pg.evaluate("""()=>{ const sv=JSON.parse(JSON.stringify(__lm.save.snapshot())), hd=sv.drivers.map(d=>d.id);
               const c1=sv.centers[1]; c1.up={slots:99, stops:-4, zone:'x', nav:2.7, junk:5}; c1.rep=99;
@@ -542,7 +543,7 @@ async def main():
             await ctx5.route(re.compile(r'https://(overpass-api\.de|overpass\.private\.coffee|overpass\.kumi\.systems|maps\.mail\.ru)/.*'), overpass)
             pg5, errs5, st5 = await start_game(ctx5, 'Tim Handy', 'hy2@example.de'); ok('I0 Spiel am Handy startet', st5)
             await pg5.evaluate(POI_BUILD)
-            await pg5.evaluate("__lm.absence(0); __lm.cen.buyVan(0); __lm.cen.buyVan(0); __lm.cen.hire(0); __lm.cen.hire(0); __lm.cen.hire(0); for (let i=0;i<10;i++) __lm.cen.spawn(0)")
+            await pg5.evaluate("__lm.absence(0); __lm.cen.auto(false); __lm.cen.buyVan(0); __lm.cen.buyVan(0); __lm.cen.hire(0); __lm.cen.hire(0); __lm.cen.hire(0); for (let i=0;i<10;i++) __lm.cen.spawn(0)")
             await wait_for(pg5, "__lm.cen.firmState()==='ok'", 8000)
             await pg5.wait_for_timeout(500)
             g = await pg5.evaluate("""()=>{const r=document.getElementById('viewSeg').getBoundingClientRect(); return {l:r.left, r:r.right, vis:!document.getElementById('viewSeg').hidden, vw:innerWidth, docW:document.documentElement.scrollWidth}}""")

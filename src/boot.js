@@ -147,7 +147,7 @@
       if (my !== seq) return;
       if (pre.raw) {
         try { o = JSON.parse(pre.raw); } catch (e) { o = null; }
-        if (o && o.v > 5) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
+        if (o && o.v > 6) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
         if (!o || !(o.v >= 1) || !Array.isArray(o.drivers) || !o.drivers.length) throw new LMO.OErr('CORRUPT');
       }
     } catch (e) { if (my !== seq) return; console.error(e); failed(errMsg(e), again, back[0], back[1], e && e.code === 'CORRUPT'); return; }

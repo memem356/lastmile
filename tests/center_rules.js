@@ -87,6 +87,8 @@ function mkRnd(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 101
 }
 check('Lohn steigt mit der Menge', L.pay(1, false) < L.pay(4, false) && L.pay(2, true) < L.pay(12, true));
 check('Firma zahlt mehr als Privat bei gleicher Menge', L.pay(3, true) > L.pay(3, false));
+check('Vergütung: 1,50 € Aufschlag je Kunde (Privat 5,50 + 1,60 je Paket, Firma 8,50 + 1,90 je Paket)', L.pay(1, false) === 7.1 && L.pay(4, false) === 11.9 && L.pay(2, true) === 12.3 && L.pay(12, true) === 31.3, [L.pay(1, false), L.pay(4, false), L.pay(2, true), L.pay(12, true)].join(' '));
+check('Durchschnitt je Kunde liegt 1 bis 2 € über der alten Formel (privat 4 + 1,6 n, Firma 7 + 1,9 n)', [[1, false], [2, false], [3, false], [4, false], [2, true], [7, true], [12, true]].every(([n, f]) => { const d = L.pay(n, f) - (f ? 7 + 1.9 * n : 4 + 1.6 * n); return d > 1.4 && d < 1.6; }));
 check('Übergabe dauert mit mehr Paketen länger', L.dwell(1, false) < L.dwell(4, false) && L.dwell(2, true) < L.dwell(12, true));
 check('Firma braucht länger an der Tür', L.dwell(3, true) > L.dwell(3, false));
 check('Mehr Lohn heißt längere Übergabe (alle möglichen Stopps)', (() => { const all = []; for (let n = 1; n <= 4; n++) all.push([L.pay(n, false), L.dwell(n, false)]); for (let n = 2; n <= 12; n++) all.push([L.pay(n, true), L.dwell(n, true)]); for (const a of all) for (const b of all) if (a[0] > b[0] + 1e-9 && a[1] < b[1] - 1e-9) return false; return true; })());

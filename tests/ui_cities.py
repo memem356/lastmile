@@ -233,7 +233,7 @@ async def main():
 
             # ================= E: Spielstand v5, Altstand ohne Städte =================
             snap = await pg.evaluate("(()=>{const s=__lm.save.snapshot(); return {v:s.v, cities:s.centers[0].cities, keys:Object.keys(s.centers[0].cities[0])}})()")
-            ok('E1 Spielstand v5: Center nennt seine Städte (Kennung, Name, Lage, Relation, Einwohner)', snap['v'] == 5 and [c['name'] for c in snap['cities']] == ['Teststadt', 'Südstadt'] and set(snap['keys']) >= {'id', 'name', 'lat', 'lon', 'rel', 'pop', 'ap'}, str(snap))
+            ok('E1 Spielstand v6: Center nennt seine Städte (Kennung, Name, Lage, Relation, Einwohner)', snap['v'] == 6 and [c['name'] for c in snap['cities']] == ['Teststadt', 'Südstadt'] and set(snap['keys']) >= {'id', 'name', 'lat', 'lon', 'rel', 'pop', 'ap'}, str(snap))
             ok('E2 Center im Spielstand klein (keine Polygone, Straßen oder Kunden): unter 3.000 Zeichen', await pg.evaluate("JSON.stringify(__lm.save.snapshot().centers).length") < 3000, await pg.evaluate("JSON.stringify(__lm.save.snapshot().centers).length"))
             # Stand in der Cloud ohne Städte (Version 4), Kopie auf dem Gerät mit Städten (Version 5, neuer): beide Städte werden geladen
             PATCH = """()=>{const orig = LMO.company.push; LMO.company.push = (slot, sess, raw, ...rest) => { const o = JSON.parse(raw); o.v = 4; o.centers.forEach(c => { delete c.cities; }); return orig(slot, sess, JSON.stringify(o), ...rest); }}"""

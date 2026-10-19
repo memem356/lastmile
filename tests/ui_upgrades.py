@@ -266,17 +266,17 @@ async def main():
             await pg.wait_for_timeout(800)
             after = await pg.evaluate(SNAP)
             ok('F1 Stufen je Hub und Spiel-Käufe überstehen das Neuladen', before == after, before + ' | ' + after)
-            ok('F2 Spielstand hat Version 5 mit Stufen je Hub', await pg.evaluate("(()=>{const s=__lm.save.snapshot(); return s.v===5 && !('hubLevel' in s) && !('zoneLevel' in s) && s.hubs.every(h=>h.up&&typeof h.up==='object') })()"))
+            ok('F2 Spielstand hat Version 6 mit Stufen je Hub', await pg.evaluate("(()=>{const s=__lm.save.snapshot(); return s.v===6 && !('hubLevel' in s) && !('zoneLevel' in s) && s.hubs.every(h=>h.up&&typeof h.up==='object') })()"))
             mig = await pg.evaluate("""()=>{
               const sv=__lm.save.snapshot(); sv.v=2; sv.hubLevel=1; sv.zoneLevel=1; sv.owned={dispatch:true, boxes:true, nav1:true, nav2:true, motor:true}; for (const h of sv.hubs) delete h.up;
               const n=__lm.save.normalizeSave(JSON.parse(JSON.stringify(sv)));
               return {hubs:n.hubs.map(h=>h.up), owned:Object.keys(n.owned).sort(), v:n.v, from:n.from}}""")
-            ok('F3 Alter Stand (v2): Plätze, Gebiet und Ausstattung gelten danach in allen Hubs', mig['hubs'] == [{'cap': 1, 'zone': 1, 'nav': 2, 'motor': 1, 'boxes': 1}] * 2 and mig['v'] == 5 and mig['from'] == 2, str(mig))
+            ok('F3 Alter Stand (v2): Plätze, Gebiet und Ausstattung gelten danach in allen Hubs', mig['hubs'] == [{'cap': 1, 'zone': 1, 'nav': 2, 'motor': 1, 'boxes': 1}] * 2 and mig['v'] == 6 and mig['from'] == 2, str(mig))
             ok('F4 Alter Stand: nur Disposition bleibt im Spiel-Bestand', mig['owned'] == ['dispatch'], str(mig['owned']))
             mig2 = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.hubs[0].up={cap:9,nav:7,zone:-3,motor:2,boxes:'x',zzz:1};
               return __lm.save.normalizeSave(JSON.parse(JSON.stringify(sv))).hubs[0].up }""")
             ok('F5 Ungültige Stufen werden begrenzt (cap 2, nav 3, motor 1)', mig2 == {'cap': 2, 'nav': 3, 'motor': 1}, str(mig2))
-            fut = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=6; try { __lm.save.normalizeSave(sv); return 'angenommen'; } catch(e) { return e.future ? 'future' : 'fehler'; } }""")
+            fut = await pg.evaluate("""()=>{ const sv=__lm.save.snapshot(); sv.v=7; try { __lm.save.normalizeSave(sv); return 'angenommen'; } catch(e) { return e.future ? 'future' : 'fehler'; } }""")
             ok('F6 Spielstand einer neueren Version wird abgelehnt', fut == 'future', fut)
             # Umgewandelten alten Stand wirklich anwenden
             app = await pg.evaluate("""()=>{

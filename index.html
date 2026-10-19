@@ -2244,7 +2244,7 @@ const LMC = (function () {
     if (!firm) { const r = rnd(); return r < 0.5 ? 1 : r < 0.8 ? 2 : r < 0.95 ? 3 : 4; }
     return 2 + Math.floor(rnd() * 6) + Math.floor(rnd() * 6);        // 2 bis 12, meist um 7
   }
-  const pay = (n, firm) => Math.round((firm ? 7 + 1.9 * n : 4 + 1.6 * n) * 10) / 10;
+  const pay = (n, firm) => Math.round((firm ? 8.5 + 1.9 * n : 5.5 + 1.6 * n) * 10) / 10;
   const dwell = (n, firm) => (firm ? 120 : 60) + 28 * n;              // Sekunden an der Tür
   const loadSec = n => 15 + 12 * n;                                  // Sekunden zum Beladen im Center
   // Note der Lieferung (1 bis 5). late: Sekunden nach dem Fensterende, negativ oder 0 = im Fenster.
@@ -3505,7 +3505,7 @@ function startGame(DATA, MODEKEY, PRE) {
     spawnMean: 420, spawnMin: 40, maxOpen: 8, firstOrders: 2,
     xpNeed: [0, 4, 10, 20, 34], lvlSpeed: 0.04, trainCost: l => 80 * l,
     // Fulfillment Center: Bau, Transporter, Fahrerpool (Stellplätze + pool), Bestellungen je Transporter und Tag, Anteil Firmenkunden, Mindestabstand zum Kunden (m)
-    cen: { build: 5000, gap: 250, van: 600, vanSell: 0.5, hire: 40, pool: 2, perVan: 14, firmShare: 0.3, minDist: 120, presP: 0.5, presF: 0.7, capVan: 40, capAll: 700,
+    cen: { build: 5000, gap: 250, van: 600, vanSell: 0.5, hire: 40, pool: 2, perVan: 14, firmShare: 0.3, minDist: 120, presP: 0.5, presF: 0.7, capVan: 40, capAll: 700, stockDays: 1.5, stockMin: 12, stockAge: 5,
       maxCities: 6, cityCost: [3000, 6000, 10000, 15000, 22000], nearKm: 45, nearShow: 9, farKm: 600, fitKm: 150, maxNodes: 1200000,     // Städte eines Centers: die erste gehört zum Bau, jede weitere kostet nach Reihenfolge
       slots: [4, 6, 8, 10, 12, 14, 16, 18, 20], slotCost: [800, 1100, 1500, 2000, 2600, 3300, 4100, 5000],
       stops: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], stopCost: [300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200], xp: [0, 10, 25, 50, 85] }
@@ -3541,6 +3541,9 @@ function startGame(DATA, MODEKEY, PRE) {
   const fmtDist = m => m < 1000 ? Math.round(m).toLocaleString('de-DE') + ' m' : nf(2).format(m / 1000) + ' km';
   const fmtMin = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   let START = 0;
+  // Schnellvorlauf (Abwesenheit): keine Meldungen im Protokoll, kein Ton, keine Abwertung für Verfall. QLOG sammelt die Meldungen für den Willkommens-Dialog.
+  let QUIET = false, QLOG = [];
+  const FF = { noStart: false, noSpawn: false };          // Nachlauf: keine neuen Touren und keine neuen Bestellungen
   // Sekunden seit Freitag 00:00 (Wochentag-Index 0 = Fr) in der Ortszeit der Stadt
   function localSecs() {
     const now = new Date();
@@ -4944,9 +4947,14 @@ function startGame(DATA, MODEKEY, PRE) {
   const cenCap = ci => Math.min(CFG.cen.capVan * centers[ci].vans.length, Math.floor(CFG.cen.capAll / centers.length));
   const cenFull = ci => { let m = 0; for (const o of corders) if (o.c === ci && (o.state === 'open' || o.state === 'tour')) m++; return m >= cenCap(ci); };
   const cenName = i => 'Center ' + (i + 1);
+  // Bestellungen pro Tag, die ein Center bekommt (Transporter und Ansehen, begrenzt durch die Nachfrage der Städte)
+  const cenPerDay = c => Math.min(CFG.cen.perVan * c.vans.length * (0.5 + 0.17 * c.rep), cenDemand(c)) * MODE.demand;
+  // Mindestbestand: etwa anderthalb Tage Zulauf (mindestens 12), nie mehr als das Limit des Centers
+  const stockTarget = ci => Math.max(0, Math.min(cenCap(ci), Math.max(CFG.cen.stockMin, Math.round(CFG.cen.stockDays * cenPerDay(centers[ci])))));
+  const stockHave = ci => { let m = 0; for (const o of corders) if (o.c === ci && o.state === 'open' && simClock <= o.we + LMC.EXPIRE) m++; return m; };
   const cRate = (c, score, w) => { c.rep += (score - c.rep) * w; };
   const dayL = ['Freitag', 'Samstag', 'Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag'];
-  let cenStruct = true, cenOrdersDirty = true, cFire = null, cenAuto = true;          // cenAuto: nur für Tests abschaltbar
+  let cenStruct = true, cenOrdersDirty = true, cFire = null, cenAuto = !window.__LM_NOAUTO;          // cenAuto (Zulauf und Mindestbestand): nur für Tests abschaltbar, auch schon vor dem Start (window.__LM_NOAUTO)
   const simOf = (day, hour) => day * 86400 + hour * 3600 - START;     // Tag-Nummer und Uhrzeit -> Spielsekunden
   // Fenster hängen an Tag und Uhrzeit: nach jeder Verschiebung der Uhr (Laden, Abwesenheit) neu in Spielsekunden umrechnen
   function refitCenterOrders() { for (const o of corders) { o.ws = simOf(o.day, o.wh[0]); o.we = simOf(o.day, o.wh[1]); } cenOrdersDirty = true; dirty = true; }
@@ -5076,7 +5084,7 @@ function startGame(DATA, MODEKEY, PRE) {
     return c;
   }
   // Neue Bestellung: Privatperson oder Firma, Menge, Lohn, Wunschfenster (2 oder 4 Stunden zwischen 7 und 22 Uhr, an einem Liefertag)
-  function spawnCenterOrder(ci, want) {                              // want: 'firm' oder 'private' (für Tests)
+  function spawnCenterOrder(ci, want, age) {                         // want: 'firm' oder 'private' (für Tests); age: Sekunden, die die Bestellung schon vorliegt (Mindestbestand)
     const c = centers[ci]; if (!c) return null; cenZone(c);
     const pool = c.zc.filter(q => want === 'firm' ? q.f.length : want === 'private' ? q.h.length : q.f.length || q.h.length);
     if (!pool.length) return null;
@@ -5089,7 +5097,7 @@ function startGame(DATA, MODEKEY, PRE) {
     else { const hm = z.h[Math.floor(Math.random() * z.h.length)]; cu = { x: hm.x, y: hm.y, node: homeNode(hm), name: '', street: hm.street || '', kind: -1 }; }
     const w = LMC.planWindow(Math.random, absT(), firm), n = LMC.parcels(Math.random, firm);
     const o = { id: orderSeq++, c: ci, firm, kind: cu.kind, name: cu.name, street: cu.street, x: cu.x, y: cu.y, node: cu.node, n,
-      pay: Math.round(LMC.pay(n, firm) * MODE.pay * 10) / 10, created: absT(), pres: Math.random() < (firm ? CFG.cen.presF : CFG.cen.presP), day: w.day, wh: [w.ws, w.we], ws: simOf(w.day, w.ws), we: simOf(w.day, w.we), state: 'open' };
+      pay: Math.round(LMC.pay(n, firm) * MODE.pay * 10) / 10, created: absT() - (age || 0), pres: Math.random() < (firm ? CFG.cen.presF : CFG.cen.presP), day: w.day, wh: [w.ws, w.we], ws: simOf(w.day, w.ws), we: simOf(w.day, w.we), state: 'open' };
     corders.push(o); cenOrdersDirty = true; dirty = true;
     return o;
   }
@@ -5099,8 +5107,9 @@ function startGame(DATA, MODEKEY, PRE) {
     for (const o of corders) {
       if ((o.state !== 'open' && o.state !== 'tour') || simClock <= o.we + LMC.EXPIRE) continue;
       if (o.state === 'tour') { const T = tourOf(o); if (T && (T.st === 'door' || T.st === 'wait') && T.stops[T.i] === o.id) continue; dropFromTour(o); }
-      o.state = 'expired'; any = true; cstats.expired++;
-      const c = centers[o.c]; if (c) cRate(c, 1, Math.max(MODE.repC, MODE.repW) * 1.5);
+      o.state = 'expired'; any = true;
+      if (QUIET) FFREP.expired++;                                // Abwesenheit: kein Abzug für Bestellungen, die der Spieler nicht planen konnte
+      else { cstats.expired++; const c = centers[o.c]; if (c) cRate(c, 1, Math.max(MODE.repC, MODE.repW) * 1.5); }
       if (csel.order === o.id) csel.order = null;
       log(cenName(o.c) + ': Bestellung #' + o.id + ' verfallen (Fenster ' + LMC.winLabel(o.wh[0], o.wh[1]) + ' vorbei), kein Lohn', true);
     }
@@ -5119,16 +5128,63 @@ function startGame(DATA, MODEKEY, PRE) {
         }
       }
       tickTours(c, i, adv);
-      if (cenAuto && cenReady(c) && Math.random() < 1 - Math.exp(-adv * LMC.ratePerSec(Math.min(CFG.cen.perVan * c.vans.length * (0.5 + 0.17 * c.rep), cenDemand(c)) * MODE.demand, h)) && !cenFull(i)) spawnCenterOrder(i);
+      if (cenAuto && !FF.noSpawn && cenReady(c) && Math.random() < 1 - Math.exp(-adv * LMC.ratePerSec(cenPerDay(c), h)) && !cenFull(i)) spawnCenterOrder(i);
     });
     expireCenter();
+  }
+
+  // Mindestbestand auffüllen (nach Start, Abwesenheit, Bau oder dem ersten Transporter): nur so viele neue Bestellungen, wie bis zum Soll fehlen.
+  // Sie liegen schon einige Stunden vor (created), die Fenster liegen heute bis übermorgen.
+  function topUpStock(ci) {
+    const c = centers[ci]; if (!c || !cenAuto || !cenReady(c)) return 0;
+    const want = stockTarget(ci); let made = 0;
+    for (let have = stockHave(ci); have + made < want && !cenFull(ci); made++) if (!spawnCenterOrder(ci, undefined, Math.random() * CFG.cen.stockAge * 3600)) break;
+    return made;
+  }
+  const topUpAll = () => { let n = 0; for (let i = 0; i < centers.length; i++) n += topUpStock(i); return n; };
+
+  // Abwesenheit der Center: Zulauf, Touren und Verfall laufen im Schnellvorlauf mit den normalen Regeln weiter, nur ohne Meldungen und Ton, und ohne Abzug für
+  // verfallene Bestellungen. anchor(t0) stellt die Uhr auf den Beginn der Abwesenheit. Ist die Abwesenheit länger als angerechnet (capped), springt die Uhr danach
+  // vor: dann werden noch laufende Touren im Nachlauf beendet (ohne neue Bestellungen und Touren).
+  let FFREP = { orders: 0, tours: 0, deliv: 0, pay: 0, late: 0, expired: 0, cancelled: 0, cost: 0, lines: [] };
+  function centerAbsence(eff, anchor, capped) {
+    FFREP = { orders: 0, tours: 0, deliv: 0, pay: 0, late: 0, expired: 0, cancelled: 0, cost: 0, lines: [] };
+    const rep = FFREP; if (!centers.length || !(eff > 0)) return rep;
+    const t0 = simClock, st0 = START, w0 = WORLD.t0, o0 = orderSeq, c0 = Object.assign({}, cstats), k0 = stats.wage + bill.wage + stats.cost + bill.veh, cash0 = cash;
+    QUIET = true; QLOG = [];
+    try {
+      anchor(t0); refitCenterOrders(); bill.hr = Math.floor(absT() / 3600);
+      centers.forEach((c, ci) => { for (const T of c.tours.slice()) if (T.st === 'plan' && LMC.loadA(T.day, T.k) < absT() - 1) cancelAuto(c, ci, T, 'du warst nicht da'); });
+      const active = () => centers.some(c => c.tours.some(T => T.st !== 'plan'));
+      const busy = () => centers.some(c => c.tours.some(T => T.st !== 'plan' || LMC.loadA(T.day, T.k) - absT() < 900));
+      let lastTr = -1e9;
+      const run = (limit, over) => {
+        for (let t = 0; t < limit;) {
+          if (over && !active()) break;
+          const adv = Math.min(limit - t, busy() ? 10 : 60); t += adv; simClock += adv;
+          if (simClock - lastTr >= 600 && active()) { lastTr = simClock; refreshTraffic(true); }       // Verkehr zur jeweiligen Uhrzeit, solange Touren fahren
+          tickCenters(adv);
+          const hr = Math.floor(absT() / 3600); if (hr > bill.hr) { bill.hr = hr; chargeBill(); }
+        }
+      };
+      run(eff, false);
+      if (capped) { FF.noStart = FF.noSpawn = true; run(12 * 3600, true); }
+    } finally {
+      QUIET = false; FF.noStart = FF.noSpawn = false; simClock = t0; START = st0; WORLD.t0 = w0;
+    }
+    cash = Math.max(cash, Math.min(cash0, 0));
+    rep.orders = orderSeq - o0; rep.deliv = cstats.n - c0.n; rep.pay = cstats.pay - c0.pay; rep.late = cstats.late - c0.late;
+    rep.cost = stats.wage + bill.wage + stats.cost + bill.veh - k0;
+    rep.lines = QLOG.filter(l => /: Tour .*(zurück im Center|fällt aus|abgebrochen|entfällt)/.test(l));
+    cenOrdersDirty = cenStruct = true; dirty = true;
+    return rep;
   }
 
   // Transporter und Fahrer
   function buyVan(ci) {
     const c = centers[ci]; if (!c || c.vans.length >= cSlots(c) || cash < CFG.cen.van) return false;
     spend('hire', CFG.cen.van); const v = { id: vanSeq++ }; c.vans.push(v);
-    log(cenName(ci) + ': Transporter ' + v.id + ' gekauft, ' + seur(-CFG.cen.van), true); cenStruct = true; dirty = true; return true;
+    log(cenName(ci) + ': Transporter ' + v.id + ' gekauft, ' + seur(-CFG.cen.van), true); topUpStock(ci); cenStruct = true; dirty = true; return true;
   }
   function sellVan(ci, id) {
     const c = centers[ci], k = c ? c.vans.findIndex(v => v.id === id) : -1; if (k < 0 || c.vans[k].tour || vanReserved(c, id)) return false;
@@ -5140,7 +5196,7 @@ function startGame(DATA, MODEKEY, PRE) {
     const c = centers[ci]; if (!c || c.drv.length >= cPool(c) || cash < CFG.cen.hire) return null;
     spend('hire', CFG.cen.hire);
     const d = { id: driverSeq++, lvl: 1, done: 0, earn: 0, sick: null, train: null, tour: null }; c.drv.push(d);
-    log(cenName(ci) + ': Fahrer ' + d.id + ' eingestellt, ' + seur(-CFG.cen.hire), true); cenStruct = true; dirty = true; return d;
+    log(cenName(ci) + ': Fahrer ' + d.id + ' eingestellt, ' + seur(-CFG.cen.hire), true); topUpStock(ci); cenStruct = true; dirty = true; return d;
   }
   const canFireC = (c, d) => !d.tour && !d.train && !drvReserved(c, d.id);
   function fireCenDriver(ci, id) {
@@ -5256,11 +5312,12 @@ function startGame(DATA, MODEKEY, PRE) {
   function endTour(c, ci, T, why) {
     const v = tVan(c, T), d = tDrv(c, T); if (v) v.tour = null; if (d) d.tour = null;
     if (!dropTour(c, T)) return;
+    if (QUIET) FFREP.tours++;
     cenStruct = cenOrdersDirty = true; dirty = true;
     if (why) log(cenName(ci) + ': ' + why, true);
   }
   function cancelAuto(c, ci, T, why) {                      // geplante Tour fällt aus: Bestellungen sind wieder frei
-    releaseOrders(T); dropTour(c, T); cenStruct = cenOrdersDirty = true; dirty = true;
+    FFREP.cancelled++; releaseOrders(T); dropTour(c, T); cenStruct = cenOrdersDirty = true; dirty = true;
     log(cenName(ci) + ': Tour ' + LMC.hm(LMC.DEP[T.k]) + ' fällt aus (' + why + '), ' + T.stops.length + ' Bestellungen sind wieder frei', true);
   }
   function beginTour(c, ci, T) {
@@ -5326,7 +5383,7 @@ function startGame(DATA, MODEKEY, PRE) {
   function tickTours(c, ci, adv) {
     for (const T of c.tours.slice()) {
       const now = absT();
-      if (T.st === 'plan') { if (now >= LMC.loadA(T.day, T.k)) beginTour(c, ci, T); continue; }
+      if (T.st === 'plan') { if (now >= LMC.loadA(T.day, T.k) && !FF.noStart) beginTour(c, ci, T); continue; }
       const d = tDrv(c, T); if (d) bill.wage += wageOf({ veh: 'van', lvl: d.lvl }) * adv / 3600;     // Lohn nur von Beladebeginn bis Rückkehr
       if ((T.st === 'drive' || T.st === 'back') && T.lt < 0) { if (T.st === 'back') startLeg(c, T, c.node); else nextStop(c, ci, T); }     // nach dem Laden: Strecke neu berechnen
       if (T.stall) { T.stall.left -= adv; if (T.stall.left <= 0) { log(cenName(ci) + ': Transporter ' + T.van + ': ' + T.stall.kind + ' behoben, weiter geht es'); T.stall = null; cenStruct = true; } }
@@ -5350,21 +5407,6 @@ function startGame(DATA, MODEKEY, PRE) {
     else if (j === T.i && (T.st === 'drive' || T.st === 'wait' || T.st === 'door')) { T.node = tourNode(T); T.leg = null; T.lt = 0; nextStop(c, o.c, T); }
     cenStruct = true;
   }
-  // Abwesenheit: laufende Touren werden zu Ende geführt (voller Lohn, ohne Abzüge), geplante, die inzwischen beginnen müssten, fallen aus
-  function absenceTours(eff, a0) {
-    centers.forEach((c, ci) => {
-      for (const T of c.tours.slice()) {
-        if (T.st === 'plan') { if (LMC.loadA(T.day, T.k) < a0 + eff) cancelAuto(c, ci, T, 'du warst nicht da'); continue; }
-        const d = tDrv(c, T); let tot = 0;
-        for (const id of T.stops.slice(T.i)) { const o = orderById2(id); if (!o || o.state !== 'tour') continue; cash += o.pay; histAdd(o.pay, 0); cstats.n++; cstats.ontime++; cstats.pay += o.pay; tot += o.pay; o.state = 'delivered'; if (d) { d.done++; d.earn = (d.earn || 0) + o.pay; while (d.lvl < 5 && d.done >= CFG.cen.xp[d.lvl]) d.lvl++; } }
-        corders = corders.filter(o => o.state !== 'delivered');
-        const wage = wageOf({ veh: 'van', lvl: d ? d.lvl : 1 }) * Math.min(eff, Math.max(0, (T.est || a0) - a0)) / 3600; cash -= wage; stats.wage += wage;
-        endTour(c, ci, T, 'Tour ' + LMC.hm(LMC.DEP[T.k]) + ' ist in deiner Abwesenheit zu Ende gegangen, ' + seur(tot) + ' Lohn, Fahrerlohn ' + eur(wage));
-      }
-    });
-    cenOrdersDirty = cenStruct = true;
-  }
-
   // Ansicht: Lieferdienst (Hubs) oder Fulfillment (Center)
   function setView(v) {
     if (v === 'cen' && !centers.length && placing !== 'cen') v = 'hq';
@@ -6073,6 +6115,7 @@ function startGame(DATA, MODEKEY, PRE) {
 
   // ---------- Protokoll ----------
   function log(text, hl) {
+    if (QUIET) { QLOG.push(text); return; }
     const li = document.createElement('li'); if (hl) li.className = 'hl';
     const t = document.createElement('time'); t.textContent = fmtClock(simClock);
     const s = document.createElement('span'); s.textContent = text; li.append(t, s);
@@ -6264,6 +6307,7 @@ function startGame(DATA, MODEKEY, PRE) {
     }
   }
   function toast(title, text) {
+    if (QUIET) return;
     const t = document.createElement('div'); t.className = 'toast';
     const b = document.createElement('b'); b.textContent = title; t.appendChild(b);
     if (text) t.appendChild(document.createTextNode(text));
@@ -6275,7 +6319,7 @@ function startGame(DATA, MODEKEY, PRE) {
   let sndOn = true, AC = null; const sndLast = {};
   try { sndOn = localStorage.getItem('lm-snd') !== '0'; } catch (e) {}
   function sfx(kind) {
-    if (!sndOn) return;
+    if (!sndOn || QUIET) return;
     const nowMs = performance.now(); if (nowMs - (sndLast[kind] || -1e9) < 350) return; sndLast[kind] = nowMs;
     try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) { return; }
     const t0 = AC.currentTime;
@@ -6418,7 +6462,7 @@ function startGame(DATA, MODEKEY, PRE) {
   // ---------- Speichern und Laden ----------
   // Online liegt der maßgebliche Stand in der Cloud; auf dem Gerät bleibt nur eine Kopie (nie in der Liste „Weiter spielen“)
   const SAVEKEY = ONLINE ? 'lm.osave.' + (LMO.state().uid || 'x') + '.' + CK : 'lm.save.' + DATA.ref.lat.toFixed(3) + ',' + DATA.ref.lon.toFixed(3) + '.' + MODEKEY;
-  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 5, BUILD = '2026-10-18';
+  const BAKKEY = SAVEKEY + '.bak', SAVE_V = 6, BUILD = '2026-10-19';
   let noSave = false, saveCount = 0;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsKeys = pre => { const r = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) r.push(k); } } catch (e) {} return r; };
@@ -6526,7 +6570,7 @@ function startGame(DATA, MODEKEY, PRE) {
     n.corders = arr(sv.corders).filter(o => isObj(o) && Number.isInteger(o.id) && cmap.has(o.c) && isFinite(o.x) && isFinite(o.y) && Number.isInteger(o.day)
       && ['created', 'ws', 'we', 'pay'].every(k => isFinite(o[k])) && Array.isArray(o.wh) && o.wh.length === 2 && isFinite(o.wh[0]) && isFinite(o.wh[1]) && (o.state === 'open' || o.state === 'tour')).slice(0, 3000).map(o => ({
       id: o.id, c: cmap.get(o.c), firm: !!o.firm, pres: !!o.pres, kind: Math.round(num(o.kind, -1, -1, 4)), name: String(o.name || '').slice(0, 80), street: String(o.street || '').slice(0, 80), x: o.x, y: o.y, nd: o.nd,
-      n: Math.round(num(o.n, 1, 1, 30)), pay: num(o.pay, 0, 0), created: o.created, day: o.day, wh: [num(o.wh[0], 7, 0, 24), num(o.wh[1], 9, 0, 24)], ws: o.ws, we: o.we, state: o.state }));
+      n: Math.round(num(o.n, 1, 1, 30)), pay: sv.v < 6 ? Math.round((num(o.pay, 0, 0) + 1.5 * MODE.pay) * 10) / 10 : num(o.pay, 0, 0), created: o.created, day: o.day, wh: [num(o.wh[0], 7, 0, 24), num(o.wh[1], 9, 0, 24)], ws: o.ws, we: o.we, state: o.state }));
     n.vanSeq = Math.max(Math.round(num(sv.vanSeq, 1, 1)), maxVan + 1);
     // Touren: nur mit vorhandenem Transporter und Fahrer; Bestellungen müssen zur Tour gehören, sonst sind sie wieder frei
     { const TS = ['plan', 'load', 'drive', 'wait', 'door', 'back', 'unload'], tseen = new Set(), claimed = new Map(); let maxT = 0;
@@ -6776,19 +6820,21 @@ function startGame(DATA, MODEKEY, PRE) {
       for (const d of act) { d.done += Math.floor(n / act.length); while (d.lvl < 5 && d.done >= CFG.xpNeed[d.lvl]) d.lvl++; }
       Object.assign(rpt, { worked: true, n, net: gain - wages, wages });
     }
-    absenceTours(eff, absT());
+    const capped = ONLINE && away > LMO.world.maxAway, cen = centerAbsence(eff, anchor, capped);
     simClock += eff; lastSpawnT = simClock - CFG.spawnMin;
     for (const o of orders) if (o.state === 'assigned' || (keepOpen && o.state === 'open')) o.createdAt += eff;
     orders = orders.filter(o => o.state !== 'open' || keepOpen);
     for (const d of drivers) { d.sick = null; d.stall = null; }
-    // Center: keine neuen Bestellungen während der Abwesenheit, offene Bestellungen fallen weg (ohne Abzug), Kranke sind gesund
-    if (!keepOpen) corders = corders.filter(o => o.state !== 'open');
+    // Center: Bestellungen bleiben (siehe centerAbsence), Kranke sind gesund
     for (const c of centers) for (const d of c.drv) d.sick = null;
     cenOrdersDirty = cenStruct = true;
-    // Online läuft die Welt ohne das Unternehmen weiter: die Weltzeit wird neu an die Serverzeit gehängt
-    if (ONLINE) { WORLD.t0 = LMO.world.gameNow() - simClock; realign(); bill.hr = Math.floor((simClock + START) / 3600); }
-    // Zeitfenster bleiben an ihrer Uhrzeit; was in der Abwesenheit verfallen wäre, entfällt ohne Abzug
+    // Online läuft die Welt ohne das Unternehmen weiter: die Weltzeit wird neu an die Serverzeit gehängt. Solo zeigt die Uhr wieder die Ortszeit.
+    if (ONLINE) WORLD.t0 = LMO.world.gameNow() - simClock;
+    realign(); bill.hr = Math.floor((simClock + START) / 3600);
+    // Zeitfenster bleiben an ihrer Uhrzeit; was verfallen ist, entfällt ohne Abzug. Geplante Touren, die in der nicht angerechneten Zeit beginnen sollten, fallen aus.
     refitCenterOrders(); corders = corders.filter(o => o.state !== 'open' || o.we + LMC.EXPIRE > simClock);
+    if (capped) centers.forEach((c, ci) => { for (const T of c.tours.slice()) if (T.st === 'plan' && LMC.loadA(T.day, T.k) < absT()) cancelAuto(c, ci, T, 'du warst nicht da'); });
+    cen.stock = topUpAll(); refreshTraffic(true); rpt.cen = Object.assign({}, cen);
     events = []; tevents = []; syncWeather(true); teScan = worldT() - LOOKBACK; scanWorldEvents(worldT(), true); plansDirty = orderStructDirty = driverStructDirty = true;
     return rpt;
   }
@@ -6814,11 +6860,21 @@ function startGame(DATA, MODEKEY, PRE) {
     openDlg('Willkommen zurück', b => {
       b.appendChild(mk('p', 'big', 'Du warst ' + t + ' weg' + (r.capped ? ' (angerechnet wird höchstens ' + (ONLINE ? '1 Stunde' : '4 Stunden') + ')' : '') + '.'));
       if (ONLINE) b.appendChild(mk('p', null, 'In der Spielwelt sind in dieser Zeit ' + (r.gameH < 10 ? String(Math.round(r.gameH * 10) / 10).replace('.', ',') : Math.round(r.gameH)) + ' Stunden vergangen.'));
+      const cn = r.cen, cenAct = !!(cn && centers.length && (cn.orders || cn.deliv || cn.tours || cn.cancelled || cn.expired));
       if (r.worked) {
         b.appendChild(mk('p', 'big', 'Deine Auto-Disposition hat in der Zeit ca. ' + r.n + ' Bestellungen ausgeliefert. Nach Abzug der Löhne (' + eur(r.wages) + ') bleiben ' + seur(r.net) + '.'));
-      } else {
+      } else if (!cenAct) {
         b.appendChild(mk('p', 'big', 'Dein Betrieb hat geruht, es wurde nichts ausgeliefert und kein Lohn gezahlt.'));
         b.appendChild(mk('p', null, 'Mit der Dispositions-Software (Verbesserungen, Reiter „Spiel“) und eingeschalteter Auto-Disposition arbeitet dein Betrieb auch in deiner Abwesenheit weiter.'));
+      }
+      if (cenAct) {
+        const nOpen = corders.filter(o => o.state === 'open').length, parts = [];
+        if (cn.orders) parts.push(cn.orders + (cn.orders === 1 ? ' neue Bestellung' : ' neue Bestellungen') + ' eingegangen');
+        if (cn.expired) parts.push(cn.expired + ' ohne Abzug verfallen');
+        b.appendChild(mk('p', 'big', 'Fulfillment: ' + (parts.length ? parts.join(', ') : 'keine neuen Bestellungen') + '. Jetzt warten ' + nOpen + ' offene Bestellungen auf dich.'));
+        if (cn.tours || cn.deliv) b.appendChild(mk('p', null, (cn.tours === 1 ? 'Eine geplante Tour ist' : cn.tours + ' geplante Touren sind') + ' in deiner Abwesenheit gefahren: ' + cn.deliv + ' Lieferungen, ' + seur(cn.pay) + ' Lohn' + (cn.cost > 0 ? ', ' + eur(cn.cost) + ' Löhne und Fahrzeugkosten' : '') + '.'));
+        for (const l of cn.lines.slice(0, 4)) b.appendChild(mk('p', 'note', l));
+        if (cn.cancelled) b.appendChild(mk('p', null, cn.cancelled + (cn.cancelled === 1 ? ' geplante Tour ist' : ' geplante Touren sind') + ' ausgefallen, weil das Beladen begann, als du nicht da warst. Die Bestellungen sind wieder frei.'));
       }
       const row = mk('div', 'row'), ok = mk('button', 'btn primary', 'Weiter spielen'); ok.type = 'button'; ok.onclick = closeDlg; row.appendChild(ok); b.appendChild(row);
     }, { pause: true });
@@ -7010,7 +7066,7 @@ function startGame(DATA, MODEKEY, PRE) {
     for (let i = 0; i < CFG.firstOrders; i++) spawnOrder();
     if (ONLINE) scanWorldEvents(worldT(), true);
   }
-  realign(); refitCenterOrders(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
+  realign(); refitCenterOrders(); topUpAll(); bill.hr = Math.floor((simClock + START) / 3600); refreshTraffic(true); plansDirty = true; $('trLeg').hidden = !showTraffic;
   syncCenUi(); if (centers.length && DEMO) startFirms();
   if (ONLINE) { $('speedSeg').hidden = $('pauseBtn').hidden = $('winPause').hidden = true; $('onChip').hidden = false; lastG = worldT(); syncOnChip(); if (!loaded.corrupt && !loaded.future) saveNow(false); }
   resize();
@@ -7021,7 +7077,7 @@ function startGame(DATA, MODEKEY, PRE) {
   window.__lm = { adv: (sec, dt) => { dt = dt || 10; for (let t = 0; t < sec; t += dt) stepSim(Math.min(dt, sec - t), performance.now()); dirty = true; }, save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; },
     cen: { centers: () => centers, orders: () => corders, onMap: orderOnMap, firms: () => firms, firmState: () => firmState, startPlacing, build: placeCenter, buyVan, sellVan, hire: hireCenDriver, fire: fireCenDriver, train: trainCenDriver, spawn: spawnCenterOrder, tick: tickCenters, expire: expireCenter,
       setView, view: () => uiView, upg: buyCenUpgrade, stats: cstats, startFirms, simOf, cSlots, cPool, cStops, zone: cenZone, sel: csel, absT, vanSeq: () => vanSeq, cenName,
-      auto: v => { cenAuto = v; }, cities: () => [...cityRT.values()], demand: ci => cenDemand(centers[ci]), refit: refitCenterOrders, full: cenFull, cap: cenCap, tour: { list: ci => centers[ci].tours, plan: planTour, cancel: cancelTour, calc: (ci, d, day, k, ids) => planCalc(centers[ci], d, day, k, ids), seq: () => tourSeq, slots: n => LMC.upcoming(absT(), n || 8), pos: tourPos, node: tourNode, reserved: vanReserved, begin: (ci, id) => { const c = centers[ci]; beginTour(c, ci, c.tours.find(t => t.id === id)); }, slowF, neutral: neutralLeg } } }; }
+      auto: v => { cenAuto = v; }, stock: { target: stockTarget, have: stockHave, top: topUpStock, all: topUpAll, perDay: ci => cenPerDay(centers[ci]), seq: () => orderSeq }, rep: () => FFREP, cities: () => [...cityRT.values()], demand: ci => cenDemand(centers[ci]), refit: refitCenterOrders, full: cenFull, cap: cenCap, tour: { list: ci => centers[ci].tours, plan: planTour, cancel: cancelTour, calc: (ci, d, day, k, ids) => planCalc(centers[ci], d, day, k, ids), seq: () => tourSeq, slots: n => LMC.upcoming(absT(), n || 8), pos: tourPos, node: tourNode, reserved: vanReserved, begin: (ci, id) => { const c = centers[ci]; beginTour(c, ci, c.tours.find(t => t.id === id)); }, slowF, neutral: neutralLeg } } }; }
   setInterval(() => saveNow(false), 15000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(false); if (ONLINE) cloudPush(true); } });
   addEventListener('pagehide', () => { saveNow(false); if (ONLINE) cloudPush(true); });
@@ -7186,7 +7242,7 @@ function startGame(DATA, MODEKEY, PRE) {
       if (my !== seq) return;
       if (pre.raw) {
         try { o = JSON.parse(pre.raw); } catch (e) { o = null; }
-        if (o && o.v > 5) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
+        if (o && o.v > 6) throw new Error('Dein Online-Unternehmen wurde mit einer neueren Version des Spiels gespeichert. Bitte lade die Seite neu (Strg+F5), damit die neue Version geladen wird.');
         if (!o || !(o.v >= 1) || !Array.isArray(o.drivers) || !o.drivers.length) throw new LMO.OErr('CORRUPT');
       }
     } catch (e) { if (my !== seq) return; console.error(e); failed(errMsg(e), again, back[0], back[1], e && e.code === 'CORRUPT'); return; }
