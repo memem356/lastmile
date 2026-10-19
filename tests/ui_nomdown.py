@@ -75,7 +75,7 @@ async def main():
             W = World(); W.nom_down = True; await W.install(ctx)
             pg = await ctx.new_page(); errs = []
             pg.on('pageerror', lambda e: errs.append(str(e)) if 'Access is denied' not in str(e) else None)
-            await pg.add_init_script("localStorage.setItem('lm-tut','1');localStorage.setItem('lm-snd','0');")
+            await pg.add_init_script("window.__LM_PLAN='legacy';localStorage.setItem('lm-tut','1');localStorage.setItem('lm-snd','0');")
             await pg.goto(URL); await pg.wait_for_timeout(1000)
             await pg.evaluate("a=>LMO.register({name:a.name,email:a.email,password:'geheim123',code:a.code})", {'name': 'Tim Stadt', 'email': 'nomdown@example.de', 'code': CODE})
             await wait_for(pg, "document.getElementById('pickMain') && !document.getElementById('pickMain').hidden", 8000)

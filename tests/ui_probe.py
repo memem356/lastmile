@@ -62,7 +62,7 @@ async def main():
             await ctx.route(re.compile(r'https://([^/]*overpass[^/]*|maps\.mail\.ru)/.*'), overpass)
             pg = await ctx.new_page(); errs = []
             pg.on('pageerror', lambda e: errs.append(str(e)))
-            await pg.add_init_script("localStorage.setItem('lm-tut','1');localStorage.setItem('lm-snd','0');")
+            await pg.add_init_script("window.__LM_PLAN='legacy';localStorage.setItem('lm-tut','1');localStorage.setItem('lm-snd','0');")
             await pg.goto(URL); await pg.wait_for_timeout(1500)
             check('P1 Test-Knopf sichtbar', await pg.evaluate("!!document.getElementById('probeGo') && document.getElementById('probeGo').offsetParent!==null"))
             check('P2 Knopf trägt den Namen', 'Teststadt' in await pg.inner_text('#probeGo'))

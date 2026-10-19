@@ -21,7 +21,7 @@ function client(store) {
     else throw new Error('unerwartete URL ' + u);
     return fetch(u, opt);
   };
-  const ctx = vm.createContext({ fetch: f, localStorage: ls, AbortController, setTimeout, clearTimeout, Date, JSON, Math, console, URL, encodeURIComponent, Promise });
+  const ctx = vm.createContext({ fetch: f, localStorage: ls, AbortController, setTimeout, clearTimeout, Date, JSON, Math, console, URL, encodeURIComponent, Promise, __LM_PLAN: 'legacy' });
   vm.runInContext(SRC + '\nthis.LMO = LMO;', ctx);
   return { L: ctx.LMO, store };
 }

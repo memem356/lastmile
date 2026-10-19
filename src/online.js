@@ -380,9 +380,33 @@ const LMO = (function () {
   }
 
   // ---------- Online-Welt, Unternehmen und Rangliste ----------
-  // Die Weltzeit ist eine feste Funktion der Serverzeit: alle Spieler erleben zur gleichen Sekunde dieselbe Spielzeit (30-fach schneller).
+  // Die Weltzeit ist eine feste Funktion der Serverzeit: alle Spieler erleben zur gleichen Sekunde dieselbe Spielzeit.
+  // Tempo-Plan: Bis PLAN.from läuft die Zeit 30-fach (wie bisher), danach nach Tageszeit der Spielwelt: tagsüber (h0 bis h1 Uhr) vDay-fach, nachts vNight-fach.
+  // So bleiben die Planungs-Abstände im Fulfillment-Betrieb (Tourstarts) länger, die ruhige Nacht ist schnell vorbei. Der Übergang ist stetig (kein Zeitsprung).
+  // Tests: window.__LM_PLAN = 'legacy' (immer 30-fach) oder ein eigener Plan { from (Sekunden seit epoch), h0, h1, vDay, vNight }.
   const ONLINE = { speed: 30, epoch: Date.UTC(2026, 9, 1) / 1000, maxAway: 3600, shift: 7200000 };
-  const gameNow = () => (serverNow() / 1000 - ONLINE.epoch) * ONLINE.speed;
+  const PLAN0 = { from: Date.UTC(2026, 9, 20, 4, 0, 0) / 1000 - ONLINE.epoch, h0: 5, h1: 22, vDay: 15, vNight: 60 };   // 20.10.2026, 04:00 UTC = Spielmitternacht
+  function mkClock(p) {
+    const LEG = ONLINE.speed;
+    if (!p || !(p.h0 >= 0 && p.h1 > p.h0 && p.h1 <= 24 && p.vDay > 0 && p.vNight > 0 && isFinite(p.from))) return { plan: null, gameAt: r => r * LEG, realAt: g => g / LEG, speedAt: () => LEG };
+    const a = p.h0 * 3600, b = p.h1 * 3600, vD = p.vDay, vN = p.vNight, ra = a / vN, rb = ra + (b - a) / vD, Pd = rb + (86400 - b) / vN;
+    const Rday = x => x <= a ? x / vN : x <= b ? ra + (x - a) / vD : rb + (x - b) / vN;                       // echte Sekunden vom Tagesbeginn bis zur Tageszeit x (Spielsekunden)
+    const RdayInv = r => r <= ra ? r * vN : r <= rb ? a + (r - ra) * vD : b + (r - rb) * vN;
+    const R = g => { const c = Math.floor(g / 86400); return c * Pd + Rday(g - c * 86400); };
+    const Rinv = r => { const c = Math.floor(r / Pd); return c * 86400 + RdayInv(r - c * Pd); };
+    const r0 = p.from, g0 = r0 * LEG, R0 = R(g0);
+    return { plan: { from: r0, h0: p.h0, h1: p.h1, vDay: vD, vNight: vN },
+      gameAt: r => r < r0 ? r * LEG : Rinv(r - r0 + R0),                                                // r: echte Sekunden seit epoch
+      realAt: g => g < g0 ? g / LEG : r0 + R(g) - R0,
+      speedAt: g => { const x = ((g % 86400) + 86400) % 86400; return x >= a && x < b ? vD : vN; } };
+  }
+  const planOvr = (() => { try { return typeof __LM_PLAN !== 'undefined' ? __LM_PLAN : undefined; } catch (e) { return undefined; } })();
+  const CLOCK = mkClock(planOvr === 'legacy' ? null : planOvr && typeof planOvr === 'object' ? Object.assign({}, PLAN0, planOvr) : PLAN0);
+  const gameAt = ms => CLOCK.gameAt(ms / 1000 - ONLINE.epoch);
+  const gameNow = () => gameAt(serverNow());
+  // Spielsekunden, die in den letzten x echten Sekunden vergangen sind; echte Sekunden zwischen zwei Spielzeiten
+  const cover = x => { const r = serverNow() / 1000 - ONLINE.epoch; return CLOCK.gameAt(r) - CLOCK.gameAt(r - x); };
+  const realSpan = (g0, g1) => CLOCK.realAt(g1) - CLOCK.realAt(g0);
   // Tage und Wochen der Rangliste beginnen um 02:00 UTC (Woche: Montag), damit die Grenze mitten in der Nacht liegt
   function period(scope, ms) {
     if (scope === 'all') return 0;
@@ -797,7 +821,7 @@ const LMO = (function () {
     checkName, suggestName, mailOk, nameKey, tidyName,
     register, completeRegistration, login, logout, resetPassword, sendVerify, checkVerified, loadProfile, deleteAccount,
     syncClock, serverNow, cloud: { slotOf, list: cloudList, put: cloudPut, get: cloudGet, del: cloudDel },
-    world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, period, ckOf },
+    world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, gameAt, cover, realSpan, speedAt: g => CLOCK.speedAt(g), plan: CLOCK.plan, period, ckOf },
     company: { open: companyOpen, push: companyPush, remove: companyRemove, removeAll: companyRemoveAll, mine: companyMine },
     board: { submit: boardSubmit, top: boardTop, rank: boardRank, mine: boardMine },
     mod: { reasons: REASONS, refreshBlocked: () => blockedSet(true), report: modReport, isAdmin, reports: modReports, dismiss: modDismiss, block: modBlock, blockedList: modBlockedList, unblock: modUnblock },

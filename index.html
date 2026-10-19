@@ -2706,9 +2706,33 @@ const LMO = (function () {
   }
 
   // ---------- Online-Welt, Unternehmen und Rangliste ----------
-  // Die Weltzeit ist eine feste Funktion der Serverzeit: alle Spieler erleben zur gleichen Sekunde dieselbe Spielzeit (30-fach schneller).
+  // Die Weltzeit ist eine feste Funktion der Serverzeit: alle Spieler erleben zur gleichen Sekunde dieselbe Spielzeit.
+  // Tempo-Plan: Bis PLAN.from läuft die Zeit 30-fach (wie bisher), danach nach Tageszeit der Spielwelt: tagsüber (h0 bis h1 Uhr) vDay-fach, nachts vNight-fach.
+  // So bleiben die Planungs-Abstände im Fulfillment-Betrieb (Tourstarts) länger, die ruhige Nacht ist schnell vorbei. Der Übergang ist stetig (kein Zeitsprung).
+  // Tests: window.__LM_PLAN = 'legacy' (immer 30-fach) oder ein eigener Plan { from (Sekunden seit epoch), h0, h1, vDay, vNight }.
   const ONLINE = { speed: 30, epoch: Date.UTC(2026, 9, 1) / 1000, maxAway: 3600, shift: 7200000 };
-  const gameNow = () => (serverNow() / 1000 - ONLINE.epoch) * ONLINE.speed;
+  const PLAN0 = { from: Date.UTC(2026, 9, 20, 4, 0, 0) / 1000 - ONLINE.epoch, h0: 5, h1: 22, vDay: 15, vNight: 60 };   // 20.10.2026, 04:00 UTC = Spielmitternacht
+  function mkClock(p) {
+    const LEG = ONLINE.speed;
+    if (!p || !(p.h0 >= 0 && p.h1 > p.h0 && p.h1 <= 24 && p.vDay > 0 && p.vNight > 0 && isFinite(p.from))) return { plan: null, gameAt: r => r * LEG, realAt: g => g / LEG, speedAt: () => LEG };
+    const a = p.h0 * 3600, b = p.h1 * 3600, vD = p.vDay, vN = p.vNight, ra = a / vN, rb = ra + (b - a) / vD, Pd = rb + (86400 - b) / vN;
+    const Rday = x => x <= a ? x / vN : x <= b ? ra + (x - a) / vD : rb + (x - b) / vN;                       // echte Sekunden vom Tagesbeginn bis zur Tageszeit x (Spielsekunden)
+    const RdayInv = r => r <= ra ? r * vN : r <= rb ? a + (r - ra) * vD : b + (r - rb) * vN;
+    const R = g => { const c = Math.floor(g / 86400); return c * Pd + Rday(g - c * 86400); };
+    const Rinv = r => { const c = Math.floor(r / Pd); return c * 86400 + RdayInv(r - c * Pd); };
+    const r0 = p.from, g0 = r0 * LEG, R0 = R(g0);
+    return { plan: { from: r0, h0: p.h0, h1: p.h1, vDay: vD, vNight: vN },
+      gameAt: r => r < r0 ? r * LEG : Rinv(r - r0 + R0),                                                // r: echte Sekunden seit epoch
+      realAt: g => g < g0 ? g / LEG : r0 + R(g) - R0,
+      speedAt: g => { const x = ((g % 86400) + 86400) % 86400; return x >= a && x < b ? vD : vN; } };
+  }
+  const planOvr = (() => { try { return typeof __LM_PLAN !== 'undefined' ? __LM_PLAN : undefined; } catch (e) { return undefined; } })();
+  const CLOCK = mkClock(planOvr === 'legacy' ? null : planOvr && typeof planOvr === 'object' ? Object.assign({}, PLAN0, planOvr) : PLAN0);
+  const gameAt = ms => CLOCK.gameAt(ms / 1000 - ONLINE.epoch);
+  const gameNow = () => gameAt(serverNow());
+  // Spielsekunden, die in den letzten x echten Sekunden vergangen sind; echte Sekunden zwischen zwei Spielzeiten
+  const cover = x => { const r = serverNow() / 1000 - ONLINE.epoch; return CLOCK.gameAt(r) - CLOCK.gameAt(r - x); };
+  const realSpan = (g0, g1) => CLOCK.realAt(g1) - CLOCK.realAt(g0);
   // Tage und Wochen der Rangliste beginnen um 02:00 UTC (Woche: Montag), damit die Grenze mitten in der Nacht liegt
   function period(scope, ms) {
     if (scope === 'all') return 0;
@@ -3123,7 +3147,7 @@ const LMO = (function () {
     checkName, suggestName, mailOk, nameKey, tidyName,
     register, completeRegistration, login, logout, resetPassword, sendVerify, checkVerified, loadProfile, deleteAccount,
     syncClock, serverNow, cloud: { slotOf, list: cloudList, put: cloudPut, get: cloudGet, del: cloudDel },
-    world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, period, ckOf },
+    world: { speed: ONLINE.speed, maxAway: ONLINE.maxAway, epoch: ONLINE.epoch, gameNow, gameAt, cover, realSpan, speedAt: g => CLOCK.speedAt(g), plan: CLOCK.plan, period, ckOf },
     company: { open: companyOpen, push: companyPush, remove: companyRemove, removeAll: companyRemoveAll, mine: companyMine },
     board: { submit: boardSubmit, top: boardTop, rank: boardRank, mine: boardMine },
     mod: { reasons: REASONS, refreshBlocked: () => blockedSet(true), report: modReport, isAdmin, reports: modReports, dismiss: modDismiss, block: modBlock, blockedList: modBlockedList, unblock: modUnblock },
@@ -3486,7 +3510,7 @@ const $ = id => document.getElementById(id);
 const MODES = {
   relaxed: { name: 'Entspannt', pay: 0.85, target: 1.7, expire: null, tip: 0.6, demand: 0.8, repW: 0.04, repC: 0, risk: 0.6 },
   rush:    { name: 'Rush',      pay: 1.4,  target: 0.8, expire: 2.0,  tip: 1.4, demand: 1.25, repW: 0.12, repC: 0.12, risk: 1.2, ramp: 0.3, rampH: 5 },
-  // Online: ein Regelwerk für alle, damit die Ranglisten vergleichbar sind. Zeit läuft fest 30-fach, ohne Pause.
+  // Online: ein Regelwerk für alle, damit die Ranglisten vergleichbar sind. Zeit läuft fest nach dem Tempo-Plan des Servers, ohne Pause.
   online:  { name: 'Online',    pay: 1.1,  target: 1.25, expire: 2.5, tip: 1.0, demand: 1.0, repW: 0.08, repC: 0.06, risk: 0.9, ramp: 0.3, rampH: 5 }
 };
 function startGame(DATA, MODEKEY, PRE) {
@@ -6323,11 +6347,14 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   // Online: die Spielzeit folgt der Serverzeit. Kleine Lücken werden in Schritten nachgeholt, große (Tab im Hintergrund, Ruhezustand) über das Abwesenheitsmodell.
   let lastG = 0, halted = false;
-  const ABS_GAP = 8 * LMO.world.speed;
+  const tempoText = () => { const p = LMO.world.plan; return p ? 'tagsüber (' + p.h0 + ' bis ' + p.h1 + ' Uhr Spielzeit) ' + p.vDay + '-fach, nachts ' + p.vNight + '-fach' : '30-fach'; };
+  let tempoSp = 0;
+  const ABS_GAP = 8;                                           // echte Sekunden: eine größere Lücke gilt als Abwesenheit
   function onlineAdvance(now) {
     const g = LMO.world.gameNow(); let gap = g - lastG;
     if (!(gap > 0)) return;
-    if (gap > ABS_GAP) { absenceNow(gap / LMO.world.speed); return; }
+    const rs = LMO.world.realSpan(lastG, g);                  // echte Sekunden der Lücke (das Tempo hängt von der Tageszeit ab)
+    if (rs > ABS_GAP) { absenceNow(rs); return; }
     lastG = g;
     for (let i = 0; gap > 1e-9 && i < 60; i++) { const a = Math.min(gap, 6); stepSim(a, now); gap -= a; }
   }
@@ -6337,6 +6364,7 @@ function startGame(DATA, MODEKEY, PRE) {
     else if (ONLINE) onlineAdvance(now);
     else if (!paused) stepSim(dt * speed, now);
     setText($('clock'), fmtClock(simClock));
+    if (ONLINE) { const sp = LMO.world.speedAt(worldT()); if (sp !== tempoSp) { tempoSp = sp; $('clock').title = 'Spielzeit, Tempo ' + sp + '-fach'; } }
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
     if (uiView === 'cen') { if (cenStruct) renderCenters(); if (cenOrdersDirty || Math.floor(absT() / 86400) !== cenDaySig) { renderCenOrders(); dirty = true; } tourUi(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
@@ -6444,7 +6472,7 @@ function startGame(DATA, MODEKEY, PRE) {
     ['Wetter und Verkehr', 'Tageszeit, Wetter, Stau und Ereignisse verändern Tempo und Nachfrage. Fahrzeuge können liegen bleiben. Die Taste H zeigt auf der Karte, wo gerade am meisten bestellt wird.'],
     ['Speichern', 'Dein Spiel wird automatisch in diesem Browser gespeichert. Mit der Dispositions-Software arbeitet dein Betrieb auch weiter, wenn du nicht da bist (bis zu 4 Stunden). Im Menü findest du Erfolge, Ton und dieses Tutorial.']
   ];
-  if (ONLINE) TUT[5] = ['Online', 'Die Zeit läuft fest 30-fach und gemeinsam für alle Spieler, ohne Pause. Dein Unternehmen liegt in der Cloud. Mit der Dispositions-Software arbeitet es bis zu eine Stunde weiter, wenn du nicht da bist. Oben siehst du deinen Rang, ein Klick öffnet die Rangliste.'];
+  if (ONLINE) TUT[5] = ['Online', 'Die Zeit läuft gemeinsam für alle Spieler, ohne Pause, ' + tempoText() + '. Dein Unternehmen liegt in der Cloud. Mit der Dispositions-Software arbeitet es bis zu eine Stunde weiter, wenn du nicht da bist. Oben siehst du deinen Rang, ein Klick öffnet die Rangliste.'];
   function openTutorial(i) {
     i = i || 0; try { localStorage.setItem('lm-tut', '1'); } catch (e) {}
     const t = TUT[i];
@@ -6912,9 +6940,9 @@ function startGame(DATA, MODEKEY, PRE) {
     const eff = Math.min(away, 4 * 3600), rpt = runAbsence(eff, away, t0 => { START = localSecs() - eff - t0; }, false);
     rpt.capped = eff < away; return rpt;
   }
-  // Online: höchstens 1 echte Stunde (= 30 Spielstunden) zählt; die Weltzeit läuft über die Serverzeit ohnehin weiter
+  // Online: höchstens 1 echte Stunde zählt (je nach Tempo-Plan 15 bis 60 Spielstunden); die Weltzeit läuft über die Serverzeit ohnehin weiter
   function onlineAbsence(away) {
-    const sp = LMO.world.speed, eff = Math.min(away, LMO.world.maxAway) * sp, wStart = LMO.world.gameNow() - away * sp;
+    const W = LMO.world, eff = W.cover(Math.min(away, W.maxAway)), wStart = W.gameNow() - W.cover(away);
     const rpt = runAbsence(eff, away, t0 => { WORLD.t0 = wStart - t0; realign(); }, away < 120);
     rpt.capped = away > LMO.world.maxAway; rpt.gameH = eff / 3600; return rpt;
   }
