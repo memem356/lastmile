@@ -463,6 +463,19 @@ const gridCore = () => {
   {
     delete global.__LM_TILE_ROADS; const L2 = new Function(src('loader.js') + src('cities.js') + ';return {LM, LMCity}')().LMCity; global.__LM_TILE_ROADS = 2600;
     check('Kacheln: ohne Test-Einstellung sind Straßen-Kacheln 5200 m groß, Firmen-Kacheln 5000 m', L2.TILE_ROADS === 5200 && L2.TILE_FIRMS === 5000 && LMCity.TILE_ROADS === 2600, [L2.TILE_ROADS, L2.TILE_FIRMS, LMCity.TILE_ROADS].join());
+    check('Kacheln: Städte ab 60 km² doppelt so große Kacheln (Straßen 10400 m, Firmen 10000 m), kleinere nicht', L2.roadTile({ area: 144 }) === 10400 && L2.firmTile({ area: 144 }) === 10000 && L2.roadTile({ area: 59.9 }) === 5200 && L2.firmTile({ area: 18 }) === 5000, [L2.roadTile({ area: 144 }), L2.firmTile({ area: 144 }), L2.roadTile({ area: 59.9 })].join());
+    check('Kacheln: mit Test-Einstellung nie verdoppelt', LMCity.roadTile({ area: 500 }) === 2600 && LMCity.firmTile({ area: 500 }) === 5000);
+    // Eine große Stadt (Fläche 100 km²) wird in Kacheln von 10400 m geladen: Zwischenspeicher-Schlüssel nennen die Größe
+    {
+      const mem2 = new Map(); Object.assign(L2.store, { get: async k => mem2.has(k) ? mem2.get(k) : null, put: async (k, v) => { mem2.set(k, v); }, del: async k => { mem2.delete(k); }, keys: async pf => [...mem2.keys()].filter(k => k.startsWith(pf)) });
+      const keys = []; const put0 = L2.store.put; L2.store.put = async (k, v) => { keys.push(k); return put0(k, v); };
+      const g = LMCity.fromGeoJSON(world.polys[111].g), bigC = L2.cityOf({ id: 'rbig', name: 'Großstadt', lat: nlat(60), lon: nlon(60), rings: g.rings, area: 100 });
+      world.calls.length = 0; await L2.loadRoads(bigC);
+      const nTiles = L2.tilesOf(bigC, 10400).length;
+      check('große Stadt: Straßen in Kacheln von 10400 m (Schlüssel, Anzahl der Abfragen)', keys.some(k => /^tile:rbig:r10400:/.test(k)) && world.calls.filter(u => !/nominatim/.test(u)).length === nTiles && nTiles >= 1, keys.join(' ') + ' ' + nTiles);
+      keys.length = 0; mem2.delete('firms:rbig'); await L2.loadFirms(bigC);
+      check('große Stadt: Firmen in Kacheln von 10000 m', keys.some(k => /^tile:rbig:f10000:/.test(k)), keys.join(' '));
+    }
   }
   console.log('\n' + ok + ' Prüfungen ok, ' + bad + ' Fehler'); process.exit(bad ? 1 : 0);
 })().catch(e => { console.log('FEHLER', e && e.stack || e); process.exit(1); });

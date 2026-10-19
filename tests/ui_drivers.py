@@ -140,7 +140,7 @@ async def main():
             ok('A8 Fahrzeug wurde zum halben Preis verkauft (+120 €)', abs((c1 - c0) - 120) < 1, f'{c1 - c0:.2f}')
             ok('A9 Unternehmenswert sinkt um den Wertverlust (−120 €)', abs((v1 - v0) + 120) < 1, f'{v1 - v0:.2f}')
             ok('A10 Fenster schließt sich, Karte aus der Liste entfernt', not await vis(pg, '#win') and await pg.evaluate("[...document.querySelectorAll('#dlist .dcard strong')].map(e=>e.textContent).join()") == 'Fahrer 1,Fahrer 3')
-            ok('A11 Protokoll nennt die Kündigung', 'Fahrer 2 gekündigt' in await pg.evaluate("document.querySelector('#log li span').textContent"))
+            ok('A11 Protokoll nennt die Kündigung', await pg.evaluate("[...document.querySelectorAll('#log li span')].some(e => e.textContent.includes('Fahrer 2 gekündigt'))"))
             ok('A12 Zähler zeigt 2 Fahrer', (await txt(pg, '#dcount')).startswith('2 /'))
             await hire(pg, 'bike')
             ds = await pg.evaluate(DRV)
