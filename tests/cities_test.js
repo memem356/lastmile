@@ -361,6 +361,23 @@ const gridCore = () => {
     global.fetch = async (u, i) => /nominatim.*search/.test(u) ? ({ ok: true, status: 200, json: async () => [{ name: 'Bochum', lat: '51.48', lon: '7.21', osm_type: 'relation', osm_id: 62649, addresstype: 'city', type: 'administrative', extratags: { population: '365.000' }, address: { state: 'Nordrhein-Westfalen', country: 'Deutschland' }, display_name: 'Bochum' }, { name: 'Bochum', lat: '51.40', lon: '7.10', osm_type: 'node', osm_id: 7, addresstype: 'village', type: 'village', address: { state: 'Xy', country: 'Deutschland' }, display_name: 'Bochum' }] }) : oldFetch(u, i);
     const sr = await LM.search('Bochum'); global.fetch = oldFetch;
     check('search: Beziehung, Art und Einwohner stehen im Treffer (für die Grenzsuche)', sr[0].nrel === 62649 && sr[0].nplace === 'city' && sr[0].npop === 365000 && sr[1].nrel === 0 && sr[1].nplace === '', JSON.stringify(sr));
+    // Suche: einmal wiederholen, klare Meldung
+    {
+      const good = [{ name: 'Bochum', lat: '51.48', lon: '7.21', address: { state: 'NRW', country: 'Deutschland' }, display_name: 'Bochum' }];
+      let n = 0; global.fetch = async () => { n++; if (n === 1) throw new TypeError('NetworkError'); return { ok: true, status: 200, json: async () => good }; };
+      const t0 = Date.now(); const r1 = await LM.search('Bochum');
+      check('search: ein Verbindungsfehler wird nach kurzer Pause einmal wiederholt', r1.length === 1 && n === 2 && Date.now() - t0 >= 1800, n + ' ' + (Date.now() - t0));
+      n = 0; global.fetch = async () => { n++; return { ok: false, status: 429, json: async () => ({}) }; };
+      let m2 = ''; try { await LM.search('Bochum'); } catch (e) { m2 = e.message; }
+      check('search: dauerhaft 429 → zwei Versuche, Meldung mit Statuscode', n === 2 && /nicht erreichbar \(429\)/.test(m2), n + ' ' + m2);
+      n = 0; global.fetch = async () => { n++; return { ok: false, status: 404, json: async () => ({}) }; };
+      let m3 = ''; try { await LM.search('Bochum'); } catch (e) { m3 = e.message; }
+      check('search: 404 wird nicht wiederholt', n === 1 && /\(404\)/.test(m3), n + ' ' + m3);
+      n = 0; global.fetch = async () => { n++; throw new TypeError('NetworkError'); };
+      let m4 = ''; try { await LM.search('Bochum'); } catch (e) { m4 = e.message; }
+      check('search: dauerhafter Verbindungsfehler → Meldung nennt Dauer und mögliche Sperre', n === 2 && /Verbindung gescheitert nach \d+\.\d s, vermutlich blockiert/.test(m4), n + ' ' + m4);
+      global.fetch = oldFetch;
+    }
   }
   // ---- Mehrere Overpass-Server: bevorzugter Server, parallele Anfrage bei Hänger, sofortiger Ersatz bei Fehler ----
   {

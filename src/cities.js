@@ -100,12 +100,7 @@ const LMCity = (function () {
     return out.sort((a, b) => a.dist - b.dist);
   }
 
-  async function nominatimJson(url, what) {
-    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 45000);
-    let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error(what + ' nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
-    if (!r.ok) throw new Error(what + ' nicht erreichbar (' + r.status + ')');
-    return r.json();
-  }
+  async function nominatimJson(url, what) { return (await LM.nomGet(url, what, 45000)).json(); }
   const popOf = v => parseInt(String(v || '').replace(/[^0-9]/g, ''), 10) || 0;
   // Grenze einer Beziehung (Relation) bei Nominatim
   async function nominatimPolygon(rel) {

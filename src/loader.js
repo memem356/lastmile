@@ -17,11 +17,23 @@ const LM = (function () {
   const net = { bytes: 0, calls: 0, log: [] };                      // Zähler für den Stadt-Test: übertragene Zeichen und Abfragen; log: Versuche je Server (Antwortzeit oder Fehler)
 
   // ---------- Suche ----------
+  // Anfrage an Nominatim: bei Verbindungsfehler oder Überlastung (429/502/503/504) einmal nach 2 s wiederholen; die Meldung sagt, was passiert ist und wie lange es dauerte
+  async function nomGet(url, what, ms) {
+    let last = null;
+    for (let k = 0; k < 2; k++) {
+      const t0 = Date.now(), ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 30000); let r = null, timeout = false;
+      try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { timeout = !!(e && e.name === 'AbortError'); } finally { clearTimeout(to); }
+      const sec = ((Date.now() - t0) / 1000).toFixed(1) + ' s';
+      if (r && r.ok) return r;
+      last = new Error(what + ' nicht erreichbar (' + (r ? r.status : timeout ? 'keine Antwort nach ' + sec : 'Verbindung gescheitert nach ' + sec + ', vermutlich blockiert oder gesperrt') + ')');
+      if (timeout || Date.now() - t0 > 10000 || (r && !/^(429|502|503|504)$/.test(String(r.status)))) break;
+      await new Promise(res => setTimeout(res, 2000));
+    }
+    throw last;
+  }
   async function search(q) {
     const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&extratags=1&q=' + encodeURIComponent(q);
-    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
-    let r; try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { throw new Error('Suche nicht erreichbar (keine Antwort)'); } finally { clearTimeout(to); }
-    if (!r.ok) throw new Error('Suche nicht erreichbar (' + r.status + ')');
+    const r = await nomGet(url, 'Suche', 30000);
     const j = await r.json(), seen = new Set(), out = [];
     for (const x of j) {
       const a = x.address || {};
@@ -306,7 +318,7 @@ const LM = (function () {
     } catch (e) { return null; }
   }
 
-  return { search, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
+  return { search, nomGet, loadCity, saveCity, getCached, listCached, removeCached, fetchTz, loadFirms, convertFirms, qFirms,
     overpass, bboxOf, bbStr, qRoads, qLink, wayInfo, firmKind, dbGet, dbPut, dbDel, dbKeys, net, sleep, HW,
     dbBlocked: () => dbBlocked, onBlocked: f => { dbCb = f; }, setHedge: ms => { HEDGE = ms; }, prefServer: () => pref, servers: () => OVERPASS.slice(), host };
 })();
