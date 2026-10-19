@@ -1258,15 +1258,22 @@ const LM = (function () {
   // ---------- Suche ----------
   // Anfrage an Nominatim: bei Verbindungsfehler oder Überlastung (429/502/503/504) einmal nach 2 s wiederholen; die Meldung sagt, was passiert ist und wie lange es dauerte
   async function nomGet(url, what, ms) {
-    let last = null;
+    let last = null, net = false;
     for (let k = 0; k < 2; k++) {
       const t0 = Date.now(), ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 30000); let r = null, timeout = false;
       try { r = await fetch(url, { signal: ctl.signal }); } catch (e) { timeout = !!(e && e.name === 'AbortError'); } finally { clearTimeout(to); }
       const sec = ((Date.now() - t0) / 1000).toFixed(1) + ' s';
       if (r && r.ok) return r;
-      last = new Error(what + ' nicht erreichbar (' + (r ? r.status : timeout ? 'keine Antwort nach ' + sec : 'Verbindung gescheitert nach ' + sec + ', vermutlich blockiert oder gesperrt') + ')');
+      net = !r && !timeout;
+      last = new Error(what + ' nicht erreichbar (' + (r ? r.status : timeout ? 'keine Antwort nach ' + sec : 'Verbindung gescheitert nach ' + sec) + ')');
       if (timeout || Date.now() - t0 > 10000 || (r && !/^(429|502|503|504)$/.test(String(r.status)))) break;
       await new Promise(res => setTimeout(res, 2000));
+    }
+    // Verbindung gescheitert: antwortet der Server überhaupt? (Ein Aufruf ohne Lesezugriff gelingt auch dann, wenn die Antwort keine Freigabe für Webseiten enthält, wie bei Sperre oder Überlastung)
+    if (net) {
+      let reach = false; const c2 = new AbortController(), t2 = setTimeout(() => c2.abort(), 6000);
+      try { await fetch(url, { mode: 'no-cors', signal: c2.signal }); reach = true; } catch (e) { /* nicht erreichbar */ } finally { clearTimeout(t2); }
+      last = new Error(last.message.replace(/\)$/, '') + (reach ? '; der Server antwortet, aber ohne Freigabe für Webseiten – typisch für eine Sperre oder Überlastung)' : '; der Server ist von hier aus gar nicht erreichbar – Netzwerk, Firewall oder Werbeblocker?)'));
     }
     throw last;
   }

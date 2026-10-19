@@ -375,7 +375,10 @@ const gridCore = () => {
       check('search: 404 wird nicht wiederholt', n === 1 && /\(404\)/.test(m3), n + ' ' + m3);
       n = 0; global.fetch = async () => { n++; throw new TypeError('NetworkError'); };
       let m4 = ''; try { await LM.search('Bochum'); } catch (e) { m4 = e.message; }
-      check('search: dauerhafter Verbindungsfehler → Meldung nennt Dauer und mögliche Sperre', n === 2 && /Verbindung gescheitert nach \d+\.\d s, vermutlich blockiert/.test(m4), n + ' ' + m4);
+      check('search: dauerhafter Verbindungsfehler → Meldung nennt Dauer und „gar nicht erreichbar“', n === 3 && /Verbindung gescheitert nach \d+\.\d s; der Server ist von hier aus gar nicht erreichbar/.test(m4), n + ' ' + m4);
+      n = 0; global.fetch = async (u, i) => { n++; if (i && i.mode === 'no-cors') return { type: 'opaque', ok: false, status: 0 }; throw new TypeError('NetworkError'); };
+      let m5 = ''; try { await LM.search('Bochum'); } catch (e) { m5 = e.message; }
+      check('search: antwortet der Server ohne Freigabe (Sperre) → Meldung sagt das', n === 3 && /Verbindung gescheitert nach \d+\.\d s; der Server antwortet, aber ohne Freigabe für Webseiten/.test(m5), n + ' ' + m5);
       global.fetch = oldFetch;
     }
   }
