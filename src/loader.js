@@ -58,7 +58,7 @@ const LM = (function () {
         const ctls = []; let started = 0, fails = 0, done = false, timer = null;
         const launch = () => {
           clearTimeout(timer); if (done || started >= order.length) return;
-          const m = order[started++], ctl = new AbortController(), t0 = Date.now(), to = setTimeout(() => ctl.abort(), 70000); ctls.push(ctl);
+          const m = order[started++], ctl = new AbortController(), t0 = Date.now(), to = setTimeout(() => ctl.abort(), 100000); ctls.push(ctl);
           if (onTry) onTry(m, round);
           once(OVERPASS[m], query, ctl).then(o => {
             clearTimeout(to); if (done) return; done = true; clearTimeout(timer);
@@ -87,10 +87,10 @@ const LM = (function () {
   }
   const bbStr = b => [b.s, b.w, b.n, b.e].map(v => v.toFixed(6)).join(',');
 
-  const qRoads = b => `[out:json][timeout:60];way["highway"~"^(${HW_RE})$"](${bbStr(b)});out body;>;out skel qt;`;
+  const qRoads = b => `[out:json][timeout:90];way["highway"~"^(${HW_RE})$"](${bbStr(b)});out body;>;out skel qt;`;
   // Nur die großen Straßen (Autobahn bis Kreisstraße): für die Verbindung zwischen Städten, die nicht aneinander liegen
   const LINK_HW = 'motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link';
-  const qLink = b => `[out:json][timeout:60];way["highway"~"^(${LINK_HW})$"](${bbStr(b)});out body;>;out skel qt;`;
+  const qLink = b => `[out:json][timeout:90];way["highway"~"^(${LINK_HW})$"](${bbStr(b)});out body;>;out skel qt;`;
   const qPlaces = b => `[out:json][timeout:90];(nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${bbStr(b)});nwr["shop"~"^(bakery|supermarket)$"]["name"](${bbStr(b)}););out center tags;way["building"~"^(apartments|residential|house|detached|terraced|semidetached_house|dormitory|yes)$"](${bbStr(b)});out skel center qt;`;
 
   // Firmen für das Fulfillment Center: Büros, Betriebe, Geschäfte, Praxen, Banken (mit Namen). Restaurants, Cafés, Bäckereien und Supermärkte sind schon Abholorte.

@@ -159,6 +159,7 @@ class World:
         return []
 
     async def install(self, ctx):
+        await ctx.add_init_script('window.__LM_TILE_ROADS = 2600')      # kleine künstliche Städte: mehrere Kacheln (echt: 5200 m)
         async def ov(route, request):
             q = unquote((request.post_data or '').replace('data=', '', 1))
             r = self.overpass(q)

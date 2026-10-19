@@ -80,6 +80,7 @@ global.fetch = async (url, init) => {
   return ok(overpassAnswer(q));
 };
 global.sleepSkip = true;
+global.__LM_TILE_ROADS = 2600;                                    // kleine künstliche Städte: mehrere Kacheln (echt: 5200 m)
 const code = src('loader.js') + src('cities.js') + ';return {LM, LMCity}';
 const { LM, LMCity } = new Function(code)();
 LM.sleep = () => Promise.resolve();                              // keine Wartezeiten im Test (der Zähler bleibt)
@@ -392,7 +393,7 @@ const gridCore = () => {
   mem.delete('pt:' + nlat(60).toFixed(3) + ',' + nlon(60).toFixed(3));
   const rep = await LMCity.probe('Teststadt A', t => lines.push(t));
   check('probe: Bericht mit Fläche, Kacheln, Schätzung und Firmen', rep.est.nodes > 5000 && rep.est.tiles === tilesA.length && rep.firmsSample > 10 && lines.some(l => /Schätzung/.test(l)) && lines.some(l => /Kachel/.test(l)) && lines.some(l => /Grenze über: /.test(l)) && lines.some(l => /Kachel.*\[.* ok \d/.test(l)), lines.join(' | '));
-  check('probe: Zusatzmessungen – jeder Server einzeln, große Kachel, gleichzeitige Kacheln', lines.filter(l => /^overpass[^ ]*: Antwort 200 nach/.test(l) || /^maps\.mail\.ru: Antwort 200/.test(l)).length === 4 && lines.some(l => /Zusatzmessung 2: .*5,2 km/.test(l)) && lines.some(l => /Zusatzmessung 2: .*5,2 km/.test(l)), lines.join('\n'));
+  check('probe: Zusatzmessungen – jeder Server einzeln, große Kachel, gleichzeitige Kacheln', lines.filter(l => /^overpass[^ ]*: Antwort 200 nach/.test(l) || /^maps\.mail\.ru: Antwort 200/.test(l)).length === 4 && lines.some(l => /Zusatzmessung 2: .*10,4 km/.test(l)) && lines.some(l => /Zusatzmessung 2: .*10,4 km/.test(l)), lines.join('\n'));
   {
     // größere Stadt: genug Kacheln für die gleichzeitige Messung; ein Server fällt aus
     world.polys[444] = { name: 'Großstadt', pop: 250000, lat: nlat(280), lon: nlon(280), g: cityRect(10, 10, 290, 290) };
@@ -402,5 +403,9 @@ const gridCore = () => {
     check('probe: mehrere Kacheln gleichzeitig werden gemessen', l2.some(l => /Zusatzmessung 3: [2-4] Kacheln gleichzeitig: [\d.]+ s insgesamt, Knoten \d+(\/\d+)+/.test(l)), l2.join('\n'));
   }
 
+  {
+    delete global.__LM_TILE_ROADS; const L2 = new Function(src('loader.js') + src('cities.js') + ';return {LM, LMCity}')().LMCity; global.__LM_TILE_ROADS = 2600;
+    check('Kacheln: ohne Test-Einstellung sind Straßen-Kacheln 5200 m groß, Firmen-Kacheln 5000 m', L2.TILE_ROADS === 5200 && L2.TILE_FIRMS === 5000 && LMCity.TILE_ROADS === 2600, [L2.TILE_ROADS, L2.TILE_FIRMS, LMCity.TILE_ROADS].join());
+  }
   console.log('\n' + ok + ' Prüfungen ok, ' + bad + ' Fehler'); process.exit(bad ? 1 : 0);
 })().catch(e => { console.log('FEHLER', e && e.stack || e); process.exit(1); });

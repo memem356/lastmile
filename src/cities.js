@@ -3,7 +3,9 @@
 // Im Spiel heißt das Modul LMCity, getestet wird es in tests/cities_test.js (mit einer künstlichen Welt statt echter Server).
 const LMCity = (function () {
   const PACK_V = 2;
-  const TILE_ROADS = 2600, TILE_FIRMS = 5000;       // Kantenlänge der Abfragekacheln in Metern
+  // Kantenlänge der Abfragekacheln in Metern. Straßen: 5200 m (Messung Bochum: 2,6 km und 5,2 km brauchten beim Server gleich lang, die Wartezeit liegt am Server, nicht an der Datenmenge);
+  // die Tests setzen globalThis.__LM_TILE_ROADS kleiner, damit ihre kleinen künstlichen Städte aus mehreren Kacheln bestehen.
+  const TILE_ROADS = (typeof globalThis !== 'undefined' && globalThis.__LM_TILE_ROADS) || 5200, TILE_FIRMS = 5000;
   const FIRM_CAP = 3000;                            // höchstens so viele Firmen je Stadt
   const LATM = 110574, lonM = lat => 111320 * Math.cos(lat * Math.PI / 180);
   const store = { get: id => LM.dbGet(id), put: (id, d) => LM.dbPut(id, d), del: id => LM.dbDel(id), keys: p => LM.dbKeys(p) };   // in Tests austauschbar
@@ -129,8 +131,9 @@ const LMCity = (function () {
   async function resolve(pl) {
     const pk = 'pt:' + pl.lat.toFixed(3) + ',' + pl.lon.toFixed(3), why = [];
     let p = null, how = '';
-    if (pl.rel) { const c = await store.get('city:r' + pl.rel); if (c && c.v === PACK_V && !c.approx) return c; }
-    else { const hit = await store.get(pk); if (hit && hit.id) { const c = await store.get('city:' + hit.id); if (c && c.v === PACK_V && !c.approx) return c; } }
+    const cached = c => { lastResolve.how = 'Zwischenspeicher'; lastResolve.why = []; return c; };
+    if (pl.rel) { const c = await store.get('city:r' + pl.rel); if (c && c.v === PACK_V && !c.approx) return cached(c); }
+    else { const hit = await store.get(pk); if (hit && hit.id) { const c = await store.get('city:' + hit.id); if (c && c.v === PACK_V && !c.approx) return cached(c); } }
     if (pl.rel) {
       try { p = await nominatimPolygon(pl.rel); how = 'Beziehung R' + pl.rel; if (!plausible(p, pl.lat, pl.lon)) { why.push('Grenze R' + pl.rel + ' unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; } }
       catch (e) { why.push('lookup R' + pl.rel + ': ' + e.message); p = null; }
@@ -472,9 +475,9 @@ const LMCity = (function () {
     const servers = LM.servers ? LM.servers() : [], t = pick[0];
     say('— Zusatzmessung 1: dieselbe Straßen-Kachel (Kachel ' + t.k + ') bei jedem Server einzeln —');
     for (const u of servers) say(LM.host(u) + ': ' + await askServer(u, LM.qRoads(t), 45000));
-    const big = LM.bboxOf(city.lat, city.lon, 2600), bq = LM.qRoads(big);
+    const big = LM.bboxOf(city.lat, city.lon, 5200), bq = LM.qRoads(big);
     const b0 = LM.net.bytes, l0 = (LM.net.log || []).length, s0 = Date.now(), c = compactTile(await LM.overpass(bq, null, 1)), d = (Date.now() - s0) / 1000;
-    say('— Zusatzmessung 2: eine große Kachel (5,2 km, Stadtmitte): ' + c.ids.length + ' Knoten, ' + c.wc.length + ' Wege, ' + d.toFixed(1) + ' s, ' + ((LM.net.bytes - b0) / 1048576).toFixed(1) + ' MB' + tries(l0));
+    say('— Zusatzmessung 2: eine sehr große Kachel (10,4 km, Stadtmitte; üblich sind 5,2 km): ' + c.ids.length + ' Knoten, ' + c.wc.length + ' Wege, ' + d.toFixed(1) + ' s, ' + ((LM.net.bytes - b0) / 1048576).toFixed(1) + ' MB' + tries(l0));
     const rest = sorted.filter(x => !pick.includes(x)), par = [rest[0], rest[Math.floor(rest.length / 3)], rest[Math.floor(rest.length * 2 / 3)], rest[rest.length - 1]].filter((v, i, a) => v && a.indexOf(v) === i);
     if (par.length > 1) {
       const lp = (LM.net.log || []).length, sp = Date.now();
