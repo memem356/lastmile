@@ -165,6 +165,9 @@ function createEngine(D) {
   const EN = eA.length;
   const eDir = new Int8Array(EN), eBase = new Float32Array(EN), eMidX = new Float32Array(EN), eMidY = new Float32Array(EN);
   const cong = new Float32Array(EN), mulCar = new Float32Array(EN).fill(1), mulBike = new Float32Array(EN).fill(1);
+  // weiches Zufallsfeld (Wert zwischen 0 und 1, ändert sich über etwa sc Meter), damit der Verkehr in zusammenhängenden Flecken liegt
+  const hash2 = (i, j) => { const f = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return f - Math.floor(f); };
+  const vnoise = (x, y, sc) => { const u = x / sc, v = y / sc, i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv); return (hash2(i, j) * (1 - su) + hash2(i + 1, j) * su) * (1 - sv) + (hash2(i, j + 1) * (1 - su) + hash2(i + 1, j + 1) * su) * sv; };
   const LOAD_C = [1, 0.95, 0.85, 0.65, 0.28, 0.03, 0, 0];
   const QUEUE_C = [0.1, 0.35, 0.45, 0.5, 1.0, 0.3, 0, 0];
   for (let id = 0; id < EN; id++) {
@@ -175,14 +178,15 @@ function createEngine(D) {
     const central = 1.15 - 0.4 * Math.min(1, Math.hypot(mx - HUB.x, my - HUB.y) / 1200);
     // Rückstau an Kreuzungen: Zufahrten auf Knoten, an denen Hauptstraßen aufeinandertreffen (oder Nebenstraßen einmünden), laufen zur Stoßzeit voll
     const jq = inc[b] >= 3 ? (majdeg[b] >= 2 ? 1 : majdeg[b] >= 1 ? 0.6 : 0.25) : 0;
-    const f = Math.sin(id * 12.9898) * 43758.5453, noise = 0.88 + 0.24 * (f - Math.floor(f));
-    // Engstellen: räumlich zusammenhängende Zonen (rund 350 m), die zur Stoßzeit schlechter laufen als andere
-    const cx = Math.floor(mx / 350), cy = Math.floor(my / 350), g = Math.sin(cx * 127.1 + cy * 311.7) * 43758.5453, zone = 0.85 + 0.35 * (g - Math.floor(g));
-    eBase[id] = (LOAD_C[c] + jq * QUEUE_C[c]) * central * noise * zone;
+    const f = Math.sin(id * 12.9898) * 43758.5453, noise = 0.85 + 0.3 * (f - Math.floor(f));
+    // Engstellen: zusammenhängende Gebiete (grob 400 m, dazu kleinere Flecken), in denen es zur Stoßzeit schlechter oder besser läuft als im Mittel.
+    // Der Kontrast ist groß, damit auch zur Rushhour Strecken frei bleiben und der Verkehr in Flecken auftritt statt auf jeder Straße gleich.
+    const zone = 0.25 + 1.45 * Math.min(1, Math.max(0, 0.5 + (0.6 * vnoise(mx, my, 420) + 0.4 * vnoise(mx + 977, my + 313, 170) - 0.5) * 2.6));
+    eBase[id] = (LOAD_C[c] + jq * QUEUE_C[c] * 0.8) * central * noise * zone;
   }
   // load: Tageslast 0 bis 1, bias: +1 Richtung Zentrum (Morgen), -1 aus dem Zentrum (Abend), extra: Zuschlag durch Ereignisse
   // Die Tageslast wirkt überproportional (Potenz): mittags und nachts bleibt es überwiegend grün, zur Stoßzeit laufen Hauptstraßen und Kreuzungen auch ohne Ereignis rot
-  const LOAD_EXP = 1.35, LOAD_GAIN = 0.55;
+  const LOAD_EXP = 1.35, LOAD_GAIN = 0.5;
   function updateTraffic(load, bias, extra) {
     let sum = 0, cnt = 0;
     const lf = Math.pow(Math.max(0, load), LOAD_EXP) * LOAD_GAIN;

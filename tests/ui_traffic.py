@@ -150,7 +150,7 @@ async def main():
             ok('B0 Genug Testfahrten', all(r['n'] >= 30 for r in t.values()), str({k: r['n'] for k, r in t.items()}))
             for veh in ('scooter', 'van'):
                 r = t[veh]
-                ok('B1 %s: Rushhour mind. 25 %% länger als Mittag' % veh, r['rush'] >= 1.25 * r['mid'], '%.0f / %.0f s' % (r['rush'], r['mid']))
+                ok('B1 %s: Rushhour mind. 15 %% länger als Mittag' % veh, r['rush'] >= 1.15 * r['mid'], '%.0f / %.0f s' % (r['rush'], r['mid']))
                 ok('B2 %s: Mittag nicht schneller als nachts' % veh, r['mid'] >= r['night'] - 0.5, '%.0f / %.0f' % (r['mid'], r['night']))
             r = t['bike']
             ok('B3 Fahrrad bleibt fast unberührt (Rushhour höchstens 10 % länger als Mittag)', r['rush'] <= 1.10 * r['mid'], '%.0f / %.0f s' % (r['rush'], r['mid']))
@@ -184,7 +184,7 @@ async def main():
             wr = lambda k: shots[k]['red'] + shots[k]['dark']
             ok('D1 Rushhour zeigt deutlich mehr rote Linien als Mittag (mind. ×2)', wr('rush') >= 2 * max(1, wr('mid')), '%d / %d' % (wr('rush'), wr('mid')))
             ok('D2 Rushhour zeigt mehr als 800 rote Pixel', wr('rush') > 800, str(wr('rush')))
-            ok('D3 Nachts ist kaum Rot zu sehen', wr('night') < 0.15 * max(1, wr('rush')), '%d / %d' % (wr('night'), wr('rush')))
+            ok('D3 Nachts ist kaum Rot zu sehen (nur Spielfiguren, nicht mehr als mittags, höchstens ein Drittel der Rushhour)', wr('night') <= wr('mid') + 50 and wr('night') < 0.34 * max(1, wr('rush')), '%d / %d / %d' % (wr('night'), wr('mid'), wr('rush')))
             ok('D4 Mittag ist überwiegend grün/orange, Rushhour überwiegend orange/rot',
                shots['mid']['green'] > shots['rush']['green'] and (shots['rush']['orange'] + wr('rush')) > (shots['mid']['orange'] + wr('mid')), str(shots))
             await hour(pg, 7.9, 4)
