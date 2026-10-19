@@ -17,7 +17,7 @@ const wayDef = (kind, a, seg) => {                      // kind 'h' (Zeile a) od
   if (kind === 'v' && a % 19 === 5) tags.access = 'private';                                           // zählt nicht
   return { type: 'way', id: (kind === 'h' ? 2e9 : 3e9) + a * 1000 + seg, nodes, tags };
 };
-const world = { reverseCalls: 0, isinCalls: 0, hang: '', dead: '', noReverse: false, calls: [], failAfter: Infinity, offline: false, towns: [], rel: [], polys: {}, noLink: false, hwQueries: [], remark: 0 };
+const world = { reverseCalls: 0, isinCalls: 0, hang: '', dead: '', noReverse: false, nomDown: false, nameHits: [], calls: [], failAfter: Infinity, offline: false, towns: [], rel: [], polys: {}, noLink: false, hwQueries: [], remark: 0 };
 const cityRect = (i0, j0, i1, j1) => ({ type: 'Polygon', coordinates: [[[nlon(j0), nlat(i0)], [nlon(j1), nlat(i0)], [nlon(j1), nlat(i1)], [nlon(j0), nlat(i1)], [nlon(j0), nlat(i0)]]] });
 world.polys[111] = { pop: 120000, name: 'Teststadt A', lat: nlat(60), lon: nlon(60), g: cityRect(10, 10, 110, 110) };            // 100 x 100 Gitterpunkte
 world.polys[222] = { name: 'Teststadt B', lat: nlat(60), lon: nlon(160), g: cityRect(10, 100, 110, 200) };         // überlappt A an der Grenze (Spalten 100 bis 110)
@@ -27,6 +27,14 @@ world.towns = [{ id: 1, name: 'Teststadt A', lat: nlat(60), lon: nlon(60), tags:
 
 const inBox = (b, la, lo) => la >= b[0] && la <= b[2] && lo >= b[1] && lo <= b[3];
 function overpassAnswer(q) {
+  if (q.includes('["name"="')) return { elements: world.nameHits };                      // Ersatzsuche nach Ortsnamen
+  const rm = q.match(/rel\((\d+)\);out geom/);
+  if (rm) {                                                                              // Grenze einer Beziehung: Wegstücke, abwechselnd umgedreht und in umgekehrter Reihenfolge
+    const p = world.polys[Number(rm[1])]; if (!p) return { elements: [] };
+    const c = p.g.coordinates[0], ways = [];
+    for (let k = 0; k < c.length - 1; k++) { const w = [c[k], c[k + 1]].map(x => ({ lat: x[1], lon: x[0] })); ways.push(k % 2 ? w.reverse() : w); }
+    return { elements: [{ type: 'relation', id: Number(rm[1]), bounds: { minlat: nlat(0), maxlat: nlat(1), minlon: nlon(0), maxlon: nlon(1) }, tags: { name: p.name, boundary: 'administrative', admin_level: '6', population: p.pop ? String(p.pop) : '' }, members: ways.reverse().map(g => ({ type: 'way', role: 'outer', geometry: g })).concat([{ type: 'node', role: 'admin_centre', lat: 1, lon: 1 }]) }] };
+  }
   if (q.includes('["place"~')) {
     const m = q.match(/around:(\d+),([\d.]+),([\d.]+)/), R = Number(m[1]), la = Number(m[2]), lo = Number(m[3]);
     return { elements: world.towns.filter(t => /city|town/.test(t.tags.place) && Math.hypot((t.lat - la) * 110574, (t.lon - lo) * 111320 * Math.cos(la * Math.PI / 180)) <= R).map(t => ({ type: 'node', id: t.id, lat: t.lat, lon: t.lon, tags: Object.assign({ name: t.name }, t.tags) })) };
@@ -66,6 +74,7 @@ global.fetch = async (url, init) => {
   const ok = (j) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
   if (world.hang && url.includes(world.hang)) return new Promise((res, rej) => init.signal.addEventListener('abort', () => rej(Object.assign(new Error('abgebrochen'), { name: 'AbortError' }))));
   if (world.dead && url.includes(world.dead)) return { ok: false, status: 504, text: async () => '', json: async () => ({}) };
+  if (world.nomDown && /nominatim/.test(url)) throw new TypeError('NetworkError');
   if (/nominatim.*reverse/.test(url)) {
     world.reverseCalls++; if (world.noReverse) return { ok: false, status: 429, json: async () => ({}), text: async () => '' };
     const m = url.match(/lat=([\d.]+)&lon=([\d.]+)/), la = Number(m[1]), lo = Number(m[2]);
@@ -367,19 +376,47 @@ const gridCore = () => {
       let n = 0; global.fetch = async () => { n++; if (n === 1) throw new TypeError('NetworkError'); return { ok: true, status: 200, json: async () => good }; };
       const t0 = Date.now(); const r1 = await LM.search('Bochum');
       check('search: ein Verbindungsfehler wird nach kurzer Pause einmal wiederholt', r1.length === 1 && n === 2 && Date.now() - t0 >= 1800, n + ' ' + (Date.now() - t0));
-      n = 0; global.fetch = async () => { n++; return { ok: false, status: 429, json: async () => ({}) }; };
+      n = 0; global.fetch = async (u, i) => { if (!/nominatim/.test(u)) return oldFetch(u, i); n++; return { ok: false, status: 429, json: async () => ({}) }; };
       let m2 = ''; try { await LM.search('Bochum'); } catch (e) { m2 = e.message; }
       check('search: dauerhaft 429 → zwei Versuche, Meldung mit Statuscode', n === 2 && /nicht erreichbar \(429\)/.test(m2), n + ' ' + m2);
-      n = 0; global.fetch = async () => { n++; return { ok: false, status: 404, json: async () => ({}) }; };
+      n = 0; global.fetch = async (u, i) => { if (!/nominatim/.test(u)) return oldFetch(u, i); n++; return { ok: false, status: 404, json: async () => ({}) }; };
       let m3 = ''; try { await LM.search('Bochum'); } catch (e) { m3 = e.message; }
       check('search: 404 wird nicht wiederholt', n === 1 && /\(404\)/.test(m3), n + ' ' + m3);
-      n = 0; global.fetch = async () => { n++; throw new TypeError('NetworkError'); };
+      n = 0; global.fetch = async (u, i) => { if (!/nominatim/.test(u)) return oldFetch(u, i); n++; throw new TypeError('NetworkError'); };
       let m4 = ''; try { await LM.search('Bochum'); } catch (e) { m4 = e.message; }
       check('search: dauerhafter Verbindungsfehler → Meldung nennt Dauer und „gar nicht erreichbar“', n === 3 && /Verbindung gescheitert nach \d+\.\d s; der Server ist von hier aus gar nicht erreichbar/.test(m4), n + ' ' + m4);
-      n = 0; global.fetch = async (u, i) => { n++; if (i && i.mode === 'no-cors') return { type: 'opaque', ok: false, status: 0 }; throw new TypeError('NetworkError'); };
+      n = 0; global.fetch = async (u, i) => { if (!/nominatim/.test(u)) return oldFetch(u, i); n++; if (i && i.mode === 'no-cors') return { type: 'opaque', ok: false, status: 0 }; throw new TypeError('NetworkError'); };
       let m5 = ''; try { await LM.search('Bochum'); } catch (e) { m5 = e.message; }
       check('search: antwortet der Server ohne Freigabe (Sperre) → Meldung sagt das', n === 3 && /Verbindung gescheitert nach \d+\.\d s; der Server antwortet, aber ohne Freigabe für Webseiten/.test(m5), n + ' ' + m5);
       global.fetch = oldFetch;
+    }
+    // Nominatim gar nicht erreichbar: Ersatzsuche und Ersatz-Grenze über Overpass
+    {
+      world.nomDown = true;
+      world.nameHits = [
+        { type: 'node', id: 11, lat: nlat(60), lon: nlon(60), tags: { place: 'city', name: 'Teststadt A', population: '120.000' } },
+        { type: 'relation', id: 111, center: { lat: nlat(61), lon: nlon(61) }, tags: { name: 'Teststadt A', boundary: 'administrative', admin_level: '6' } },
+        { type: 'node', id: 12, lat: 52.5, lon: 9.5, tags: { place: 'village', name: 'Teststadt A' } }];
+      world.calls.length = 0;
+      const alt = await LM.search('teststadt a');
+      check('search ohne Nominatim: Treffer vom Overpass-Server, Ort und Grenze zusammengeführt, größte Stadt zuerst', alt.length === 2 && alt[0].nrel === 111 && alt[0].nplace === 'city' && alt[0].npop === 120000 && alt[0].lat === nlat(60) && alt[1].npop === 0 && alt[0].sub === 'ca. 120.000 Einwohner', JSON.stringify(alt));
+      const sentQ = world.calls.filter(u => /overpass/.test(u)).length;
+      check('search ohne Nominatim: eine Overpass-Abfrage', sentQ === 1, sentQ);
+      world.nameHits = [];
+      let m6 = ''; try { await LM.search('Nirgendwo'); } catch (e) { m6 = e.message; }
+      check('search ohne Nominatim und ohne Treffer beim Ersatz: Fehler statt „nichts gefunden“', /Suche nicht erreichbar/.test(m6), m6);
+      const rj = LMCity.joinWays([[[0, 0], [0, 10]], [[10, 10], [0, 10]], [[10, 10], [10, 0]], [[10, 0], [0, 0]]]);
+      check('Wegstücke zu einem geschlossenen Ring zusammengesetzt (auch umgedreht, ungeordnet)', rj.length === 1 && rj[0].length === 5 && String(rj[0][0]) === String(rj[0][4]), JSON.stringify(rj));
+      check('offene Wegstücke ergeben keinen Ring', LMCity.joinWays([[[0, 0], [0, 10]], [[0, 10], [10, 10]]]).length === 0);
+      clear(); mem.delete('city:r111'); world.isinCalls = 0;
+      const c6 = await LMCity.resolve({ name: 'Teststadt A', lat: nlat(60), lon: nlon(60), rel: 111, place: 'city', pop: 120000 });
+      const ref6 = LMCity.fromGeoJSON(world.polys[111].g);
+      check('resolve ohne Nominatim: bekannte Beziehung → Grenze über Overpass, gleiche Fläche', !c6.approx && c6.id === 'r111' && /über Overpass/.test(LMCity.lastResolve.how) && Math.abs(c6.area - ref6.area) / ref6.area < 0.02 && LMCity.lastResolve.why.some(w => /lookup R111/.test(w)), JSON.stringify([c6.id, c6.approx, c6.area, ref6.area, LMCity.lastResolve]));
+      check('resolve ohne Nominatim: die Grenze wird gemerkt', mem.has('city:r111'));
+      clear(); mem.delete('city:r111');
+      const c7 = await LMCity.resolve({ name: 'Teststadt B', lat: nlat(60), lon: nlon(160) });
+      check('resolve ohne Nominatim und ohne Beziehung: Overpass is_in und Grenze über Overpass', !c7.approx && /Overpass is_in/.test(LMCity.lastResolve.how) && /über Overpass/.test(LMCity.lastResolve.how), JSON.stringify([c7.id, c7.approx, LMCity.lastResolve]));
+      world.nomDown = false; world.nameHits = [];
     }
   }
   // ---- Mehrere Overpass-Server: bevorzugter Server, parallele Anfrage bei Hänger, sofortiger Ersatz bei Fehler ----

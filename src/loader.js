@@ -38,7 +38,7 @@ const LM = (function () {
     }
     throw last;
   }
-  async function search(q) {
+  async function searchNominatim(q) {
     const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&accept-language=de&featuretype=settlement&extratags=1&q=' + encodeURIComponent(q);
     const r = await nomGet(url, 'Suche', 30000);
     const j = await r.json(), seen = new Set(), out = [];
@@ -53,6 +53,35 @@ const LM = (function () {
       out.push({ name, sub, lat, lon, nrel: x.osm_type === 'relation' && x.osm_id ? Number(x.osm_id) : 0, nplace: /^(city|town)$/.test(x.addresstype || x.type || '') ? (x.addresstype || x.type) : '', npop: parseInt(String((x.extratags && x.extratags.population) || '').replace(/[^0-9]/g, ''), 10) || 0 });
     }
     return out;
+  }
+  // Ersatz, wenn Nominatim von der Seite aus nicht zu erreichen ist: Ortsnamen direkt beim Overpass-Server suchen (Städte und Gemeinden mit genau diesem Namen)
+  async function searchOverpass(q) {
+    const base = String(q).trim().replace(/[\\"^$*+?()[\]{}|<>;&=%#@!~`]/g, '').replace(/\s+/g, ' ').slice(0, 60);
+    if (base.length < 2) return [];
+    const title = base.replace(/(^|[\s-])([a-zäöüß])/g, (m, a, b) => a + b.toUpperCase());
+    let body = '';
+    for (const n of new Set([base, title])) body += `node["place"~"^(city|town|village)$"]["name"="${n}"];rel["boundary"="administrative"]["admin_level"~"^[678]$"]["name"="${n}"];`;
+    const j = await overpass(`[out:json][timeout:30];(${body});out tags center 60;`, null, 1);
+    const items = [];
+    for (const el of j.elements || []) {
+      const t = el.tags || {}, c = el.type === 'relation' ? el.center : el;
+      if (!t.name || !c || !isFinite(c.lat) || !isFinite(c.lon)) continue;
+      const rel = el.type === 'relation' ? el.id : 0, pop = parseInt(String(t.population || '').replace(/[^0-9]/g, ''), 10) || 0;
+      // Ortspunkt und Grenze desselben Ortes zusammenführen (gleicher Name, weniger als ca. 25 km Abstand)
+      const same = items.find(x => x.name.toLowerCase() === t.name.toLowerCase() && Math.abs(x.lat - c.lat) < 0.25 && Math.abs(x.lon - c.lon) < 0.4);
+      if (same) { if (rel && !same.nrel) same.nrel = rel; if (el.type === 'node' && !same.node) { same.node = true; same.lat = c.lat; same.lon = c.lon; } if (/^(city|town)$/.test(t.place || '') && !same.nplace) same.nplace = t.place; same.npop = same.npop || pop; same.state = same.state || t['addr:state'] || t['is_in:state'] || ''; continue; }
+      items.push({ name: t.name, lat: c.lat, lon: c.lon, node: el.type === 'node', nrel: rel, nplace: /^(city|town)$/.test(t.place || '') ? t.place : '', npop: pop, state: t['addr:state'] || t['is_in:state'] || '' });
+    }
+    items.sort((a, b) => b.npop - a.npop || (b.nrel ? 1 : 0) - (a.nrel ? 1 : 0));
+    return items.slice(0, 8).map(x => ({ name: x.name, sub: x.state || (x.npop ? 'ca. ' + x.npop.toLocaleString('de-DE') + ' Einwohner' : ''), lat: x.lat, lon: x.lon, nrel: x.nrel, nplace: x.nplace, npop: x.npop }));
+  }
+  async function search(q) {
+    try { return await searchNominatim(q); }
+    catch (e) {
+      let alt = []; try { alt = await searchOverpass(q); } catch (e2) { throw new Error(e.message + ' · Ersatzsuche: ' + ((e2 && e2.message) || 'Fehler')); }
+      if (!alt.length) throw e;       // ein leeres Ergebnis des Ersatzes ist kein verlässliches „gibt es nicht“
+      return alt;
+    }
   }
 
   // ---------- Overpass ----------

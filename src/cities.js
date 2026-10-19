@@ -109,6 +109,47 @@ const LMCity = (function () {
     if (!g) throw new Error('Keine Stadtgrenze gefunden');
     return { g, rel, name: x.name || '', lat: Number(x.lat), lon: Number(x.lon), pop: popOf(x.extratags && x.extratags.population), level: parseInt(x.extratags && x.extratags.admin_level, 10) || 0 };
   }
+  // Ersatz für Nominatim: die Grenze einer Beziehung vom Overpass-Server holen. Die Wegstücke werden zu geschlossenen Ringen zusammengesetzt (Außenränder zählen plus, Innenränder minus).
+  function joinWays(ways) {
+    const key = p => p[0] + ',' + p[1], rings = [], todo = ways.map(w => w.slice());
+    while (todo.length) {
+      let cur = todo.pop();
+      for (let guard = 0; guard < 100000; guard++) {
+        if (key(cur[0]) === key(cur[cur.length - 1])) break;
+        const end = key(cur[cur.length - 1]), start = key(cur[0]);
+        let k = todo.findIndex(w => key(w[0]) === end || key(w[w.length - 1]) === end);
+        if (k >= 0) { const w = todo.splice(k, 1)[0]; cur = cur.concat(key(w[0]) === end ? w.slice(1) : w.slice(0, -1).reverse()); continue; }
+        k = todo.findIndex(w => key(w[0]) === start || key(w[w.length - 1]) === start);
+        if (k < 0) break;
+        const w = todo.splice(k, 1)[0]; cur = (key(w[w.length - 1]) === start ? w.slice(0, -1) : w.slice(1).reverse()).concat(cur);
+      }
+      if (cur.length >= 4 && key(cur[0]) === key(cur[cur.length - 1])) rings.push(cur);
+    }
+    return rings;
+  }
+  async function overpassPolygon(rel) {
+    const j = await LM.overpass(`[out:json][timeout:60];rel(${Number(rel)});out geom;`, null, 1);
+    const el = (j.elements || []).find(e => e.type === 'relation' && e.id === Number(rel));
+    if (!el || !el.members) throw new Error('Keine Stadtgrenze gefunden');
+    const outer = [], inner = [];
+    for (const m of el.members) if (m.type === 'way' && m.geometry && m.geometry.length > 1) (m.role === 'inner' ? inner : outer).push(m.geometry.map(p => [Math.round(p.lat * 1e5), Math.round(p.lon * 1e5)]));
+    const rings = [], thin = r => { const o = [r[0]]; for (let i = 1; i < r.length - 1; i++) { const l = o[o.length - 1]; if (Math.abs(r[i][0] - l[0]) + Math.abs(r[i][1] - l[1]) >= 15) o.push(r[i]); } o.push(r[r.length - 1]); return o; };
+    let area = 0;
+    for (const [list, sign] of [[outer, 1], [inner, -1]]) for (const r0 of joinWays(list)) {
+      const r = thin(r0); if (r.length < 4) continue;
+      const arr = new Int32Array(r.length * 2); r.forEach((p, i) => { arr[2 * i] = p[0]; arr[2 * i + 1] = p[1]; });
+      rings.push(arr); area += sign * ringArea(arr);
+    }
+    if (!rings.length || !outer.length) throw new Error('Grenze unvollständig');
+    const t = el.tags || {}, b = el.bounds || {};
+    return { g: { rings, area: Math.max(0, area) }, rel: Number(rel), name: t.name || '', lat: (b.minlat + b.maxlat) / 2, lon: (b.minlon + b.maxlon) / 2, pop: popOf(t.population), level: parseInt(t.admin_level, 10) || 0 };
+  }
+  // Grenze einer Beziehung: erst Nominatim (eine kleine Abfrage), sonst Overpass
+  async function polygonOf(rel, why) {
+    try { return await nominatimPolygon(rel); }
+    catch (e) { why.push('lookup R' + rel + ': ' + e.message); }
+    const p = await overpassPolygon(rel); p.viaOverpass = true; return p;
+  }
   // Die Stadt (Verwaltungsgrenze) um einen Punkt direkt bei Nominatim erfragen: eine einzige Abfrage, ohne den oft überlasteten Overpass-Server
   async function nominatimAround(lat, lon) {
     const x = await nominatimJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=' + lat.toFixed(6) + '&lon=' + lon.toFixed(6) + '&polygon_geojson=1&polygon_threshold=0.0003&extratags=1&accept-language=de', 'Stadtgrenze');
@@ -130,8 +171,8 @@ const LMCity = (function () {
     if (pl.rel) { const c = await store.get('city:r' + pl.rel); if (c && c.v === PACK_V && !c.approx) return cached(c); }
     else { const hit = await store.get(pk); if (hit && hit.id) { const c = await store.get('city:' + hit.id); if (c && c.v === PACK_V && !c.approx) return cached(c); } }
     if (pl.rel) {
-      try { p = await nominatimPolygon(pl.rel); how = 'Beziehung R' + pl.rel; if (!plausible(p, pl.lat, pl.lon)) { why.push('Grenze R' + pl.rel + ' unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; } }
-      catch (e) { why.push('lookup R' + pl.rel + ': ' + e.message); p = null; }
+      try { p = await polygonOf(pl.rel, why); how = 'Beziehung R' + pl.rel + (p.viaOverpass ? ' (über Overpass)' : ''); if (!plausible(p, pl.lat, pl.lon)) { why.push('Grenze R' + pl.rel + ' unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; } }
+      catch (e) { why.push('Overpass R' + pl.rel + ': ' + e.message); p = null; }
     }
     if (!p) {
       try { p = await nominatimAround(pl.lat, pl.lon); how = 'Nominatim reverse'; if (!plausible(p, pl.lat, pl.lon)) { why.push('reverse: Grenze unplausibel (' + (p.g.area || 0).toFixed(1) + ' km², Ort liegt ' + (inRings(p.g.rings, pl.lat, pl.lon) ? 'in' : 'nicht in') + ' der Grenze)'); p = null; } }
@@ -147,7 +188,7 @@ const LMCity = (function () {
         }
         if (!best) why.push('is_in: keine Gemeindegrenze in der Antwort (' + (j.elements || []).length + ' Treffer)');
         else {
-          p = await nominatimPolygon(best.id); how = 'Overpass is_in R' + best.id; p.pop = p.pop || best.pop; p.level = best.lv; p.name = best.name || p.name;
+          p = await polygonOf(best.id, why); how = 'Overpass is_in R' + best.id + (p.viaOverpass ? ' (Grenze über Overpass)' : ''); p.pop = p.pop || best.pop; p.level = best.lv; p.name = best.name || p.name;
           if (!plausible(p, pl.lat, pl.lon)) { why.push('is_in: Grenze unplausibel (' + (p.g.area || 0).toFixed(1) + ' km²)'); p = null; }
         }
       } catch (e) { why.push('is_in: ' + e.message); p = null; }
@@ -510,7 +551,7 @@ const LMCity = (function () {
     return { city: city.name, area: city.area, approx: city.approx, est, firmsSample: fr.length };
   }
 
-  return { PACK_V, TILE_ROADS, TILE_FIRMS, FIRM_CAP, store, nearby, resolve, tilesOf, tileTouches, inRings, inCity, fromGeoJSON, circle, ringArea, boxOf, cityOf,
+  return { joinWays, overpassPolygon, PACK_V, TILE_ROADS, TILE_FIRMS, FIRM_CAP, store, nearby, resolve, tilesOf, tileTouches, inRings, inCity, fromGeoJSON, circle, ringArea, boxOf, cityOf,
     compactTile, merge, forEngine, withCore, lastResolve, synthHomes, demand, prepare, link, gather, closestPair, linkOf, touches, partOf, loadRoads, loadFirms, loadCity, cached, probe, dist };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = LMCity;

@@ -41,8 +41,9 @@ def way_tags(kind, a, seg):
 
 class World:
     def __init__(self):
-        self.calls = {'roads': 0, 'places': 0, 'firms': 0, 'isin': 0, 'lookup': 0, 'nearby': 0, 'search': 0, 'reverse': 0}
+        self.calls = {'roads': 0, 'places': 0, 'firms': 0, 'isin': 0, 'lookup': 0, 'nearby': 0, 'search': 0, 'reverse': 0, 'namesearch': 0, 'relgeom': 0}
         self.no_reverse = False          # Nominatim reverse antwortet mit 429
+        self.nom_down = False            # Nominatim ist von der Seite aus gar nicht zu erreichen (Verbindung bricht ab)
         self.fail_roads = 0              # die nächsten n Straßenabfragen scheitern (504)
         self.offline = False             # alles scheitert
         self.no_link = False             # Abfragen nach großen Straßen (Verbindungen) bleiben leer
@@ -104,6 +105,23 @@ class World:
 
     def overpass(self, q):
         if self.offline: return None
+        if '["name"="' in q:                               # Ersatzsuche nach Ortsnamen
+            self.calls['namesearch'] += 1
+            names = set(re.findall(r'\["name"="([^"]+)"\]', q)); els = []
+            for rel, c in CITIES.items():
+                if c[0] not in names: continue
+                clat, clon = nlat((c[1] + c[2]) // 2), nlon((c[3] + c[4]) // 2)
+                els.append({'type': 'node', 'id': rel + 7000, 'lat': START[0] if rel == 111 else clat, 'lon': START[1] if rel == 111 else clon, 'tags': {'place': c[6], 'name': c[0], 'population': str(c[5])}})
+                els.append({'type': 'relation', 'id': rel, 'center': {'lat': clat, 'lon': clon}, 'tags': {'boundary': 'administrative', 'admin_level': '8', 'name': c[0], 'population': str(c[5])}})
+            return {'elements': els}
+        m = re.search(r'rel\((\d+)\);out geom', q)
+        if m:                                              # Grenze einer Beziehung als Wegstücke
+            self.calls['relgeom'] += 1
+            rel = int(m[1]); c = CITIES.get(rel)
+            if not c: return {'elements': []}
+            ring = poly(c); ways = [[{'lat': a[1], 'lon': a[0]}, {'lat': b[1], 'lon': b[0]}] for a, b in zip(ring, ring[1:])]
+            ways = [w[::-1] if k % 2 else w for k, w in enumerate(ways)][::-1]
+            return {'elements': [{'type': 'relation', 'id': rel, 'tags': {'boundary': 'administrative', 'admin_level': '8', 'name': c[0], 'population': str(c[5])}, 'members': [{'type': 'way', 'role': 'outer', 'geometry': g} for g in ways]}]}
         if '["place"~' in q:
             self.calls['nearby'] += 1
             m = re.search(r'around:(\d+),([\d.]+),([\d.]+)', q); R, la, lo = int(m[1]), float(m[2]), float(m[3])
@@ -168,6 +186,7 @@ class World:
             await route.fulfill(status=200, headers=J, body=json.dumps(r))
 
         async def no(route, request):
+            if self.nom_down: return await route.abort()
             r = self.nominatim(request.url)
             if r is None: return await route.abort()
             if r == 'fail': return await route.fulfill(status=429, headers=CORS, body='')
