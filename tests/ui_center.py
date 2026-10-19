@@ -383,7 +383,7 @@ async def main():
             ok('F12 Pfeiltasten wandern durch die sortierte Liste und springen am Anfang nach hinten', a1 == mk['B'] and a2 == mk['A'] and a3 == mk['E'], str([a1, a2, a3]))
             # Karte: Hover und Klick auf eine Bestellung
             await pg.evaluate("__lm.cen.sel.order = null")
-            tgt = [o for o in await pg.evaluate("__lm.cen.orders().map(o=>({id:o.id,x:o.x,y:o.y,firm:o.firm,name:o.name,street:o.street,n:o.n,wh:o.wh}))") if o['id'] == mk['D']][0]
+            tgt = [o for o in await pg.evaluate("__lm.cen.orders().map(o=>({id:o.id,x:o.x,y:o.y,firm:o.firm,name:o.name,street:o.street,n:o.n,wh:o.wh}))") if o['id'] == mk['B']][0]
             # zufällig entstandene Bestellungen derselben Firma am selben Ort würden den Treffer verdecken: weg damit
             # die fünf festen Bestellungen A–E bleiben erhalten (sie werden weiter unten gebraucht): liegt eine zu nah, wird sie 400 m verschoben
             await pg.evaluate("a=>{const L=__lm.cen.orders(), keep=new Set(Object.values(a.mk)); for(let i=L.length-1;i>=0;i--) if(L[i].id!==a.id&&Math.hypot(L[i].x-a.x,L[i].y-a.y)<30){ if(keep.has(L[i].id)) L[i].x+=400; else L.splice(i,1); }}", dict(tgt, mk={k: v for k, v in mk.items() if k != 't'}))
@@ -393,9 +393,32 @@ async def main():
             await pg.mouse.move(xy[0] + 40, xy[1] + 40); await pg.mouse.move(xy[0], xy[1]); await pg.wait_for_timeout(250)
             tip = await txt(pg, '#tip')
             dbg = await pg.evaluate("a=>{const r=document.getElementById('map').getBoundingClientRect(); const e=document.elementFromPoint(a[0],a[1]); return {el:e?e.id+'/'+e.tagName+'/'+e.className:null, z:__lm.view.cam.z, view:__lm.cen.view(), rect:[r.left,r.top,r.width,r.height], win:!document.getElementById('win').hidden, sh:document.documentElement.scrollHeight, ih:innerHeight, sy:scrollY}}", xy)
-            ok('F13 Zeigen auf eine Bestellung nennt Nummer, Firma, Menge, Fenster und Lohn', await vis(pg, '#tip') and ('#%d' % mk['D']) in tip and tgt['name'] in tip and '10–14 Uhr' in tip and '€' in tip, tip + str(xy) + str(dbg))
+            ok('F13 Zeigen auf eine Bestellung von heute nennt Nummer, Firma, Menge, Fenster und Lohn', await vis(pg, '#tip') and ('#%d' % mk['B']) in tip and tgt['name'] in tip and '9–11 Uhr' in tip and '€' in tip, tip + str(xy) + str(dbg))
+            # Form auf der Karte: Firma = Quadrat (die Ecke liegt noch im Feld), Privatperson = Kreis (die Ecke ist Hintergrund)
+            SHAPE = """a=>{const cv=document.getElementById('map'), x=cv.getContext('2d'), k=cv.width/cv.clientWidth, px=(dx,dy)=>Array.from(x.getImageData(Math.round((__lm.view.toX(a.x)+dx)*k), Math.round((__lm.view.toY(a.y)+dy)*k), 1, 1).data).slice(0,3).join(); return {c:px(0,0), corner:px(3.4,3.4), far:px(40,40)}}"""
+            shB = await pg.evaluate(SHAPE, tgt)
+            ok('F13b Firma ist auf der Karte ein Quadrat (Ecke hat die Farbe der Mitte)', shB['c'] == shB['corner'] and shB['c'] != shB['far'], str(shB))
+            tgtA = [o for o in await pg.evaluate("__lm.cen.orders().map(o=>({id:o.id,x:o.x,y:o.y}))") if o['id'] == mk['A']][0]
+            await pg.evaluate("a=>{const c=__lm.view.cam; __lm.view.look(a.x,a.y,Math.max(c.z,1))}", tgtA); await pg.wait_for_timeout(400)
+            shA = await pg.evaluate(SHAPE, tgtA)
+            ok('F13c Privatperson ist auf der Karte ein Kreis (Ecke ist Hintergrund)', shA['c'] != shA['far'] and shA['corner'] != shA['c'], str(shA))
+            await pg.evaluate("a=>{const c=__lm.view.cam; __lm.view.look(a.x,a.y,Math.max(c.z,1))}", tgt); await pg.wait_for_timeout(400)
+            await pg.mouse.move(xy[0] + 40, xy[1] + 40); await pg.mouse.move(xy[0], xy[1]); await pg.wait_for_timeout(250)
             await pg.mouse.click(xy[0], xy[1]); await pg.wait_for_timeout(400)
-            ok('F14 Klick auf die Bestellung in der Karte wählt sie in der Liste', await pg.evaluate("__lm.cen.sel.order") == mk['D'] and await pg.evaluate("document.querySelector('#colist li[data-id=\"%d\"]').classList.contains('sel')" % mk['D']))
+            ok('F14 Klick auf die Bestellung in der Karte wählt sie in der Liste', await pg.evaluate("__lm.cen.sel.order") == mk['B'] and await pg.evaluate("document.querySelector('#colist li[data-id=\"%d\"]').classList.contains('sel')" % mk['B']))
+            # nur die Kunden von heute stehen auf der Karte: Bestellung für morgen (D) und übermorgen (C) nicht, außer sie ist in der Liste gewählt
+            await pg.evaluate("__lm.cen.sel.order = null")
+            vis3 = await pg.evaluate("a=>Object.fromEntries(Object.entries(a).map(([k,id])=>[k, __lm.cen.onMap(__lm.cen.orders().find(o=>o.id===id))]))", {k: mk[k] for k in 'ABCDE'})
+            ok('F14b Karte zeigt nur Kunden von heute (A, B), nicht morgen (C, D) oder später (E)', vis3 == {'A': True, 'B': True, 'C': False, 'D': False, 'E': False}, str(vis3))
+            tgtD = [o for o in await pg.evaluate("__lm.cen.orders().map(o=>({id:o.id,x:o.x,y:o.y}))") if o['id'] == mk['D']][0]
+            await pg.evaluate("a=>{const c=__lm.view.cam; __lm.view.look(a.x,a.y,Math.max(c.z,1))}", tgtD); await pg.wait_for_timeout(400)
+            xyD = await pg.evaluate("a=>{const r=document.getElementById('map').getBoundingClientRect(); return [r.left+__lm.view.toX(a.x), r.top+__lm.view.toY(a.y)]}", tgtD)
+            await pg.mouse.move(xyD[0] + 40, xyD[1] + 40); await pg.mouse.move(xyD[0], xyD[1]); await pg.wait_for_timeout(250)
+            ok('F14c Bestellung für morgen: auf der Karte nichts zum Zeigen', not await vis(pg, '#tip') or ('#%d' % mk['D']) not in await txt(pg, '#tip'))
+            await pg.click('#colist li[data-id="%d"] .ocard' % mk['D']); await pg.wait_for_timeout(300)
+            shD = await pg.evaluate(SHAPE, tgtD)
+            ok('F14d In der Liste gewählt: die Bestellung für morgen erscheint auf der Karte (Quadrat)', await pg.evaluate("__lm.cen.onMap(__lm.cen.orders().find(o=>o.id===%d))" % mk['D']) and shD['c'] == shD['corner'] and shD['c'] != shD['far'], str(shD))
+            await pg.click('#colist li[data-id="%d"] .ocard' % mk['D']); await pg.wait_for_timeout(300)
             await pg.screenshot(path=OUT + 'cen_view.png')
             # Center in der Karte: Klick öffnet den Ausbau, Zeigen nennt Gebiet und Transporter
             cc = await pg.evaluate("(()=>{const c=__lm.cen.centers()[1]; return {x:c.x,y:c.y}})()")
@@ -527,7 +550,7 @@ async def main():
             await pg5.click('#viewSeg button[data-v=cen]'); await pg5.wait_for_timeout(300)
             await pg5.evaluate("()=>{const b=[...document.querySelectorAll('#tabbar button')].find(x=>/Aufträge/.test(x.textContent)); if (b) b.click()}"); await pg5.wait_for_timeout(500)
             go = await pg5.evaluate("""()=>{const vw=innerWidth, rows=[...document.querySelectorAll('#colist li.order')]; return {n:rows.length, vis:!!document.getElementById('cenOrders').offsetParent, hqVis:!!document.getElementById('hqOrders').offsetParent, over:rows.filter(l=>l.getBoundingClientRect().right>vw+1||l.scrollWidth>l.clientWidth+1).length, docW:document.documentElement.scrollWidth, vw}}""")
-            ok('I2 Aufträge-Reiter am Handy: Center-Liste mit 10 Zeilen, nichts läuft über', go['n'] == 10 and go['vis'] and not go['hqVis'] and go['over'] == 0 and go['docW'] <= go['vw'], str(go))
+            ok('I2 Aufträge-Reiter am Handy: Center-Liste mit den 10 Zeilen (ggf. eine zufällig entstandene dazu), nichts läuft über', 10 <= go['n'] <= 12 and go['vis'] and not go['hqVis'] and go['over'] == 0 and go['docW'] <= go['vw'], str(go))
             await pg5.click('#colist li.order >> nth=0 >> .ocard'); await pg5.wait_for_timeout(300)
             ok('I3 Auswahl per Tippen funktioniert am Handy', await pg5.evaluate("__lm.cen.sel.order") is not None)
             await pg5.screenshot(path=OUT + 'cen_mobile_orders.png')

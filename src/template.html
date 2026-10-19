@@ -179,6 +179,8 @@ kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(-
 .dayhdr { font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 6px 2px 0; }
 .dayhdr:first-child { padding-top: 0; }
 .order.firm { border-left: 3px solid var(--signal); }
+.cshape { display: inline-block; width: 9px; height: 9px; margin-right: 7px; background: var(--signal); border-radius: 50%; vertical-align: 0; }
+.cshape.sq { border-radius: 2px; }
 .o-st { font: 500 11px var(--font-mono); color: var(--muted); }
 .o-st.run { color: var(--ok); } .o-st.over { color: var(--warn); }
 .cbox .cinfo { margin: 0; }
@@ -1196,17 +1198,20 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   // Kunden des Centers: Kreis = Privatperson, Quadrat = Firma. Blau/orange = Fenster noch nicht offen, grün = Fenster läuft, rot = Fenster vorbei.
   function cenOrderColor(o) { return simClock > o.we ? '#e0402a' : simClock >= o.ws ? T.ok : T.signal; }
+  // Auf der Karte stehen nur die Kunden des aktuellen Tages (beim Planen einer Tour: des Tages der Abfahrt) und die in der Liste gewählte Bestellung.
+  const mapDay = () => tp.open ? tp.day : Math.floor(absT() / 86400);
+  const orderOnMap = o => (o.state === 'open' || o.state === 'tour') && (o.day === mapDay() || csel.order === o.id);
+  // Form eines Kunden: Quadrat (leicht gerundet) = Firma, Kreis = Privatperson; c = Mittelpunkt, r = halbe Kantenlänge bzw. Radius
+  function custShape(firm, x, y, r) { ctx.beginPath(); if (!firm) ctx.arc(x, y, r, 0, 6.283); else if (ctx.roundRect) ctx.roundRect(x - r, y - r, 2 * r, 2 * r, Math.max(1.5, r * 0.22)); else ctx.rect(x - r, y - r, 2 * r, 2 * r); }
   function drawCenterOrders() {
     ctx.font = '600 12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const today = Math.floor(absT() / 86400);
     for (const o of corders) {
-      if (o.state !== 'open' && o.state !== 'tour') continue;
-      const x = toX(o.x), y = toY(o.y), isSel = csel.order === o.id, col = cenOrderColor(o), r = isSel ? 7 : 5;
-      ctx.globalAlpha = o.day === today || isSel ? 1 : 0.5;
+      if (!orderOnMap(o)) continue;
+      const x = toX(o.x), y = toY(o.y), isSel = csel.order === o.id, col = cenOrderColor(o), r = (isSel ? 7 : 5) + (o.firm ? 0.5 : 0);
+      ctx.globalAlpha = 1;
       ctx.fillStyle = col;
-      if (isSel) { ctx.beginPath(); ctx.arc(x, y, r + 7, 0, 6.283); ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1; }
-      ctx.beginPath();
-      if (o.firm) ctx.rect(x - r, y - r, 2 * r, 2 * r); else ctx.arc(x, y, r, 0, 6.283);
+      if (isSel) { custShape(o.firm, x, y, r + 7); ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1; }
+      custShape(o.firm, x, y, r);
       ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
       if (o.state === 'tour') { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.283); ctx.fillStyle = T.mapbg; ctx.fill(); }
       if (isSel) halo((o.firm ? o.name : o.street || 'Kunde') + ' · ' + LMC.winLabel(o.wh[0], o.wh[1]), x + 14, y - 2, T.ink);
@@ -2738,7 +2743,7 @@ function startGame(DATA, MODEKEY, PRE) {
 
   // Liste der Center-Bestellungen: nach Tag und Fenster sortiert
   const colist = $('colist'); let coRows = [];
-  const cenOrderList = () => { if (tp.open) return tpCand().sort((a, b) => a.day - b.day || a.ws - b.ws || a.id - b.id); const f = $('cenSel').value || 'all'; return corders.filter(o => (o.state === 'open' || o.state === 'tour') && (f === 'all' || String(o.c) === f)).sort((a, b) => a.day - b.day || a.ws - b.ws || a.id - b.id); };
+  const cenOrderList = () => { if (tp.open) return tpCand().sort((a, b) => a.day - b.day || a.ws - b.ws || a.id - b.id); const f = $('cenSel').value || 'all'; return corders.filter(o => o.state === 'open' && (f === 'all' || String(o.c) === f)).sort((a, b) => a.day - b.day || a.ws - b.ws || a.id - b.id); };
   function dayHead(day) { const t = Math.floor(absT() / 86400), nm = dayL[LMC.wdOf(day)]; return day === t ? 'Heute · ' + nm : day === t + 1 ? 'Morgen · ' + nm : nm; }
   function selectCenOrder(id) { csel.order = csel.order === id ? null : id; cenOrdersDirty = true; dirty = true; }
   function cycleCenOrder(dir) {
@@ -2754,7 +2759,7 @@ function startGame(DATA, MODEKEY, PRE) {
     for (const o of list) {
       if (o.day !== lastDay) { lastDay = o.day; colist.appendChild(elt('li', 'dayhdr', dayHead(o.day))); }
       const li = elt('li', 'order' + (o.firm ? ' firm' : '') + (csel.order === o.id ? ' sel' : '')), b = elt('button', 'ocard'); b.type = 'button';
-      const top = elt('span', 'o-top'), nm = elt('strong', null, o.firm ? o.name : (o.street || 'Privatkunde')), pay = elt('span', 'o-pay', eur(o.pay)); top.append(nm, pay);
+      const top = elt('span', 'o-top'), nm = elt('strong', null, o.firm ? o.name : (o.street || 'Privatkunde')), pay = elt('span', 'o-pay', eur(o.pay)); nm.prepend(elt('i', 'cshape' + (o.firm ? ' sq' : ''))); top.append(nm, pay);
       const sub = elt('span', 'o-sub', (multi ? 'C' + (o.c + 1) + ' · ' : '') + '#' + o.id + ' · ' + (o.firm ? (E.FIRM_LABEL[o.kind] || 'Firma') : 'Privat') + ' · ' + o.n + (o.n === 1 ? ' Paket' : ' Pakete') + (o.firm && o.street ? ' · ' + o.street : ''));
       const age = elt('span', 'o-age'), st = elt('span', 'o-st'); age.append(elt('span', null, LMC.winLabel(o.wh[0], o.wh[1])), st);
       b.append(top, sub, age); li.appendChild(b); li.dataset.id = String(o.id); b.setAttribute('aria-pressed', String(csel.order === o.id));
@@ -2767,7 +2772,7 @@ function startGame(DATA, MODEKEY, PRE) {
       colist.appendChild(li); coRows.push({ o, st });
     }
     setText($('cocount'), String(list.length));
-    setText($('cohint'), tp.open ? (list.length ? 'Es werden nur Bestellungen gezeigt, die zu dieser Abfahrt passen (gleicher Tag, rechtzeitig vor Annahmeschluss). Du kannst sie auch auf der Karte antippen.' : 'Für diese Abfahrt liegt keine passende Bestellung vor.') : centers.length ? (list.length ? 'Karte: Kreis = Privatperson, Quadrat = Firma. Wähle „Tour planen“, um Bestellungen zu einer Tour zusammenzufassen.' : 'Noch keine Bestellungen. Das Center braucht mindestens einen Transporter und einen Fahrer.') : '');
+    setText($('cohint'), tp.open ? (list.length ? 'Es werden nur Bestellungen gezeigt, die zu dieser Abfahrt passen (gleicher Tag, rechtzeitig vor Annahmeschluss). Du kannst sie auch auf der Karte antippen.' : 'Für diese Abfahrt liegt keine passende Bestellung vor.') : centers.length ? (list.length ? 'Karte: Kreis = Privatperson, Quadrat = Firma; sie zeigt nur die Kunden von heute (die Liste auch die der nächsten Tage). Wähle „Tour planen“, um Bestellungen zu einer Tour zusammenzufassen; Bestellungen in einer Tour stehen dann bei den Touren.' : 'Noch keine Bestellungen. Das Center braucht mindestens einen Transporter und einen Fahrer.') : '');
     updateCenOrderTexts();
   }
   const fmtHM = s => { s = Math.max(0, Math.round(s / 60)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' h'; };
@@ -3034,7 +3039,7 @@ function startGame(DATA, MODEKEY, PRE) {
   }
   function stopMark(o, label, col) {
     const x = toX(o.x), y = toY(o.y);
-    ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.283); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
+    custShape(o.firm, x, y, 10); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.mapbg; ctx.stroke();
     ctx.fillStyle = T.mapbg; ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, x, y + 0.5);
   }
   function drawTours() {
@@ -3431,7 +3436,7 @@ function startGame(DATA, MODEKEY, PRE) {
     let best = null, bd = r * r;
     const test = (x, y, v) => { const dx = toX(x) - px, dy = toY(y) - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = v; } };
     if (uiView === 'cen') {
-      for (const o of corders) if (o.state === 'open' || o.state === 'tour') test(o.x, o.y, { kind: 'corder', o });
+      for (const o of corders) if (orderOnMap(o)) test(o.x, o.y, { kind: 'corder', o });
       for (const c of centers) for (const Tr of c.tours) if (Tr.st !== 'plan') { const q = tourPos(Tr); test(q.x, q.y, { kind: 'van', c, Tr }); }
     }
     if (uiView !== 'cen') {
@@ -3574,7 +3579,7 @@ function startGame(DATA, MODEKEY, PRE) {
     else if (!paused) stepSim(dt * speed, now);
     setText($('clock'), fmtClock(simClock));
     if (orderStructDirty) { orderStructDirty = false; renderOrders(); }
-    if (uiView === 'cen') { if (cenStruct) renderCenters(); if (cenOrdersDirty || Math.floor(absT() / 86400) !== cenDaySig) renderCenOrders(); tourUi(); }
+    if (uiView === 'cen') { if (cenStruct) renderCenters(); if (cenOrdersDirty || Math.floor(absT() / 86400) !== cenDaySig) { renderCenOrders(); dirty = true; } tourUi(); }
     if (driverStructDirty) { driverStructDirty = false; renderDrivers(); if (plansDirty) orderStructDirty = true; }
     stepAnim(now);
     if (now - lastUi > 250 || dirty) { lastUi = now; updateAges(); updateDriverTexts(); updateStats(); checkAch(); tabInfo(); syncHire(); if (uiView === 'cen') { updateCenterTexts(); updateCenOrderTexts(); } if (DEMO && firmState === 'none' && firmRetryAt && Date.now() > firmRetryAt && centers.length) { firmRetryAt = 0; startFirms(); } if (!winEl.hidden) { if (win.kind === 'hq') { updateUpgrades(); updatePartners(); } else if (win.kind === 'st') updateStatWin(); else updateDriverWin(); } }
@@ -4365,7 +4370,7 @@ function startGame(DATA, MODEKEY, PRE) {
   const worldWx = (k0, k1) => { const o = []; for (let k = k0; k < k1; k++) o.push(wxAtSlot(k)); return o; };
   const worldExp = (t0, t1) => { const o = { jam: 0, crash: 0, works: 0, fest: 0, city: 0 }; for (let t = t0; t < t1; t += 300) { for (const k of Object.keys(TCELL)) o[k] += evRate(k, t - WORLD.t0) * 300; o.city += 300 / cityMean(); } return o; };
   window.__lm = { adv: (sec, dt) => { dt = dt || 10; for (let t = 0; t < sec; t += dt) stepSim(Math.min(dt, sec - t), performance.now()); dirty = true; }, save: { snapshot, normalizeSave, applySave }, fx: { avoidQ, tipMax, kmCostOf, levelMult, capOf, zr, hubOf, hl, dl, ZMAX, umax }, view: { cam, toX, toY, unX, unY, camSet, flyTo, fit, fitTarget, showWorld, zRange, target, look: (x, y, z) => camSet(U0 + x * KU + cam.w, yv(y), z), zOfS, LOD, base: () => base, on: baseOn, nodeXY: i => [nx[i], ny[i]], px: i => [(nu[i] - (cam.u - cam.w)) * cam.K + cw / 2, (nv[i] - cam.v) * cam.K + ch / 2], size: () => [cw, ch] }, world: { WORLD, setHour: (h, di) => { START = (di === undefined ? 5 : di) * 86400 + h * 3600 - simClock; traffic.t = -1e9; refreshTraffic(true); dirty = true; }, hash, worldDump, worldWx, worldExp, setSeed: n => { WORLD.seed = n >>> 0; wxChain = []; }, teScan: () => teScan }, spawnTrafficEvent, tevents: () => tevents, drivers: () => drivers, owned, E, buy: buyUpgrade, sim: () => simClock, setCash: v => { cash = v; }, cash: () => cash, stats, bill, placeHub, hubs: () => hubs, absence: away => { const r = onlineAbsence(away); lastG = LMO.world.gameNow(); return r; }, value: companyValue, push: cloudPush, rank: refreshRank, net: onNet, halted: () => halted, orders: () => orders.length, worldT, rk, auto: v => { autoOn = v; },
-    cen: { centers: () => centers, orders: () => corders, firms: () => firms, firmState: () => firmState, startPlacing, build: placeCenter, buyVan, sellVan, hire: hireCenDriver, fire: fireCenDriver, train: trainCenDriver, spawn: spawnCenterOrder, tick: tickCenters, expire: expireCenter,
+    cen: { centers: () => centers, orders: () => corders, onMap: orderOnMap, firms: () => firms, firmState: () => firmState, startPlacing, build: placeCenter, buyVan, sellVan, hire: hireCenDriver, fire: fireCenDriver, train: trainCenDriver, spawn: spawnCenterOrder, tick: tickCenters, expire: expireCenter,
       setView, view: () => uiView, upg: buyCenUpgrade, stats: cstats, startFirms, simOf, cSlots, cPool, cStops, zone: cenZone, sel: csel, absT, vanSeq: () => vanSeq, cenName,
       auto: v => { cenAuto = v; }, cities: () => [...cityRT.values()], demand: ci => cenDemand(centers[ci]), refit: refitCenterOrders, full: cenFull, cap: cenCap, tour: { list: ci => centers[ci].tours, plan: planTour, cancel: cancelTour, calc: (ci, d, day, k, ids) => planCalc(centers[ci], d, day, k, ids), seq: () => tourSeq, slots: n => LMC.upcoming(absT(), n || 8), pos: tourPos, node: tourNode, reserved: vanReserved, begin: (ci, id) => { const c = centers[ci]; beginTour(c, ci, c.tours.find(t => t.id === id)); }, slowF, neutral: neutralLeg } } }; }
   setInterval(() => saveNow(false), 15000);
